@@ -16,8 +16,6 @@ This fork is published as a separate PyPI package (`vith`) and is not a drop-in 
 pip install vith
 ```
 
-![Welcome screen](docs/images/welcome-screen.png)
-
 This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds two large, machine-verified plans (documented in the `docs/` Open Knowledge bundle):
 
 - **Thai & Lao script support**: terminal cell-cluster navigation and editing (`h`, `l`, `j`, `k`, `x`, `X`, `s`, `r`, `~`, `$`, `e`...), two-tier Thai word segmentation (`libthai` with an always-available orthographic fallback) and SARA AM (`U+0E33`/`U+0EB3`) differential renderer fixes. See [`docs/thai_support_plan.md`](docs/thai_support_plan.md).
@@ -62,28 +60,6 @@ We have already many nice things, for instance:
 Further, when the project develops, it should also become possible to write extensions in Python, and use Python as a scripting language. (Instead of vimscript, for instance.)
 
 We can also do some cool stuff. Like for instance running the editor on the Python asyncio event loop and having other coroutines interact with the editor.
-
-## Some more screenshots
-
-Editing source code:
-
-![Editing vith source](docs/images/editing-vith-source.png)
-
-Window layouts (horizontal and vertical splits + tab pages):
-
-![Window layouts](docs/images/window-layout.png)
-
-Pyflakes for Python code checking and Jedi for autocompletion:
-
-![Pyflakes and Jedi](docs/images/pyflakes-and-jedi.png)
-
-Other colorschemes:
-
-![Colorschemes](docs/images/colorschemes.png)
-
-Chinese and Japanese input (double width characters):
-
-![CJK](docs/images/cjk.png)
 
 ## Configuring vith
 
