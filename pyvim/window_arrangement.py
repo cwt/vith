@@ -492,9 +492,7 @@ class WindowArrangement(object):
             if t.window_count() == 0:
                 self.tab_pages.remove(t)
 
-                if i < self.active_tab_index:
-                    self.active_tab_index = max(0, self.active_tab_index - 1)
-                elif i == self.active_tab_index:
+                if i <= self.active_tab_index:
                     self.active_tab_index = max(0, self.active_tab_index - 1)
 
         # When there are no windows/tabs left, create a new tab.

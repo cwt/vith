@@ -10,8 +10,6 @@ Usage::
     errors = report('location.py', Document('file content'))
 """
 
-import string
-
 import pyflakes.api
 
 __all__ = ('report', 'checks_python_file')
@@ -69,9 +67,6 @@ def report(location, document):
         return report_pyflakes(document)
     else:
         return []
-
-
-WORD_CHARACTERS = string.ascii_letters + '0123456789_'
 
 
 def report_pyflakes(document):
