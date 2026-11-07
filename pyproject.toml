@@ -6,12 +6,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vith"
-version = "0.9.0"
+version = "0.9.1"
 description = "Vith — a pure-Python Vi clone with Thai & Lao script support (fork of pyvim)"
 readme = "README.md"
 license = "BSD-3-Clause"
 authors = [
-    { name = "Jonathan Slenders" },
     { name = "Chaiwat Suttipongsakul", email = "cwt@bashell.com" },
 ]
 maintainers = [
