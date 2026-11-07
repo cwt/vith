@@ -35,6 +35,12 @@ Simply install `vith` using pip:
 pip install vith
 ```
 
+For Python autocompletion support (via Jedi):
+
+```sh
+pip install "vith[jedi]"
+```
+
 It is a good idea to add the following to your `~/.bashrc` if you really want to use it:
 
 ```sh

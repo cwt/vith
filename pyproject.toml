@@ -35,9 +35,14 @@ classifiers = [
     "Topic :: Text Editors",
     "Topic :: Text Editors :: Text Processing",
 ]
-urls = { Homepage = "https://github.com/cwt/pyvim",
-         Repository = "https://github.com/cwt/pyvim.git",
+urls = { Homepage = "https://github.com/cwt/vith",
+         Repository = "https://github.com/cwt/vith.git",
          Upstream = "https://github.com/prompt-toolkit/pyvim" }
+
+[project.optional-dependencies]
+jedi = [
+    "jedi",
+]
 
 [project.scripts]
 vith = "vith.entry_points.run_vith:run"
