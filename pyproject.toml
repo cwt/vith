@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vith"
+version = "0.9.0"
 description = "Vith — a pure-Python Vi clone with Thai & Lao script support (fork of pyvim)"
 readme = "README.md"
 license = { text = "BSD-3-Clause" }
@@ -23,7 +24,6 @@ dependencies = [
     "pygments",
     "docopt",
 ]
-dynamic = ["version"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -44,9 +44,6 @@ vith = "vith.entry_points.run_vith:run"
 
 [tool.setuptools.packages.find]
 include = ["vith*"]
-
-[tool.setuptools.dynamic]
-version = { attr = "vith.__version__" }
 
 [tool.ruff]
 target-version = "py310"
