@@ -1,15 +1,14 @@
 ---
 type: architecture_guideline
-title: "Thai & Lao Script Support Plan for pyvim"
-description: "Detailed root-cause analysis, cell-cluster architecture (adapted from szn), Sara Am differential rendering refresh, version-gated prompt_toolkit integration, and test matrix for Thai/Lao in pyvim - IMPLEMENTED and machine-verified."
+title: "Thai & Lao Script Support Plan for vith"
+description: "Detailed root-cause analysis, cell-cluster architecture (adapted from szn), Sara Am differential rendering refresh, version-gated prompt_toolkit integration, and test matrix for Thai/Lao in vith - IMPLEMENTED and machine-verified."
 status: stable
 sources:
-  - ../setup.py
-  - ../pyvim/thai.py
-  - ../pyvim/editor.py
-  - ../pyvim/editor_buffer.py
-  - ../pyvim/key_bindings.py
-  - ../pyvim/layout.py
+  - ../vith/thai.py
+  - ../vith/editor.py
+  - ../vith/editor_buffer.py
+  - ../vith/key_bindings.py
+  - ../vith/layout.py
   - ../tools/bench_plans.py
   - ../tests/test_thai.py
   - ../tests/test_thai_motions.py
@@ -22,9 +21,9 @@ generated:
 timestamp: 2026-11-06T08:00:00Z
 ---
 
-# Thai & Lao Script Support Plan for `pyvim`
+# Thai & Lao Script Support Plan for `vith`
 
-This document specifies the root causes of broken Thai/Lao cursor navigation, editing, and terminal rendering in `pyvim`, and details how to adapt the cell-cluster and renderer architecture from `szn` (`src/thai.zig`, `src/grid.zig`, `src/mode_copy.zig`, `src/server/render.zig`) into `pyvim` with sub-microsecond (`< 1 µs`) per-keypress overhead[^src-thai][^src-key-bindings][^src-layout][^src-bench]. **Status: all of Phases 1–4 are implemented and machine-verified** (`pyvim/thai.py`, `pyvim/key_bindings.py`, `pyvim/editor.py`, and 18 unit tests in `tests/test_thai.py` and 6 in `tests/test_thai_motions.py`, 100+ total tests passing, Python 3.10+ AST and mypy clean).
+This document specifies the root causes of broken Thai/Lao cursor navigation, editing, and terminal rendering in `vith`, and details how to adapt the cell-cluster and renderer architecture from `szn` (`src/thai.zig`, `src/grid.zig`, `src/mode_copy.zig`, `src/server/render.zig`) into `vith` with sub-microsecond (`< 1 µs`) per-keypress overhead[^src-thai][^src-key-bindings][^src-layout][^src-bench]. **Status: all of Phases 1–4 are implemented and machine-verified** (`vith/thai.py`, `vith/key_bindings.py`, `vith/editor.py`, and 18 unit tests in `tests/test_thai.py` and 6 in `tests/test_thai_motions.py`, 100+ total tests passing, Python 3.10+ AST and mypy clean).
 
 ---
 
@@ -80,9 +79,9 @@ All cell starts (`cell_starts`), full stop lists including EOL (`stops`), revers
 
 ---
 
-## 2. Root-Cause Audit: `prompt_toolkit` vs. `pyvim`
+## 2. Root-Cause Audit: `prompt_toolkit` vs. `vith`
 
-`pyvim` delegates its text buffer (`Document`, `Buffer`), Vi keybindings (`load_vi_bindings`), screen layout (`BufferControl`, `Window`), and differential terminal output (`_output_screen_diff`) to `prompt_toolkit` (`3.0.53` in the target environment, constrained to `>=2.0.0,<3.1.0` in `setup.py:20`[^src-setup])[^src-editor].
+`vith` delegates its text buffer (`Document`, `Buffer`), Vi keybindings (`load_vi_bindings`), screen layout (`BufferControl`, `Window`), and differential terminal output (`_output_screen_diff`) to `prompt_toolkit` (`3.0.53` in the target environment, constrained to `>=2.0.0,<3.1.0` in `pyproject.toml`)[^src-setup])[^src-editor].
 
 | Layer | File & Line (`prompt_toolkit 3.0.53`) | Current Implementation | Exact Failure Mode on Thai/Lao |
 | :--- | :--- | :--- | :--- |
@@ -96,9 +95,9 @@ All cell starts (`cell_starts`), full stop lists including EOL (`stops`), revers
 
 ## 3. Architecture Adapted from `szn` & Reproducible Performance
 
-### 3.1 Porting `szn/src/thai.zig` to `pyvim/thai.py`
+### 3.1 Porting `szn/src/thai.zig` to `vith/thai.py`
 
-We create a dedicated module `pyvim/thai.py` ported from `szn/src/thai.zig:6-135, 263-326, 700-792`:
+We create a dedicated module `vith/thai.py` ported from `szn/src/thai.zig:6-135, 263-326, 700-792`:
 
 ```python
 from __future__ import annotations
@@ -345,12 +344,12 @@ Running `python tools/bench_plans.py` confirms all cell stops, reverse `prev_cel
 
 ### 4.1 Architectural Safeguard: Version Gating & Fallbacks (`prompt_toolkit >=2.0.0,<3.1.0`)
 
-Because `setup.py:24` declares `prompt_toolkit>=3.0.0,<3.1.0`[^src-setup], `install_prompt_toolkit_thai_patches()` in `pyvim/thai.py` (called once from `Editor.__init__` in `pyvim/editor.py`[^src-editor]) guards every hook with:
+Because `pyproject.toml` declares `prompt_toolkit>=3.0.0,<3.1.0`[^src-setup], `install_prompt_toolkit_thai_patches()` in `vith/thai.py` (called once from `Editor.__init__` in `vith/editor.py`[^src-editor]) guards every hook with:
 1. **Explicit attribute and `inspect.signature` checks** before wrapping `Document.get_cursor_left_position`, `Document.get_cursor_right_position`, `Document.get_cursor_up_position`, `Document.get_cursor_down_position`, and `prompt_toolkit.renderer._output_screen_diff`.
 2. **Startup self-test** verifying `Document("ที่ดิน", cursor_position=0).get_cursor_right_position(1) == 3`.
 3. **Graceful fallback** restoring the original function and logging a warning if a future or non-standard `prompt_toolkit` build alters the expected signature.
 
-### Phase 1: Create `pyvim/thai.py`
+### Phase 1: Create `vith/thai.py`
 Implement:
 1. Character classification predicates: `is_thai_or_lao`, `is_thai_combining` (all 34 Thai/Lao `Mn` marks), `is_combining_char` (with Unicode `Mn`/`get_cwidth == 0` fallback), `is_sara_am`, `is_thai_leading_vowel`, `is_thai_following_vowel`, `is_thai_right_attaching`, `is_thai_base`.
 2. Cell-cluster boundary scanners: `snap_to_cell_start`, `next_cell_offset`, `prev_cell_offset`.
@@ -410,10 +409,10 @@ def _doc_get_cursor_down_position(
 
 ### Phase 3: Cell-Cluster Vi Editing Bindings (`x`, `X`, `s`, `r`, `~`, `$`) & Precedence
 
-In `pyvim/key_bindings.py`[^src-key-bindings], register Thai-aware Normal-mode handlers on `editor.key_bindings`:
+In `vith/key_bindings.py`[^src-key-bindings], register Thai-aware Normal-mode handlers on `editor.key_bindings`:
 
-1. **Why `pyvim/key_bindings.py` Precedence Wins Over `prompt_toolkit`'s `load_vi_bindings()`**:
-   * In `prompt_toolkit/application/application.py:1487-1503`, `_CombinedRegistry._create_key_bindings` builds `[container_bindings..., self.app.key_bindings, page_navigation_bindings, self.app._default_bindings]` and reverses it (`key_bindings[::-1]`), placing `self.app.key_bindings` (`pyvim`) **after** `self.app._default_bindings` (`load_vi_bindings`).
+1. **Why `vith/key_bindings.py` Precedence Wins Over `prompt_toolkit`'s `load_vi_bindings()`**:
+   * In `prompt_toolkit/application/application.py:1487-1503`, `_CombinedRegistry._create_key_bindings` builds `[container_bindings..., self.app.key_bindings, page_navigation_bindings, self.app._default_bindings]` and reverses it (`key_bindings[::-1]`), placing `self.app.key_bindings` (`vith`) **after** `self.app._default_bindings` (`load_vi_bindings`).
    * In `prompt_toolkit/key_binding/key_processor.py:189`, `KeyProcessor` dispatches `matches[-1]` (the last matching binding in the merged registry). Therefore, a binding registered on `editor.key_bindings` with `filter=vi_navigation_mode` deterministically overrides `load_vi_bindings()`'s default handler.
 2. **Exact Specifications for `x`, `X`, `s`, `r`, `~`, `$`**:
    * **`x` (overrides `_delete` at `vi.py:929-938`)**:
@@ -469,7 +468,7 @@ import inspect
 import prompt_toolkit.renderer as ptk_renderer
 from prompt_toolkit.layout.screen import Char, Screen
 
-_SARA_AM_POISON = Char(char="\x00", style="__pyvim_sara_am_invalidate__")
+_SARA_AM_POISON = Char(char="\x00", style="__vith_sara_am_invalidate__")
 
 
 def _cell_has_sara_am(cell: Char) -> bool:
@@ -524,7 +523,7 @@ def _sanitize_and_invalidate_sara_am(
 
 > **Implementation update (hg rev 170, 174)**: the shipped versions of
 > `_sanitize_and_invalidate_sara_am` / `_install_renderer_patch` returned
-> `bool`, use `setattr`, keep the original via `_pyvim_original`, guard
+> `bool`, use `setattr`, keep the original via `_vith_original`, guard
 > `args[2]`/`args[5]` lengths, and the whole scan is gated by a sticky
 > "session may render Thai" flag (`note_document_text`) so ASCII-only
 > sessions skip it entirely (`docs/bugs/002.md`). The rollback in §4.1
@@ -533,7 +532,7 @@ def _sanitize_and_invalidate_sara_am(
 ```python
 def _install_renderer_patch() -> None:
     orig_diff = getattr(ptk_renderer, "_output_screen_diff", None)
-    if orig_diff is None or getattr(orig_diff, "_pyvim_thai_patched", False):
+    if orig_diff is None or getattr(orig_diff, "_vith_thai_patched", False):
         return
     params = list(inspect.signature(orig_diff).parameters.keys())
     # Verify positional indices of `screen` (2) and `previous_screen` (5) and `size`:
@@ -548,7 +547,7 @@ def _install_renderer_patch() -> None:
         _sanitize_and_invalidate_sara_am(screen, previous_screen, width)
         return orig_diff(*args, **kwargs)
 
-    _wrapped_output_screen_diff._pyvim_thai_patched = True  # type: ignore[attr-defined]
+    _wrapped_output_screen_diff._vith_thai_patched = True  # type: ignore[attr-defined]
     ptk_renderer._output_screen_diff = _wrapped_output_screen_diff
 ```
 
@@ -567,12 +566,12 @@ We will add `tests/test_thai.py` covering every layer and edge case:
 | **`test_sara_am_cell_and_syllable`** | `"น้ำ"` (`len=3`) & `"กำ"` (`len=2`) | `is_sara_am`, `is_thai_combining`, cell stops, syllable breaks | `"น้ำ"` has cell stops `[0, 2, 3]` and syllable `[0, 3]`; `"กำ"` has cell stops `[0, 1, 2]` and syllable `[0, 2]` |
 | **`test_sara_am_renderer_neighbor_refresh`** | Frame 1: `"กำ"` (`x=0: 'ก'`, `x=1: 'ำ'`); Frame 2a: delete `'ำ'`; Frame 2b: change `'ก'` $\rightarrow$ `'ข'` | Call wrapped `prompt_toolkit.renderer._output_screen_diff` | In Frame 2a, `prev_row[0]` (`'ก'`) is poisoned and re-emitted; in Frame 2b, `prev_row[1]` (`'ำ'`) is poisoned and re-emitted (Lao `U+0EB3` tested identically) |
 | **`test_document_jk_vertical_snap`** | `"abcdef\nที่ดิน"` | Cursor at `(row=0, col=2)`, call `get_cursor_down_position(1)` | Lands at `(row=1, col=0)` (`ท`), **not** `(row=1, col=2)` (`◌่`) |
-| **`test_vi_x_X_s_r_tilde_dollar_via_key_processor`** | `"ที่ดิน"` in `Editor()` | Feed `'x'`, `'X'`, `'s'`, `'r'`, `'~'`, `'$'` through `editor.application.key_processor` | Confirms `pyvim/key_bindings.py` overrides `load_vi_bindings()`: `'x'` at `0` yields `"ดิน"`; `'$'` lands on `col=5` (`น`, or `col=0` on `"ที่"`); `'~'` advances 1 cell cluster (`0` $\rightarrow$ `3`) |
+| **`test_vi_x_X_s_r_tilde_dollar_via_key_processor`** | `"ที่ดิน"` in `Editor()` | Feed `'x'`, `'X'`, `'s'`, `'r'`, `'~'`, `'$'` through `editor.application.key_processor` | Confirms `vith/key_bindings.py` overrides `load_vi_bindings()`: `'x'` at `0` yields `"ดิน"`; `'$'` lands on `col=5` (`น`, or `col=0` on `"ที่"`); `'~'` advances 1 cell cluster (`0` $\rightarrow$ `3`) |
 | **`test_formatted_text_stray_combining_cleanup`** | `FormattedTextControl([("", "ที่")])` | Render into `Screen` and run `_sanitize_and_invalidate_sara_am` | `screen.data_buffer[0][0].char == "ที่"`, `screen.data_buffer[0][1].char == " "` (stray `'่'` cleared) |
 
 ### 5.1 Implementation Record & Refinements Beyond Initial Draft (2026-11-06)
 
-* **Implemented Modules**: [`pyvim/thai.py`](../pyvim/thai.py)[^src-thai], [`pyvim/key_bindings.py`](../pyvim/key_bindings.py)[^src-key-bindings], [`pyvim/editor.py`](../pyvim/editor.py)[^src-editor], and [`tests/test_thai.py`](../tests/test_thai.py)[^src-test-thai] (18 unit tests in `tests/test_thai.py` and 6 in `tests/test_thai_motions.py`, 100+ total passing; verified with `mypy --python-version 3.10` and `ast.parse(..., feature_version=(3, 10))`).
+* **Implemented Modules**: [`vith/thai.py`](../vith/thai.py)[^src-thai], [`vith/key_bindings.py`](../vith/key_bindings.py)[^src-key-bindings], [`vith/editor.py`](../vith/editor.py)[^src-editor], and [`tests/test_thai.py`](../tests/test_thai.py)[^src-test-thai] (18 unit tests in `tests/test_thai.py` and 6 in `tests/test_thai_motions.py`, 100+ total passing; verified with `mypy --python-version 3.10` and `ast.parse(..., feature_version=(3, 10))`).
 * **Refinements Discovered During Implementation**:
   1. **`KeyProcessor._fix_vi_cursor_position` Cell-Cluster Clamp**: `prompt_toolkit`'s `KeyProcessor._call_handler` invokes `_fix_vi_cursor_position` after every Vi command, which previously executed `buff.cursor_position -= 1` whenever the cursor reached EOL in Navigation mode — parking the cursor on a trailing combining mark (e.g. `◌่` at `col=6` of `"ผู้ใหญ่"`). `install_prompt_toolkit_thai_patches()` wraps `_fix_vi_cursor_position` to clamp to `prev_cell_offset(line, len(line), 1)` at EOL and `snap_to_cell_start(line, col)` mid-line.
   2. **`Document.find_start_of_previous_word` & `find_boundaries_of_current_word` + Normal-Mode `e`/`E`**: In `prompt_toolkit/key_binding/bindings/vi.py`, `b`/`B` call `Document.find_start_of_previous_word` (rather than `find_previous_word_beginning`), `iw`/`aw`/`*`/`#` call `Document.find_boundaries_of_current_word`, and `e`/`E` compute `end - 1` (which would land on a trailing combining mark in Normal mode when a word ends with `base + comb*`). Wrapping `find_start_of_previous_word` and `find_boundaries_of_current_word` and binding Normal-mode `e`/`E` (`~vi_waiting_for_text_object_mode`) to `prev_cell_offset(doc.text, pos + end, 1)` keeps both Normal-mode `e` and operator-pending `de`/`ce`/`ye` cell-cluster-safe.
@@ -582,10 +581,14 @@ We will add `tests/test_thai.py` covering every layer and edge case:
 
 ## References
 
-[^src-setup]: `setup.py` (`install_requires` specifying `prompt_toolkit>=3.0.0,<3.1.0`) — [../setup.py](../setup.py)
-[^src-thai]: `pyvim/thai.py` (Thai & Lao cell-cluster scanners, two-tier word breaking, SARA AM renderer pre-pass, version-gated `prompt_toolkit` patch installer) — [../pyvim/thai.py](../pyvim/thai.py)
-[^src-editor]: `pyvim/editor.py` (`Editor._create_application`, `Editor.__init__`) — [../pyvim/editor.py](../pyvim/editor.py)
-[^src-key-bindings]: `pyvim/key_bindings.py` (`create_key_bindings`) — [../pyvim/key_bindings.py](../pyvim/key_bindings.py)
-[^src-layout]: `pyvim/layout.py` (`EditorLayout`, `WindowStatusBarRuler`) — [../pyvim/layout.py](../pyvim/layout.py)
+[^src-setup]: `pyproject.toml` (PEP 621 project config specifying `prompt_toolkit>=3.0.0,<3.1.0`) — [../pyproject.toml](../pyproject.toml)
+[^src-thai]: `vith/thai.py` (Thai & Lao cell-cluster scanners, two-tier word breaking, SARA AM renderer pre-pass, version-gated `prompt_toolkit` patch installer) — [../vith/thai.py](../vith/thai.py)
+[^src-editor]: `vith/editor.py` (`Editor._create_application`, `Editor.__init__`) — [../vith/editor.py](../vith/editor.py)
+[^src-key-bindings]: `vith/key_bindings.py` (`create_key_bindings`) — [../vith/key_bindings.py](../vith/key_bindings.py)
+[^src-layout]: `vith/layout.py` (`EditorLayout`, `WindowStatusBarRuler`) — [../vith/layout.py](../vith/layout.py)
 [^src-bench]: `tools/bench_plans.py` (Reproducible cell-cluster & latency benchmark script) — [../tools/bench_plans.py](../tools/bench_plans.py)
 [^src-test-thai]: `tests/test_thai.py` (Unit test suite for Thai & Lao support) — [../tests/test_thai.py](../tests/test_thai.py)
+
+## Name-mapping note
+
+This document was written under the `pyvim` name. Since the 2026-11 rebrand, all live code paths are `vith/…`; the `CHANGELOG` appendix preserves the `pyvim` history verbatim, and the `LICENSE` carries the stacked copyright (Slenders 2015 + Suttipongsakul 2026).

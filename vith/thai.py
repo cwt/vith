@@ -1011,7 +1011,7 @@ def _sanitize_and_invalidate_sara_am(
                     prev_row[x] = _SARA_AM_POISON
 
 
-_AUTOWRAP_ARM_TAG = "\x00_PYVIM_THAI_AUTOWRAP_\x00"
+_AUTOWRAP_ARM_TAG = "\x00_VITH_THAI_AUTOWRAP_\x00"
 
 
 def _install_window_copy_body_patch() -> bool:

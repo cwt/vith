@@ -1,13 +1,22 @@
 CHANGELOG
 =========
 
-3.0.4: unreleased
+1.0.0: unreleased
 -----------------
+
+Forking and rebranding to Vith (Vi + Thai support)
+
+- Renamed project from pyvim to vith: PEP 621 packaging
+  (setup.py → pyproject.toml), Python 3.10+ requirement, console script `vith`,
+  README.md with fork attribution; BSD 3-clause license retained with stacked
+  copyright (© 2015-2023 Jonathan Slenders, © 2026 Chaiwat Suttipongsakul);
+  upstream repository linked to https://github.com/prompt-toolkit/pyvim;
+  original PyVim changelog preserved verbatim below as historical appendix.
 
 Stability, performance and international input:
 
 - Fixed the Python 3.14+/3.15 ``asyncio.get_event_loop()`` startup crash:
-  opening any file before the event loop runs no longer aborts ``pyvim``.
+  opening any file before the event loop runs no longer aborts ``vith``.
 - Added Thai & Lao script support: terminal cell-cluster navigation and
   edits (``h``, ``l``, ``j``, ``k``, ``x``, ``X``, ``s``, ``r``, ``~``, ``$``,
   ``e``...), two-tier Thai word segmentation (libthai, with an
@@ -38,6 +47,10 @@ Tooling and packaging:
   packaging floor; ``tox`` setup replaced by ``requirements-dev.txt``.
 - Python floor is now ``python_requires='>=3.10'``; prompt_toolkit floor
   raised to 3.0; ``six`` and the python 2 directives removed.
+
+
+Original PyVim CHANGELOG
+========================
 
 3.0.3: 2022-05-16
 -----------------

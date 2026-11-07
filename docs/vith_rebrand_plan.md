@@ -2,7 +2,7 @@
 type: project_priority
 title: "Vith re-brand & Python-packaging modernization plan (formerly pyvim)"
 description: "Execution plan for the 2026-11 identity change: pyvim -> vith (วิธ), BSD 3-clause kept with stacked copyright, setup.py -> pyproject.toml (PEP 621), README.rst -> README.md, user-data migration, docs sweep, and gate re-verification. Decisions already locked are listed; the open choices are marked."
-status: draft
+status: executed
 sources:
   - ../setup.py
   - ../README.rst
@@ -152,7 +152,7 @@ classifiers = [
 ]
 urls = { Homepage = "https://github.com/cwt/pyvim",
          Repository = "https://github.com/cwt/pyvim.git",
-         Upstream = "https://github.com/jonathanslenders/pyvim" }
+         Upstream = "https://github.com/prompt-toolkit/pyvim" }
 
 [project.scripts]
 vith = "vith.entry_points.run_vith:run"

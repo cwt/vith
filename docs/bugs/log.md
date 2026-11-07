@@ -1,6 +1,6 @@
 ---
 type: log
-title: "pyvim Findings Bundle Update Log"
+title: "vith Findings Bundle Update Log"
 description: "Chronological log of modifications to the docs/bugs/ OKF bundle."
 status: stable
 sources:

@@ -1,7 +1,7 @@
 ---
 type: index
-title: "pyvim Documentation Bundle"
-description: "OKF v0.2 knowledge bundle root for the pyvim project."
+title: "vith Documentation Bundle"
+description: "OKF v0.2 knowledge bundle root for the vith project."
 status: stable
 sources:
   - docs/
@@ -12,14 +12,14 @@ generated:
 timestamp: "2026-11-07T10:27:00Z"
 ---
 
-# pyvim Documentation Bundle
+# vith Documentation Bundle
 
-This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md) documentation bundle for `pyvim`.
+This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md) documentation bundle for `vith`.
 
 ## Architecture & Design Plans
 
-* [Vith Re-brand & Modernization Plan](vith_rebrand_plan.md) — **Queued (execution planned 2026-11-week 46+)**: new identity `vith` (วิธ) breaking the fork naming,	BSD 3-clause kept with stacked copyright, `setup.py` → `pyproject.toml` (PEP 621), `README.rst` → `README.md`, user-data migration with graceful fallback, docs sweep and gate re-verification. Three open decisions recorded at §5.
-* [Thai & Lao Script Support Plan](thai_support_plan.md) — **Implemented**: root-cause analysis (`prompt_toolkit` vs `pyvim`), cell-cluster vs syllable granularity ([`../pyvim/thai.py`](../pyvim/thai.py), [`../pyvim/key_bindings.py`](../pyvim/key_bindings.py)), `SARA AM` (`U+0E33`/`U+0EB3`) differential renderer neighbor refresh (ported from `szn` `71ba808`), version-gated `prompt_toolkit` integration, and unit test suite ([`../tests/test_thai.py`](../tests/test_thai.py)).
+* [Vith Re-brand & Modernization Plan](vith_rebrand_plan.md) — **Executed**: new identity `vith` (วิธ), BSD 3-clause kept with stacked copyright, `setup.py` → `pyproject.toml` (PEP 621), `README.rst` → `README.md`, user-data migration with graceful fallback, docs sweep and gate re-verification. All gates re-verified post-rebrand (120 tests, mypy 46 files @3.10, ruff clean).
+* [Thai & Lao Script Support Plan](thai_support_plan.md) — **Implemented**: root-cause analysis (`prompt_toolkit` vs `vith`), cell-cluster vs syllable granularity ([`../vith/thai.py`](../vith/thai.py), [`../vith/key_bindings.py`](../vith/key_bindings.py)), `SARA AM` (`U+0E33`/`U+0EB3`) differential renderer neighbor refresh (ported from `szn` `71ba808`), version-gated `prompt_toolkit` integration, and unit test suite ([`../tests/test_thai.py`](../tests/test_thai.py)).
 * [Speed, Latency & Python 3.15 Stability Plan](speed_latency_plan.md) — **Implemented (rev 161–162)**: reproducible Python 3.15.2 benchmarks ([`../tools/bench_plans.py`](../tools/bench_plans.py)), Python 3.14+ `asyncio.get_event_loop()` startup crash fix, streaming/cached `PygmentsLexer`, lazy colorscheme loading, singleton word completion caching (incl. jedi 0.20 dual-API support), O(1) error line index, `io.open` & dirty-flag cleanups, mypy baseline ([`../mypy.ini`](../mypy.ini)); deviations & follow-ups logged in §1.4.
 
 ## Audit & Findings
@@ -31,3 +31,7 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 ## Meta
 
 * [Bundle Update Log](log.md) — Chronological log of documentation bundle additions and updates.
+
+## Name-mapping note
+
+These documents were written under the `pyvim` name. Since the 2026-11 rebrand, all live code paths are `vith/…`; the `CHANGELOG` appendix preserves the `pyvim` history verbatim, and the `LICENSE` carries the stacked copyright (Slenders 2015 + Suttipongsakul 2026).

@@ -1,7 +1,7 @@
 ---
 type: index
-title: "pyvim Findings Bundle"
-description: "OKF v0.2 findings bundle for the pyvim bug audit: 62 machine-verified findings across Round 1 (hg rev 164, 2026-11-06, 001–037, closed) and Round 2 (hg rev 191–233, 2026-11-07, 038–062, fixed)."
+title: "vith Findings Bundle"
+description: "OKF v0.2 findings bundle for the vith bug audit: 62 machine-verified findings across Round 1 (hg rev 164, 2026-11-06, 001–037, closed) and Round 2 (hg rev 191–233, 2026-11-07, 038–062, fixed)."
 status: stable
 sources:
   - docs/bugs/
@@ -15,10 +15,10 @@ generated:
 timestamp: "2026-11-07T10:27:00Z"
 ---
 
-# pyvim Findings Bundle
+# vith Findings Bundle
 
-This bundle tracks machine-verified audit findings for `pyvim` (`pyvim/`,
-`tests/`, `tools/`, `setup.py`, and verification of the implemented plans in
+This bundle tracks machine-verified audit findings for `vith` (`vith/`,
+`tests/`, `tools/`, `pyproject.toml`, and verification of the implemented plans in
 [`../thai_support_plan.md`](../thai_support_plan.md) /
 [`../speed_latency_plan.md`](../speed_latency_plan.md)):
 
@@ -59,7 +59,7 @@ This bundle tracks machine-verified audit findings for `pyvim` (`pyvim/`,
 | [057](057.md) | `DocumentLexer` joins lines to EOF per edit and `_sanitize_and_invalidate_sara_am` inflates sparse `Screen.data_buffer` rows/columns | performance | low |
 | [058](058.md) | Dead code inventory (round 2: `_current_window_for_event`, `TABSTOP_DOT`, unreachable `ENCODINGS` fallbacks, `_buffer` param, `ignore_case`, `_gate_fixture`) | dead code | low |
 | [059](059.md) | Duplicate code and logic inventory (round 2: duplicated comment block, `ENCODINGS` loop, `FileIO()` instantiation, redundant filter, active buffer lookup) | duplication | low |
-| [060](060.md) | Readability and test hygiene inventory (round 2: 1-tuple `super`, `cls` parameter, `bytes` shadowing, docstrings, `__import__`, `conftest` `~/.pyvim`) | readability/hygiene | low |
+| [060](060.md) | Readability and test hygiene inventory (round 2: 1-tuple `super`, `cls` parameter, `bytes` shadowing, docstrings, `__import__`, `conftest` `~/.vith`) | readability/hygiene | low |
 | [061](061.md) | Plan and benchmark drift (round 2: corrupted code fence in `thai_support_plan.md`, P2 `bench_plans.py` calculation, stale metadata) | documentation/benchmark | low |
 
 ---
@@ -97,7 +97,7 @@ revisions are also summarized in [`log.md`](log.md).
 
 | ID | Finding | Category | Priority |
 | :-- | :--- | :--- | :--- |
-| [017](017.md) | `pyvim/enums.py` empty, never imported | dead code | low |
+| [017](017.md) | `vith/enums.py` empty, never imported | dead code | low |
 | [018](018.md) | `PyvimScrollOffsets` unused (ScrollOffsets takes callables) | dead code | low |
 | [019](019.md) | `get_terminal_title` dead since its comment-only caller | dead code | low |
 | [020](020.md) | `get_editor_buffer_for_buffer_name` dead + would `AttributeError` | dead code | low |
@@ -106,7 +106,7 @@ revisions are also summarized in [`log.md`](log.md).
 | [023](023.md) | dead identical if/return branches (thai `_start_timeout` wrapper) | dead code | low |
 | [024](024.md) | unreachable second `find_closest_generator` call | dead code | low |
 | [025](025.md) | stale `.travis.yml` (2.7/3.5/3.6, defunct service) | legacy/CI | low |
-| [026](026.md) | `pyvim.egg-info/` debris; repo lacks `.hgignore` | hygiene | low |
+| [026](026.md) | `vith.egg-info/` debris; repo lacks `.hgignore` | hygiene | low |
 | [027](027.md) | `six` + 26× `unicode_literals` py2 legacy weight | legacy | low |
 | [028](028.md) | `:set` option map duplicated (commands vs preview) | duplication | low |
 | [029](029.md) | near-clone pairs: `e`/`E`, `x`/`X`, cursor up/down, int setters | duplication | low |
@@ -129,3 +129,7 @@ configuration/packaging ones above ([031](031.md), [032](032.md)).
 
 * [Bundle Update Log](log.md) — chronological log of this bundle.
 * Root bundle: [`../index.md`](../index.md).
+
+## Name-mapping note
+
+This bundle was written under the `pyvim` name. Since the 2026-11 rebrand, all live code paths are `vith/…`; the `CHANGELOG` appendix preserves the `pyvim` history verbatim, and the `LICENSE` carries the stacked copyright (Slenders 2015 + Suttipongsakul 2026).
