@@ -1,5 +1,5 @@
 """
-Tests for `pyvim/layout.py` (P4: O(1) `report_errors_by_line` lookups in
+Tests for `vith/layout.py` (P4: O(1) `report_errors_by_line` lookups in
 `ReportingProcessor` and `ReportMessageToolbar`).
 """
 
@@ -12,8 +12,8 @@ from prompt_toolkit.layout.processors import (
     merge_processors,
 )
 
-from pyvim.layout import ReportingProcessor, ReportMessageToolbar
-from pyvim.reporting import ReporterError
+from vith.layout import ReportingProcessor, ReportMessageToolbar
+from vith.reporting import ReporterError
 
 
 def _identity_source_to_display(source_pos):
@@ -24,7 +24,7 @@ def _transformation_input(lineno, text):
     # `lineno` is the 0-based document row passed by `BufferControl`
     # (see `BufferControl._create_get_processed_line_func` in
     # `prompt_toolkit.layout.controls`), exactly like `ReporterError.lineno`
-    # in `pyvim/reporting.py`.
+    # in `vith/reporting.py`.
     doc = Document(text, 0)
     return TransformationInput(
         buffer_control=None,

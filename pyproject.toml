@@ -1,7 +1,52 @@
-# Tool configuration for pyvim.
-#
-# Packaging lives in setup.py; this file holds the shared tool settings
-# (ruff linting + formatting) for the Python 3.10+ codebase.
+# Tool configuration and PEP 621 packaging for vith.
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vith"
+description = "Vith — a pure-Python Vi clone with Thai & Lao script support (fork of pyvim)"
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+authors = [
+    { name = "Jonathan Slenders" },
+    { name = "Chaiwat Suttipongsakul", email = "cwt@bashell.com" },
+]
+maintainers = [
+    { name = "Chaiwat Suttipongsakul", email = "cwt@bashell.com" },
+]
+requires-python = ">=3.10"
+dependencies = [
+    "prompt_toolkit>=3.0.0,<3.1.0",
+    "pyflakes",
+    "pygments",
+    "docopt",
+]
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Text Editors",
+    "Topic :: Text Editors :: Text Processing",
+]
+urls = { Homepage = "https://github.com/cwt/pyvim",
+         Repository = "https://github.com/cwt/pyvim.git",
+         Upstream = "https://github.com/prompt-toolkit/pyvim" }
+
+[project.scripts]
+vith = "vith.entry_points.run_vith:run"
+
+[tool.setuptools.packages.find]
+include = ["vith*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "vith.__version__" }
 
 [tool.ruff]
 target-version = "py310"
@@ -16,7 +61,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pyvim"]
+known-first-party = ["vith"]
 
 [tool.ruff.format]
 # Keep the existing mix of single/double quotes instead of rewriting every

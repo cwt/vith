@@ -45,7 +45,7 @@ from prompt_toolkit.widgets.toolbars import (
     ValidationToolbar,
 )
 
-import pyvim.window_arrangement as window_arrangement
+import vith.window_arrangement as window_arrangement
 
 from .commands.lexer import create_command_lexer
 from .lexer import DocumentLexer

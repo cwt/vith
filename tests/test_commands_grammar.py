@@ -1,5 +1,5 @@
-from pyvim.commands.grammar import COMMAND_GRAMMAR
-from pyvim.commands.handler import handle_command
+from vith.commands.grammar import COMMAND_GRAMMAR
+from vith.commands.handler import handle_command
 
 
 def test_colo_matches_grammar():

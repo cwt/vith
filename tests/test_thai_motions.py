@@ -1,6 +1,6 @@
 """Regression + locality tests for the Thai/Lao word-motion engine.
 
-Pins the exact pre-optimization semantics of ``pyvim.thai`` word motions
+Pins the exact pre-optimization semantics of ``vith.thai`` word motions
 (captured at hg rev 166, Tier-2 segmentation with libthai disabled) and
 verifies the per-line span cache: word motions must scan only the lines
 they actually touch, not the whole document (``docs/bugs/001.md``).
@@ -13,7 +13,7 @@ import pathlib
 
 from prompt_toolkit.document import Document
 
-import pyvim.thai as thai
+import vith.thai as thai
 
 # Captured from the whole-document scan implementation before introducing
 # the per-line span cache (Tier-2 segmentation, ``_get_libthai`` disabled).

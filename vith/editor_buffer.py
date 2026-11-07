@@ -6,9 +6,9 @@ from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 
-from pyvim.completion import DocumentCompleter
-from pyvim.reporting import checks_python_file, report
-from pyvim.thai import note_document_text
+from vith.completion import DocumentCompleter
+from vith.reporting import checks_python_file, report
+from vith.thai import note_document_text
 
 __all__ = ('EditorBuffer',)
 
@@ -44,7 +44,7 @@ class EditorBuffer(object):
 
         self._file_content = text
 
-        # Sticky Thai-text renderer gate (see pyvim/thai.py): O(1) for
+        # Sticky Thai-text renderer gate (see vith/thai.py): O(1) for
         # ASCII, so this is effectively free per buffer creation.
         note_document_text(self.location)
         note_document_text(self._file_content)

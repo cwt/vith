@@ -5,8 +5,8 @@ Reproducible verification & micro-benchmarks backing the OKF v0.2 plans in docs/
   - docs/thai_support_plan.md
   - docs/speed_latency_plan.md
 
-Everything is verified against the *shipped* modules (pyvim.thai, pyvim.lexer,
-pyvim.style, pyvim.completion) instead of duplicated copies, so the printed
+Everything is verified against the *shipped* modules (vith.thai, vith.lexer,
+vith.style, vith.completion) instead of duplicated copies, so the printed
 figures always describe the code in this repository (see docs/bugs/008.md).
 
 Run with:
@@ -24,10 +24,10 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.lexers.pygments import PygmentsLexer
 from pygments.styles import get_all_styles
 
-import pyvim.completion as pyvim_completion
-import pyvim.lexer as pyvim_lexer
-import pyvim.style as pyvim_style
-import pyvim.thai as pyvim_thai
+import vith.completion as vith_completion
+import vith.lexer as vith_lexer
+import vith.style as vith_style
+import vith.thai as vith_thai
 
 
 class _DummyEditorBuffer:
@@ -37,12 +37,12 @@ class _DummyEditorBuffer:
 
 
 # ---------------------------------------------------------------------------
-# 1. Thai & Lao cell-cluster / syllable verification (pyvim.thai)
+# 1. Thai & Lao cell-cluster / syllable verification (vith.thai)
 # ---------------------------------------------------------------------------
 
 
 def bench_thai_plan() -> None:
-    thai = pyvim_thai
+    thai = vith_thai
     print("=== 1. Thai & Lao Cell-Cluster / Syllable Verification & Benchmarks ===")
     assert len(thai._THAI_COMBINING_CPS) == 34, "Expected 16 Thai + 18 Lao combining marks"
     for cp in (0x0EBA, 0x0EC7, 0x0ECE):
@@ -108,16 +108,16 @@ def bench_thai_plan() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 2. Speed plan verification (pyvim.lexer / pyvim.style / pyvim.completion)
+# 2. Speed plan verification (vith.lexer / vith.style / vith.completion)
 # ---------------------------------------------------------------------------
 
 
 def bench_speed_plan() -> None:
     print("=== 2. Speed & Latency Plan Verification & Micro-Benchmarks ===")
-    DocumentWordsCompleter = pyvim_completion.DocumentWordsCompleter
-    DocumentLexer = pyvim_lexer.DocumentLexer
-    generate_built_in_styles = pyvim_style.generate_built_in_styles
-    get_editor_style_by_name = pyvim_style.get_editor_style_by_name
+    DocumentWordsCompleter = vith_completion.DocumentWordsCompleter
+    DocumentLexer = vith_lexer.DocumentLexer
+    generate_built_in_styles = vith_style.generate_built_in_styles
+    get_editor_style_by_name = vith_style.get_editor_style_by_name
 
     # P2: the shipped mapping is lazy - measure what an Editor pays at startup.
     t0 = time.perf_counter()

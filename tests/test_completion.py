@@ -1,11 +1,11 @@
 """
-Tests for `pyvim/completion.py` (P3: singleton + line-cached word completer).
+Tests for `vith/completion.py` (P3: singleton + line-cached word completer).
 """
 
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
-from pyvim.completion import DocumentCompleter, DocumentWordsCompleter
+from vith.completion import DocumentCompleter, DocumentWordsCompleter
 
 
 def _completions(completer, text, cursor):
@@ -107,7 +107,7 @@ def test_document_completer_python_uses_jedi(editor, editor_buffer, tmp_path):
         '.py files with Jedi enabled must not use the words completer'
     )
     # The jedi API introspection is computed once per session (docs/bugs/030.md):
-    import pyvim.completion as _pc
+    import vith.completion as _pc
 
     assert _pc._JEDI_TAKES_COLUMN is False
 
@@ -116,7 +116,7 @@ def test_document_completer_falls_back_without_jedi(editor, editor_buffer, monke
     # jedi is optional: when the module is missing (or the probe is forced
     # off), `.py` buffers must complete with the words completer instead of
     # raising ImportError on the first Tab press (docs/bugs/003.md).
-    monkeypatch.setattr('pyvim.completion._jedi_available', lambda: False)
+    monkeypatch.setattr('vith.completion._jedi_available', lambda: False)
     editor.enable_jedi = True
     editor_buffer.location = '/some/project/module.py'
 
@@ -137,7 +137,7 @@ def test_python_completer_missing_module_degrades_to_no_completions(
     # must degrade to "no completions" rather than crash (ImportError guard).
     import sys
 
-    import pyvim.completion as completion_module
+    import vith.completion as completion_module
 
     monkeypatch.setitem(sys.modules, 'jedi', None)  # `import jedi` -> ImportError
     monkeypatch.setattr(completion_module, '_jedi_available', lambda: True)

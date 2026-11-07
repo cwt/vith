@@ -1,4 +1,4 @@
-# Development tools for pyvim (pin the verification toolchain so that the
+# Development tools for vith (pin the verification toolchain so that the
 # results quoted in docs/ are reproducible inside the project environment):
 #   pytest  - tests/
 #   mypy    - typing baseline checked against the 3.10 floor

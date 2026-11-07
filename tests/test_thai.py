@@ -1,6 +1,6 @@
 """
 Unit tests for Thai (`U+0E00..U+0E7F`) and Lao (`U+0E80..U+0EFF`) script support
-(`pyvim/thai.py`, `pyvim/key_bindings.py`, `pyvim/editor.py`).
+(`vith/thai.py`, `vith/key_bindings.py`, `vith/editor.py`).
 """
 
 from __future__ import annotations
@@ -21,9 +21,9 @@ from prompt_toolkit.layout.screen import Char, Screen, WritePosition
 from prompt_toolkit.output import ColorDepth, DummyOutput
 from prompt_toolkit.styles import DummyStyle, DummyStyleTransformation
 
-import pyvim.thai as thai
-from pyvim.editor import Editor
-from pyvim.thai import (
+import vith.thai as thai
+from vith.editor import Editor
+from vith.thai import (
     _SARA_AM_POISON,
     _THAI_COMBINING_CPS,
     _sanitize_and_invalidate_sara_am,
@@ -559,7 +559,7 @@ def test_version_gate_rollback_covers_key_processor_patches(monkeypatch) -> None
         if original is not None:
             monkeypatch.setattr(KeyProcessor, method_name, original)
 
-    assert getattr(KeyProcessor._fix_vi_cursor_position, "_pyvim_thai_patched", False) is False, (
+    assert getattr(KeyProcessor._fix_vi_cursor_position, "_vith_thai_patched", False) is False, (
         "precondition: KeyProcessor patches uninstalled"
     )
 
@@ -569,8 +569,8 @@ def test_version_gate_rollback_covers_key_processor_patches(monkeypatch) -> None
     assert thai.install_prompt_toolkit_thai_patches() is False
 
     # Both KeyProcessor patches must be rolled back (docs/bugs/005.md):
-    assert getattr(KeyProcessor._fix_vi_cursor_position, "_pyvim_thai_patched", False) is False
-    assert getattr(KeyProcessor._start_timeout, "_pyvim_thai_patched", False) is False
+    assert getattr(KeyProcessor._fix_vi_cursor_position, "_vith_thai_patched", False) is False
+    assert getattr(KeyProcessor._start_timeout, "_vith_thai_patched", False) is False
     # And the Document methods are the unpatched prompt_toolkit originals
     # (cursor 0 -> first codepoint on "ที่ดิน", no cell-cluster snapping):
     assert Document("ที่ดิน", cursor_position=0).get_cursor_right_position(1) == 1
@@ -578,7 +578,7 @@ def test_version_gate_rollback_covers_key_processor_patches(monkeypatch) -> None
     # monkeypatch.undo() restores the pre-test (patched) state:
     monkeypatch.undo()
     assert Document("ที่ดิน", cursor_position=0).get_cursor_right_position(1) == 3
-    assert getattr(KeyProcessor._fix_vi_cursor_position, "_pyvim_thai_patched", False) is True
+    assert getattr(KeyProcessor._fix_vi_cursor_position, "_vith_thai_patched", False) is True
 
 
 def _build_sara_am_frames(base: str, sara_am: str) -> tuple[Screen, Screen]:
@@ -742,9 +742,7 @@ def test_right_margin_combining_marks_wrapped_and_continuation_rows() -> None:
     app: Application[object] = Application(layout=Layout(win))
     screen = Screen()
     with set_app(app):
-        win._write_to_screen_at_index(
-            screen, MouseHandlers(), WritePosition(0, 0, 10, 5), "", True
-        )
+        win._write_to_screen_at_index(screen, MouseHandlers(), WritePosition(0, 0, 10, 5), "", True)
 
     assert [screen.data_buffer[0][x].char for x in range(10)] == [
         "1",
@@ -821,9 +819,7 @@ def test_right_margin_combining_marks_nowrap_and_visible_only_scan() -> None:
     ctrl.create_content = counting_create_content  # type: ignore[method-assign]
     screen = Screen()
     with set_app(app):
-        win._write_to_screen_at_index(
-            screen, MouseHandlers(), WritePosition(0, 0, 10, 5), "", True
-        )
+        win._write_to_screen_at_index(screen, MouseHandlers(), WritePosition(0, 0, 10, 5), "", True)
 
     assert win.horizontal_scroll == 4
     assert [screen.data_buffer[0][x].char for x in range(10)] == [

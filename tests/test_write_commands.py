@@ -5,7 +5,7 @@ docs/bugs/007.md): failed writes must be reported without quitting.
 
 from __future__ import annotations
 
-from pyvim.commands.handler import handle_command
+from vith.commands.handler import handle_command
 
 
 def _editor_with_text(editor, editor_buffer, text):

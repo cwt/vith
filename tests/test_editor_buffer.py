@@ -1,5 +1,5 @@
 """
-Tests for `pyvim/editor_buffer.py`:
+Tests for `vith/editor_buffer.py`:
   - P0: `run_reporter` no longer crashes on Python 3.14+/3.15 when called
     before the event loop is running (CLI startup), no longer lockouts
     unnamed / non-Python buffers, and no longer spawns background reporter
@@ -11,9 +11,9 @@ Tests for `pyvim/editor_buffer.py`:
 import asyncio
 import time
 
-import pyvim.editor_buffer as editor_buffer_module
-from pyvim.editor_buffer import EditorBuffer
-from pyvim.reporting import ReporterError, checks_python_file
+import vith.editor_buffer as editor_buffer_module
+from vith.editor_buffer import EditorBuffer
+from vith.reporting import ReporterError, checks_python_file
 
 
 class _RecordingApp(object):
@@ -41,7 +41,7 @@ def _install_fake_get_app(monkeypatch):
 
 
 def test_run_reporter_without_loop_no_crash_unnamed(editor_buffer):
-    # An unnamed buffer (`pyvim` with no arguments) must fast-exit *before*
+    # An unnamed buffer (`vith` with no arguments) must fast-exit *before*
     # touching the event loop, and must not leave itself locked out:
     eb = editor_buffer
     assert eb._reporter_is_running is False
@@ -258,7 +258,7 @@ def test_substitute_marks_unsaved_changes(editor, tmp_path):
     editor.sync_with_prompt_toolkit()
     assert eb.has_unsaved_changes is False
 
-    from pyvim.commands.handler import handle_command
+    from vith.commands.handler import handle_command
 
     handle_command(editor, ':s/Violet/Rose')
     assert eb.has_unsaved_changes is True

@@ -2,8 +2,8 @@ import pytest
 from prompt_toolkit.input import DummyInput
 from prompt_toolkit.output import DummyOutput
 
-from pyvim.editor import Editor
-from pyvim.window_arrangement import EditorBuffer, TabPage, Window
+from vith.editor import Editor
+from vith.window_arrangement import EditorBuffer, TabPage, Window
 
 
 @pytest.fixture

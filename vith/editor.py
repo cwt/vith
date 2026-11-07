@@ -42,7 +42,7 @@ class Editor(object):
     :param output: (Optionally) `prompt_toolkit.output.Output` object.
     """
 
-    def __init__(self, config_directory='~/.pyvim', input=None, output=None):
+    def __init__(self, config_directory='~/.vith', input=None, output=None):
         install_prompt_toolkit_thai_patches()
         self.input = input
         self.output = output
@@ -68,8 +68,13 @@ class Editor(object):
         self.cursorcolumn = False  # ':set cursorcolumn'
         self.colorcolumn = []  # ':set colorcolumn'. List of integers.
 
-        # Ensure config directory exists.
-        self.config_directory = os.path.abspath(os.path.expanduser(config_directory))
+        # Ensure config directory exists (with legacy fallback).
+        target_dir = os.path.abspath(os.path.expanduser(config_directory))
+        if config_directory == '~/.vith' and not os.path.exists(target_dir):
+            legacy_dir = os.path.abspath(os.path.expanduser('~/.pyvim'))
+            if os.path.exists(legacy_dir):
+                target_dir = legacy_dir
+        self.config_directory = target_dir
         if not os.path.exists(self.config_directory):
             os.mkdir(self.config_directory)
 
@@ -101,7 +106,7 @@ class Editor(object):
             handle_command(self, text)
 
         # The command line renders user-typed text outside the document
-        # buffers: feed the sticky Thai-text renderer gate (see pyvim/thai.py).
+        # buffers: feed the sticky Thai-text renderer gate (see vith/thai.py).
         def note_command_text(buff):
             note_document_text(buff.text)
 
@@ -232,7 +237,7 @@ class Editor(object):
     def add_key_binding(self):
         """
         Shortcut for adding new key bindings.
-        (Mostly useful for a pyvimrc file, that receives this Editor instance
+        (Mostly useful for a vithrc file, that receives this Editor instance
         as input.)
         """
         return self.key_bindings.add

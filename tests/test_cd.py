@@ -1,6 +1,6 @@
 import os
 
-from pyvim.commands.handler import handle_command
+from vith.commands.handler import handle_command
 
 
 def test_cd_no_arg_and_expanduser(editor, tmp_path):

@@ -1,5 +1,5 @@
 """
-Thai (`U+0E00..U+0E7F`) and Lao (`U+0E80..U+0EFF`) script support for `pyvim`.
+Thai (`U+0E00..U+0E7F`) and Lao (`U+0E80..U+0EFF`) script support for `vith`.
 
 Adapts the cell-cluster and differential renderer architecture from `szn`
 (`src/thai.zig`, `src/mode_copy.zig`, `src/server/render.zig`):
@@ -888,7 +888,7 @@ def _make_kp_start_timeout_wrapper(
 # 5. Differential Renderer Patch for Stray Marks & SARA AM (Phase 4)
 # ---------------------------------------------------------------------------
 
-_SARA_AM_POISON = Char(char="\x00", style="__pyvim_sara_am_invalidate__")
+_SARA_AM_POISON = Char(char="\x00", style="__vith_sara_am_invalidate__")
 _SARA_AM_DEFAULT_CHAR = Char()
 
 # C-speed detection for strings that may land on screen; ASCII strings are
@@ -904,7 +904,7 @@ class _ThaiTextGate:
     `prompt_toolkit` exposes no cheap hook that says whether a rendered
     `Screen` still contains Thai cells; scanning the whole grid per frame
     costs ~1.3 ms on a 50x200 terminal with plain-ASCII content
-    (``docs/bugs/002.md``). Instead, pyvim reports the strings that reach
+    (``docs/bugs/002.md``). Instead, vith reports the strings that reach
     the screen (buffer text, buffer locations, command/search lines) via
     `note_document_text` and the renderer wrapper skips the neighbor scan
     entirely while the flag is still ``False``. Once latched ``True`` the
@@ -1026,7 +1026,7 @@ def _install_window_copy_body_patch() -> bool:
     if orig_copy_body is None:
         logger.warning("Window._copy_body not found; skipping right-margin patch.")
         return False
-    if getattr(orig_copy_body, "_pyvim_thai_patched", False):
+    if getattr(orig_copy_body, "_vith_thai_patched", False):
         return True
 
     try:
@@ -1090,11 +1090,7 @@ def _install_window_copy_body_patch() -> bool:
                     continue
                 if width >= 2:
                     cell2 = row_buf.get(right_x - 1)
-                    if (
-                        cell2 is not None
-                        and cell2.width == 2
-                        and not cell2.char.isascii()
-                    ):
+                    if cell2 is not None and cell2.width == 2 and not cell2.char.isascii():
                         candidate_rows.add(sy)
 
         if not candidate_rows:
@@ -1128,9 +1124,7 @@ def _install_window_copy_body_patch() -> bool:
                 _THAI_GATE.note(comb)
                 prev_char = data_buffer[sy][sx]
                 if not prev_char.char.endswith(comb):
-                    data_buffer[sy][sx] = _CHAR_CACHE[
-                        prev_char.char + comb, prev_char.style
-                    ]
+                    data_buffer[sy][sx] = _CHAR_CACHE[prev_char.char + comb, prev_char.style]
                 for c_idx in range(col + 1, j):
                     rowcol_to_yx[lineno, c_idx] = (sy, sx)
                 # Keep the base character last in insertion order so mouse
@@ -1139,18 +1133,13 @@ def _install_window_copy_body_patch() -> bool:
                 del rowcol_to_yx[lineno, col]
                 rowcol_to_yx[lineno, col] = (sy, sx)
                 cpos = ui_content.cursor_position
-                if (
-                    has_focus
-                    and cpos is not None
-                    and cpos.y == lineno
-                    and col < cpos.x < j
-                ):
+                if has_focus and cpos is not None and cpos.y == lineno and col < cpos.x < j:
                     new_screen.set_cursor_position(self, Point(x=sx, y=sy))
 
         return visible_line_to_row_col, rowcol_to_yx
 
-    setattr(_patched_copy_body, "_pyvim_thai_patched", True)
-    setattr(_patched_copy_body, "_pyvim_original", orig_copy_body)
+    setattr(_patched_copy_body, "_vith_thai_patched", True)
+    setattr(_patched_copy_body, "_vith_original", orig_copy_body)
     Window._copy_body = _patched_copy_body  # type: ignore[method-assign]
     return True
 
@@ -1164,7 +1153,7 @@ def _install_renderer_patch() -> bool:
     if orig_diff is None:
         logger.warning("prompt_toolkit.renderer._output_screen_diff not found; skipping patch.")
         return False
-    if getattr(orig_diff, "_pyvim_thai_patched", False):
+    if getattr(orig_diff, "_vith_thai_patched", False):
         return True
 
     try:
@@ -1221,11 +1210,7 @@ def _install_renderer_patch() -> bool:
                         target_col = width - 1
                     elif width >= 2:
                         cell2 = new_row.get(width - 2)
-                        if (
-                            cell2 is not None
-                            and cell2.width == 2
-                            and len(cell2.char) > 1
-                        ):
+                        if cell2 is not None and cell2.width == 2 and len(cell2.char) > 1:
                             target_col = width - 2
                     if target_col >= 0:
                         zw_row = screen.zero_width_escapes[y]
@@ -1270,8 +1255,8 @@ def _install_renderer_patch() -> bool:
                     else:
                         zw_row.pop(col_idx, None)
 
-    setattr(_wrapped_output_screen_diff, "_pyvim_thai_patched", True)
-    setattr(_wrapped_output_screen_diff, "_pyvim_original", orig_diff)
+    setattr(_wrapped_output_screen_diff, "_vith_thai_patched", True)
+    setattr(_wrapped_output_screen_diff, "_vith_original", orig_diff)
     ptk_renderer._output_screen_diff = _wrapped_output_screen_diff  # type: ignore[assignment]
     return True
 
@@ -1384,7 +1369,7 @@ def install_prompt_toolkit_thai_patches() -> bool:
             current = getattr(Document, method_name, None)
             if current is None:
                 raise RuntimeError(f"Document.{method_name} is missing")
-            if getattr(current, "_pyvim_thai_patched", False):
+            if getattr(current, "_vith_thai_patched", False):
                 continue
 
             sig_params = tuple(inspect.signature(current).parameters.keys())
@@ -1395,25 +1380,25 @@ def install_prompt_toolkit_thai_patches() -> bool:
                 )
 
             _ORIGINAL_DOCUMENT_METHODS.setdefault(method_name, current)
-            setattr(replacement, "_pyvim_thai_patched", True)
+            setattr(replacement, "_vith_thai_patched", True)
             setattr(Document, method_name, replacement)
             applied.append((Document, method_name, current))
 
         # Patch KeyProcessor._fix_vi_cursor_position and _start_timeout.
         kp_fix = getattr(KeyProcessor, "_fix_vi_cursor_position", None)
-        if kp_fix is not None and not getattr(kp_fix, "_pyvim_thai_patched", False):
+        if kp_fix is not None and not getattr(kp_fix, "_vith_thai_patched", False):
             kp_params = tuple(inspect.signature(kp_fix).parameters.keys())
             if kp_params[:2] == ("self", "event"):
                 _ORIGINAL_KEY_PROCESSOR_METHODS.setdefault("_fix_vi_cursor_position", kp_fix)
-                setattr(_kp_fix_vi_cursor_position, "_pyvim_thai_patched", True)
+                setattr(_kp_fix_vi_cursor_position, "_vith_thai_patched", True)
                 setattr(KeyProcessor, "_fix_vi_cursor_position", _kp_fix_vi_cursor_position)
                 applied.append((KeyProcessor, "_fix_vi_cursor_position", kp_fix))
 
         kp_timeout = getattr(KeyProcessor, "_start_timeout", None)
-        if kp_timeout is not None and not getattr(kp_timeout, "_pyvim_thai_patched", False):
+        if kp_timeout is not None and not getattr(kp_timeout, "_vith_thai_patched", False):
             _ORIGINAL_KEY_PROCESSOR_METHODS.setdefault("_start_timeout", kp_timeout)
             wrapped_timeout = _make_kp_start_timeout_wrapper(kp_timeout)
-            setattr(wrapped_timeout, "_pyvim_thai_patched", True)
+            setattr(wrapped_timeout, "_vith_thai_patched", True)
             setattr(KeyProcessor, "_start_timeout", wrapped_timeout)
             applied.append((KeyProcessor, "_start_timeout", kp_timeout))
 
@@ -1421,7 +1406,7 @@ def install_prompt_toolkit_thai_patches() -> bool:
         if _PtkTextObject is not None:
             _orig_operator_range = getattr(_PtkTextObject, "operator_range", None)
             if _orig_operator_range is not None and not getattr(
-                _orig_operator_range, "_pyvim_thai_patched", False
+                _orig_operator_range, "_vith_thai_patched", False
             ):
 
                 def _thai_operator_range(self, document):
@@ -1451,7 +1436,7 @@ def install_prompt_toolkit_thai_patches() -> bool:
                                         end += cluster_size - 1
                     return start, end
 
-                setattr(_thai_operator_range, "_pyvim_thai_patched", True)
+                setattr(_thai_operator_range, "_vith_thai_patched", True)
                 _PtkTextObject.operator_range = _thai_operator_range  # type: ignore[method-assign]
 
         # Startup self-test required by Section 4.1:

@@ -1,6 +1,6 @@
 # vim: set ft=python:
 """
-Pyvim configuration. Save to file to: ~/.pyvimrc
+Vith configuration. Save to file to: ~/.vithrc
 """
 from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.filters import ViInsertMode
@@ -16,7 +16,7 @@ __all__ = (
 
 def configure(editor):
     """
-    Configuration function. We receive a ``pyvim.editor.Editor`` instance as
+    Configuration function. We receive a ``vith.editor.Editor`` instance as
     argument that we can manipulate in here.
     """
     # Show line numbers by default. (:set number)

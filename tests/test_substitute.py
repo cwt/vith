@@ -1,4 +1,4 @@
-from pyvim.commands.handler import handle_command
+from vith.commands.handler import handle_command
 
 sample_text = """
 Roses are red,

@@ -1,12 +1,12 @@
 """
-Tests for `pyvim/io/backends.py` (P5: `codecs.open` deprecation removal,
+Tests for `vith/io/backends.py` (P5: `codecs.open` deprecation removal,
 `FileIO`/`GZipFileIO` behaviour).
 """
 
 import io
 import warnings
 
-from pyvim.io.backends import FileIO, GZipFileIO
+from vith.io.backends import FileIO, GZipFileIO
 
 
 def test_fileio_write_read_utf8_roundtrip(tmp_path):
@@ -62,7 +62,7 @@ def test_fileio_uses_io_open(tmp_path, monkeypatch):
         calls.append((args, kwargs))
         return original(*args, **kwargs)
 
-    monkeypatch.setattr('pyvim.io.backends.io.open', tracking_open)
+    monkeypatch.setattr('vith.io.backends.io.open', tracking_open)
 
     f.write(p, 'data', 'utf-8')
     assert f.read(p) == ('data', 'utf-8')

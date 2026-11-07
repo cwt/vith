@@ -7,10 +7,10 @@ import sys
 
 import prompt_toolkit
 
-import pyvim
+import vith
 
 version = sys.version_info
-pyvim_version = pyvim.__version__
+vith_version = vith.__version__
 
 __all__ = (
     'WELCOME_MESSAGE_TOKENS',
@@ -22,14 +22,14 @@ WELCOME_MESSAGE_WIDTH = 36
 
 
 WELCOME_MESSAGE_TOKENS = [
-    ('class:title', 'PyVim - Pure Python Vi clone\n'),
-    ('', 'Still experimental\n\n'),
+    ('class:title', 'Vith - Thai-enabled Python Vi clone\n'),
+    ('', "Fork of Jonathan Slenders's PyVim\n"),
+    ('', 'By Chaiwat Suttipongsakul\n\n'),
     ('', 'version '),
-    ('class:version', pyvim_version),
+    ('class:version', vith_version),
     ('', ', prompt_toolkit '),
     ('class:version', prompt_toolkit.__version__),
     ('', '\n'),
-    ('', 'by Jonathan Slenders\n\n'),
     ('', 'type :q'),
     ('class:key', '<Enter>'),
     ('', '            to exit\n'),

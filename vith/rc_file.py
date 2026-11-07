@@ -1,7 +1,7 @@
 """
 `rc_file`s are configuration files.
 
-A pyvim configuration file is just a Python file that contains a global
+A vith configuration file is just a Python file that contains a global
 `configure` function. During startup, that function will be called with the
 editor instance as an argument.
 """

@@ -1,12 +1,12 @@
 """
-Tests for `pyvim/commands/preview.py` (docs/bugs/028.md): the `:set`
+Tests for `vith/commands/preview.py` (docs/bugs/028.md): the `:set`
 preview is table-driven and covers the toggle options, the integer-valued
 options (tabstop/scrolloff) and colorcolumn.
 """
 
 from __future__ import annotations
 
-from pyvim.commands.preview import CommandPreviewer
+from vith.commands.preview import CommandPreviewer
 
 SAMPLE_STATE = {
     'show_line_numbers': False,

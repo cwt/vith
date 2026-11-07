@@ -1,5 +1,5 @@
 """
-Tests for `pyvim/style.py` (P2: lazy style mapping).
+Tests for `vith/style.py` (P2: lazy style mapping).
 """
 
 from collections.abc import Mapping
@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from pygments.styles import get_all_styles
 from pygments.util import ClassNotFound
 
-from pyvim.style import (
+from vith.style import (
     _LazyStylesDict,
     generate_built_in_styles,
     get_editor_style_by_name,
@@ -37,7 +37,7 @@ def test_lazy_styles_caches_compiled_styles():
 
 
 def test_lazy_styles_vim_scheme():
-    # `vim` is a Pygments scheme name that pyvim overrides with its own
+    # `vim` is a Pygments scheme name that vith overrides with its own
     # merged vim style: the lazy dict must resolve it through
     # `get_editor_style_by_name` and cache that result.
     styles = generate_built_in_styles()

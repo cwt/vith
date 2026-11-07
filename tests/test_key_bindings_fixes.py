@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 
-from pyvim.key_bindings import _delete_cell_clusters
+from vith.key_bindings import _delete_cell_clusters
 
 
 def test_delete_cell_clusters_no_crash_at_col0_or_empty_line():
@@ -41,7 +41,7 @@ def test_indent_line_uses_event_current_buffer():
     # Smoke: indent_line must reference event.current_buffer, not event.application.
     import inspect
 
-    from pyvim.key_bindings import create_key_bindings
+    from vith.key_bindings import create_key_bindings
 
     src = inspect.getsource(create_key_bindings)
     assert "event.application.current_buffer" not in src

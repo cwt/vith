@@ -1,11 +1,11 @@
 """
-Tests for `pyvim/lexer.py` (P1: cached, streaming `DocumentLexer`).
+Tests for `vith/lexer.py` (P1: cached, streaming `DocumentLexer`).
 """
 
 from prompt_toolkit.document import Document
 from prompt_toolkit.lexers.pygments import PygmentsLexer
 
-from pyvim.lexer import DocumentLexer
+from vith.lexer import DocumentLexer
 
 
 class _StubEditorBuffer(object):
@@ -104,7 +104,7 @@ def test_directory_listing_mode_still_uses_directory_lexer():
     _ = doc.lines
     stub = _StubEditorBuffer('/some/dir', in_file_explorer_mode=True)
 
-    from pyvim.lexer import DirectoryListingLexer
+    from vith.lexer import DirectoryListingLexer
 
     new_get_line = DocumentLexer(stub).lex_document(doc)
     # The directory-listing mode must keep using the `DirectoryListingLexer`

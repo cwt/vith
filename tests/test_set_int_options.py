@@ -5,8 +5,8 @@ docs/bugs/029.md): tabstop and scrolloff keep their different minimums.
 
 from __future__ import annotations
 
-from pyvim.commands.handler import handle_command
-from pyvim.editor_buffer import EditorBuffer
+from vith.commands.handler import handle_command
+from vith.editor_buffer import EditorBuffer
 
 
 def _with_buffer(editor):

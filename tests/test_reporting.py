@@ -1,6 +1,6 @@
 from prompt_toolkit.document import Document
 
-from pyvim.reporting import report_pyflakes
+from vith.reporting import report_pyflakes
 
 
 def test_report_pyflakes_utf8_column():
@@ -11,6 +11,6 @@ def test_report_pyflakes_utf8_column():
 
 
 def test_reporter_error_equality():
-    from pyvim.reporting import ReporterError
+    from vith.reporting import ReporterError
 
     assert [ReporterError(0, 0, 1, 'u')] == [ReporterError(0, 0, 1, 'u')]
