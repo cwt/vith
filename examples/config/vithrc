@@ -3,11 +3,10 @@
 Vith configuration. Save to file to: ~/.vithrc
 """
 from prompt_toolkit.application import run_in_terminal
-from prompt_toolkit.filters import ViInsertMode
+from prompt_toolkit.filters import vi_insert_mode
 from prompt_toolkit.key_binding.key_processor import KeyPress
 from prompt_toolkit.keys import Keys
 from subprocess import call
-import six
 
 __all__ = (
     'configure',
@@ -53,14 +52,14 @@ def configure(editor):
 
     # Add custom key bindings:
 
-    @editor.add_key_binding('j', 'j', filter=ViInsertMode())
+    @editor.add_key_binding('j', 'j', filter=vi_insert_mode)
     def _(event):
         """
         Typing 'jj' in Insert mode, should go back to navigation mode.
 
         (imap jj <esc>)
         """
-        event.cli.key_processor.feed(KeyPress(Keys.Escape))
+        event.app.key_processor.feed(KeyPress(Keys.Escape))
 
     @editor.add_key_binding(Keys.F9)
     def save_and_execute_python_file(event):
@@ -78,10 +77,10 @@ def configure(editor):
                 editor_buffer.write()
 
         # Now run the Python interpreter. But use
-        # `CommandLineInterface.run_in_terminal` to go to the background and
-        # not destroy the window layout.
+        # `prompt_toolkit.application.run_in_terminal` to go to the
+        # background and not destroy the window layout.
         def execute():
             call(['python3', editor_buffer.location])
-            six.moves.input('Press enter to continue...')
+            input('Press enter to continue...')
 
         run_in_terminal(execute)

@@ -6,8 +6,6 @@ A vith configuration file is just a Python file that contains a global
 editor instance as an argument.
 """
 
-from __future__ import print_function
-
 import os
 import traceback
 

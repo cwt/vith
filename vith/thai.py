@@ -84,7 +84,6 @@ __all__ = (
     "find_previous_word_ending",
     "find_start_of_previous_word",
     "find_boundaries_of_current_word",
-    "get_word_under_cursor",
     "install_prompt_toolkit_thai_patches",
 )
 
@@ -344,6 +343,9 @@ def cell_starts(line: str) -> list[int]:
     """
     Return valid Normal-mode cell start offsets in `line`
     (e.g. `"ที่ดิน"` -> `[0, 3, 5]`).
+
+    Exported for the test suite and benchmarks only (docs/bugs/074.md);
+    the editor itself walks via `snap_to_cell_start`/`next_cell_offset`.
     """
     if not line:
         return []
@@ -772,7 +774,7 @@ def find_boundaries_of_current_word(
 ) -> tuple[int, int]:
     """
     Thai/Lao-aware replacement for `Document.find_boundaries_of_current_word`
-    (used by `iw`, `aw`, `iW`, `aW`, `get_word_under_cursor`, `*`, `#`).
+    (used by `iw`, `aw`, `iW`, `aW`, `*`, `#`).
     """
     line = doc.current_line
     if line.isascii():
@@ -810,12 +812,6 @@ def find_boundaries_of_current_word(
                     w_end += 1
             return (w_start - col, w_end - col)
     return (0, 0)
-
-
-def get_word_under_cursor(doc: Document, WORD: bool = False) -> str:
-    """Return the Thai/Lao or ASCII word currently under the cursor."""
-    start, end = find_boundaries_of_current_word(doc, WORD=WORD)
-    return doc.text[doc.cursor_position + start : doc.cursor_position + end]
 
 
 # ---------------------------------------------------------------------------

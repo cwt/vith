@@ -226,7 +226,6 @@ class Editor(object):
             key_bindings=self.key_bindings,
             style=DynamicStyle(current_style_getter),
             paste_mode=Condition(paste_mode_enabled),
-            #            ignore_case=Condition(lambda: self.ignore_case),  # TODO
             include_default_pygments_style=False,
             mouse_support=Condition(mouse_support_enabled),
             full_screen=True,

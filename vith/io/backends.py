@@ -13,6 +13,10 @@ __all__ = (
 )
 
 
+# Decode chain: utf-8 first, latin-1 as the lossy fallback. NOTE: latin-1
+# *never* raises — the second iteration always "succeeds" — so this is not
+# a multi-encoding search despite looking like one (docs/bugs/074.md); see
+# docs/bugs/070.md for the write-side consequences.
 ENCODINGS = ['utf-8', 'latin-1']
 
 
