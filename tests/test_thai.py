@@ -1017,3 +1017,49 @@ def test_selection_range_at_line_is_line_relative(editor):
         )
         result = doc_eol.selection_range_at_line(1)
         assert result == thai._ORIGINAL_DOCUMENT_METHODS["selection_range_at_line"](doc_eol, 1)
+
+
+def test_block_selection_rectangles_align_on_cells(editor):
+    # 077: visual-block (C-v) rects must be defined on VISUAL columns —
+    # cell-cluster ordinals — not codepoint columns that count combining
+    # marks. Whole cells light up on every row; no mid-cluster mark slices.
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    editor.load_initial_files([None])
+    text = "ที่ดิน\nปั้\nกำแพง\n"
+    # clusters: row0 'ที่ดิน' [0,3,5]; row1 'ปั้' [0]; row2 'กำแพง' [0,1,2,3,4]
+
+    with set_app(editor.application):
+        # Corners: codepoint 5 (row 0, cluster ordinal 2 = น) and 13
+        # (row 2, cluster ordinal 2 = แ). The rect is visual columns 2..2.
+        doc = Document(text, cursor_position=13, selection=SelectionState(5, SelectionType.BLOCK))
+
+        row0 = doc.selection_range_at_line(0)
+        row1 = doc.selection_range_at_line(1)
+        row2 = doc.selection_range_at_line(2)
+        assert row0 == (5, 6)  # cell ordinal 2 on row 0 = น (was (2, 6) vanilla: mid-cluster)
+        assert row2 == (2, 6)  # cell ordinal 2 on row 2 = แ..พ..ง to EOL space
+        assert row1 == (3, 4)  # row 1 has no cell at ordinal 2: only the EOL space stays
+
+        # LINES selection still spans its lines untouched:
+        doc_lines = Document(
+            text, cursor_position=13, selection=SelectionState(0, SelectionType.LINES)
+        )
+        assert doc_lines.selection_range_at_line(1) == (0, len(doc_lines.lines[1]) + 1)
+
+
+def test_block_selection_ascii_rectangle_matches_vanilla(editor):
+    # 077: on ASCII documents the block rect is unchanged compared with
+    # prompt_toolkit's own columns (cluster ordinal == codepoint column).
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    editor.load_initial_files([None])
+    text = "012345\nabcdef\n"
+    with set_app(editor.application):
+        doc = Document(text, cursor_position=8, selection=SelectionState(5, SelectionType.BLOCK))
+        for row in range(len(doc.lines)):
+            assert doc.selection_range_at_line(row) == thai._ORIGINAL_DOCUMENT_METHODS[
+                "selection_range_at_line"
+            ](doc, row)

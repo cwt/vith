@@ -25,11 +25,13 @@ import asyncio
 import inspect
 import logging
 import re
+from bisect import bisect_right
 from typing import Any, Callable, Iterable
 
 import prompt_toolkit.renderer as ptk_renderer
 from prompt_toolkit.document import Document
 from prompt_toolkit.filters.app import vi_mode, vi_navigation_mode, vi_selection_mode
+from prompt_toolkit.selection import SelectionType
 
 try:
     from prompt_toolkit.key_binding.bindings.vi import TextObject as _PtkTextObject
@@ -732,7 +734,38 @@ def _thai_selection_ranges(self) -> Iterable[tuple[int, int]]:
         yield from_, to
 
 
-def _thai_selection_range_at_line(self, row: int) -> tuple[int, int] | None:
+def _cell_ordinal(line: str, col: int) -> int:
+    """
+    Visual cell-cluster ordinal that contains codepoint column `col`
+    (combining marks overprint their base, so every Thai/Lao cluster is
+    exactly one terminal cell: its ordinal == its visual column).
+
+    Empty and ASCII lines shortcut (columns == ordinals); `col` may sit
+    mid-cluster — the ordinal of the cluster's base is returned
+    (docs/bugs/077.md).
+    """
+    if not line or line.isascii():
+        return col
+    starts = cell_starts(line)
+    if not starts:
+        return 0
+    return max(0, bisect_right(starts, col) - 1)
+
+
+def _start_of_cell_ordinal(line: str, ordinal: int) -> int:
+    """
+    Line-relative codepoint column of the start of visual cell `ordinal`
+    (`len(line)` when the row has fewer cells). ASCII shortcut keeps the
+    codepoint/visual identity.
+    """
+    n = len(line)
+    if not line or line.isascii():
+        return min(ordinal, n)
+    starts = cell_starts(line)
+    return starts[ordinal] if ordinal < len(starts) else n
+
+
+def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] | None:
     """Thai-aware wrapper for `Document.selection_range_at_line`."""
     orig = _ORIGINAL_DOCUMENT_METHODS.get("selection_range_at_line")
     if orig is None:
@@ -747,8 +780,34 @@ def _thai_selection_range_at_line(self, row: int) -> tuple[int, int] | None:
     # mix-up produced out-of-mapping columns on rows > 0 and crashed
     # `HighlightSelectionProcessor` with a KeyError; docs/bugs/076.md).
     start, end = res
+    selection = self.selection
+    if selection is None:
+        return start, end
     if vi_mode() and end > start:
         line = self.lines[row]
+        if selection.type == SelectionType.BLOCK:
+            # Visual rectangle: prompt_toolkit's per-row columns are
+            # codepoint columns, which count upper/lower vowels and tone
+            # marks — so a block over multiple Thai lines skews instead of
+            # covering whole cells (docs/bugs/077.md). The corners define
+            # the rectangle in VISUAL columns (cluster ordinals, like Vim):
+            # map each row's span back to codepoints, whole cells only.
+            from_, to_ = sorted((self.cursor_position, selection.original_cursor_position))
+            _, col_from = self.translate_index_to_position(from_)
+            _, col_to = self.translate_index_to_position(to_)
+            row_from, _ = self.translate_index_to_position(from_)
+            row_to, _ = self.translate_index_to_position(to_)
+            line_from = self.lines[min(row_from, len(self.lines) - 1)]
+            line_to = self.lines[min(row_to, len(self.lines) - 1)]
+            v_low = min(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
+            v_high = max(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
+            start = _start_of_cell_ordinal(line, v_low)
+            # End of the last included cell `v_high` (exclusive): the start
+            # of cell `v_high + 1`. Keep prompt_toolkit's own EOL+1 column
+            # when it is larger (its highlight appends a space at the line
+            # end); take the larger of the two so no cluster is cut in half.
+            end = max(end, _start_of_cell_ordinal(line, v_high + 1))
+            return start, end
         cursor_col = end - 1
         if 0 <= cursor_col < len(line) and is_combining_char(line[cursor_col]):
             cluster_end_col = next_cell_offset(line, cursor_col, 1)

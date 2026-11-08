@@ -24,7 +24,7 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Audit & Findings
 
-* [Findings Bundle](bugs/index.md) — **75 machine-verified findings across 3 audit rounds (all closed)**:
+* [Findings Bundle](bugs/index.md) — **77 machine-verified findings across 3 audit rounds (all closed)**:
   * **Round 3 (2026-11-08, hg rev 87de3a3 — fixed in rev 253–265)**: 13 machine-verified findings ([063](bugs/063.md)–[075](bugs/075.md)) — 9 defects (`type: bug`: cell-cluster motion overrides, `TextObject` rollback + fragile Thai patch internals, legacy lexer fallback, unguarded None-invariants, quit/`:b` semantics, `__main__` import side-effect, reporter invalidation, startup/IO lows, grouped Vim/cold-text deviations) and 4 improvements (`type: improvement`: `O(n)` keystroke work + per-frame allocations, duplicated word-motion walks, dead code/example, readability). Originally filed as 18 findings (063–080) at hg rev 251, re-validated against the tip, merged/renumbered on 2026-11-08, then fixed finding-by-finding (179 tests, mypy/ruff clean — mapping + fix revs in [`bugs/index.md`](bugs/index.md)).
   * **Round 2 (2026-11-07, hg rev 191–233 — closed in rev 194–233)**: 25 machine-verified findings ([038](bugs/038.md)–[062](bugs/062.md)) — 18 defects (`type: bug`, including high-priority crashes and Thai/Lao Visual mode, inclusive motion, word-completion, and right-margin combining-mark bugs) and 7 improvements (`type: improvement`: performance, dead code, duplication, readability/test hygiene, and plan/benchmark drift).
   * **Round 1 (2026-11-06, hg rev 164 — closed in rev 167–195)**: 37 machine-verified findings ([001](bugs/001.md)–[037](bugs/037.md)) — defects 001–016 and improvements 017–037, all fixed with recorded hg revisions.
