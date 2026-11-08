@@ -217,6 +217,13 @@ class EditorBuffer(object):
             if self.report_errors:
                 self.report_errors = []
                 self.report_errors_by_line = {}
+                # The cleared index must be reflected immediately: without an
+                # invalidate, stale pyflakes fragments/toolbar survive until
+                # the next edit (docs/bugs/069.md).
+                try:
+                    get_app().invalidate()
+                except RuntimeError:
+                    pass  # No Application is currently running (e.g. startup).
             return
 
         # 2. Acquire the running event loop BEFORE setting _reporter_is_running.
