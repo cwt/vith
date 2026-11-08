@@ -214,19 +214,24 @@ def create_key_bindings(editor):
         """
         Open file/directory in file explorer mode.
         """
+        current_editor_buffer = editor.current_editor_buffer
+        if current_editor_buffer is None:
+            # Transient focus state (docs/bugs/066.md): nothing to open.
+            return
         name_under_cursor = event.current_buffer.document.current_line
         if not name_under_cursor.strip() or name_under_cursor.lstrip().startswith('"'):
             return
-        new_path = os.path.normpath(
-            os.path.join(editor.current_editor_buffer.location, name_under_cursor)
-        )
+        new_path = os.path.normpath(os.path.join(current_editor_buffer.location, name_under_cursor))
 
         editor.window_arrangement.open_buffer(new_path, show_in_current_window=True)
         editor.sync_with_prompt_toolkit()
 
     @kb.add('-', filter=in_file_explorer_mode)
     def to_parent_directory(event):
-        new_path = os.path.normpath(os.path.join(editor.current_editor_buffer.location, '..'))
+        current_editor_buffer = editor.current_editor_buffer
+        if current_editor_buffer is None:
+            return
+        new_path = os.path.normpath(os.path.join(current_editor_buffer.location, '..'))
 
         editor.window_arrangement.open_buffer(new_path, show_in_current_window=True)
         editor.sync_with_prompt_toolkit()

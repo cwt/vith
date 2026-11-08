@@ -67,3 +67,76 @@ def test_close_window_on_last_window_does_not_crash(editor):
     wa.close_window()
     assert wa.active_tab.window_count() == 1
     assert editor.message is not None
+
+
+def test_close_active_window_reports_empty_and_cycle_focus_no_ops(editor_buffer):
+    # 066: `close_active_window` reports when the tab emptied, and
+    # `cycle_focus` no-ops on an empty tab (previously `ValueError` from
+    # `windows.index(None)`).
+    from vith.window_arrangement import TabPage, Window
+
+    tab = TabPage(Window(editor_buffer))
+    assert tab.close_active_window() is True
+    assert tab.active_window is None
+    tab.cycle_focus()  # Must not raise.
+
+
+def test_close_active_window_not_empty_returns_false(editor):
+    # 066: with two windows the close only removes the focused one.
+    from vith.window_arrangement import TabPage, Window
+
+    wa = editor.window_arrangement
+    eb1 = EditorBuffer(editor)
+    wa._add_editor_buffer(eb1)
+    tab = TabPage(Window(eb1))
+    eb2 = EditorBuffer(editor)
+    wa._add_editor_buffer(eb2)
+    tab.vsplit(eb2)
+    assert tab.close_active_window() is False
+    assert tab.active_window is not None
+
+
+def test_close_buffer_keeps_active_index_valid_across_tabs(editor):
+    # 066: with tabs [T0 shared] [T1 other] [T2 shared-active], wiping the
+    # shared buffer removes T0 and T2; the old snapshot-index bookkeeping
+    # left active_tab_index pointing past the end (IndexError on next
+    # `active_tab` access). The repair must land on the surviving tab T1.
+    from vith.window_arrangement import TabPage, Window
+
+    wa = editor.window_arrangement
+    eb_shared = EditorBuffer(editor)
+    wa._add_editor_buffer(eb_shared)
+    base_tab = wa.tab_pages[0]
+    eb_other = EditorBuffer(editor)
+    wa._add_editor_buffer(eb_other)
+
+    t_other = TabPage(Window(eb_other))
+    t_shared2 = TabPage(Window(eb_shared))
+    wa.tab_pages = [base_tab, t_other, t_shared2]
+    wa.active_tab_index = 2
+
+    wa.close_buffer()  # Must not raise.
+
+    assert eb_shared not in wa.editor_buffers
+    assert wa.tab_pages == [t_other]
+    assert wa.active_tab_index == 0
+    assert wa.active_tab is t_other
+
+
+def test_close_buffer_repairs_when_active_tab_itself_is_removed(editor):
+    # 066: tabs [T0 other] [T1 shared, active] [T2 shared] — the active tab
+    # itself is among the removed ones; the index must clamp to a survivor.
+    from vith.window_arrangement import TabPage, Window
+
+    wa = editor.window_arrangement
+    eb_shared = EditorBuffer(editor)
+    wa._add_editor_buffer(eb_shared)
+    t_other = TabPage(Window(EditorBuffer(editor)))
+    t_shared = TabPage(Window(eb_shared))
+    wa.tab_pages = [t_other, t_shared, TabPage(Window(eb_shared))]
+    wa.active_tab_index = 1
+
+    wa.close_buffer()
+
+    assert wa.tab_pages != []
+    assert wa.active_tab is wa.tab_pages[wa.active_tab_index]

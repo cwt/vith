@@ -169,6 +169,9 @@ class TabPage(object):
     def close_active_window(self):
         """
         Close active window.
+
+        Returns `True` when the tab page became empty (no windows left), so
+        the caller can repair tab bookkeeping (docs/bugs/066.md).
         """
         active_split = self._get_active_split()
 
@@ -193,10 +196,15 @@ class TabPage(object):
             index = parent.index(active_split)
             parent[index] = active_split[0]
 
+        return len(self.windows()) == 0
+
     def cycle_focus(self):
         """
         Cycle through all windows.
         """
+        if self.active_window is None:
+            # Empty tab page (docs/bugs/066.md): nothing to cycle.
+            return
         windows = self.windows()
         new_index = (windows.index(self.active_window) + 1) % len(windows)
         self.active_window = windows[new_index]
@@ -476,6 +484,7 @@ class WindowArrangement(object):
         buffer or an empty buffer is shown.
         """
         eb = self.active_editor_buffer
+        active_tab = self.active_tab
 
         # Remove this buffer.
         index = self.editor_buffers.index(eb)
@@ -484,19 +493,18 @@ class WindowArrangement(object):
         # Close the active window.
         self.active_tab.close_active_window()
 
-        # Close all the windows that still have this buffer open.
-        for i, t in enumerate(self.tab_pages[:]):
+        # Close all the windows that still have this buffer open and remove
+        # tabs emptied by the close. Bookkeeping runs on the live list while
+        # tracking the active tab as an *object* (docs/bugs/066.md): the old
+        # snapshot-index arithmetic could leave `active_tab_index` pointing
+        # at the wrong tab or past the end of the list.
+        for t in self.tab_pages[:]:
             t.close_editor_buffer(eb)
-
-            # Remove tab when there are no windows left.
             if t.window_count() == 0:
                 self.tab_pages.remove(t)
 
-                if i <= self.active_tab_index:
-                    self.active_tab_index = max(0, self.active_tab_index - 1)
-
-        # When there are no windows/tabs left, create a new tab.
-        if len(self.tab_pages) == 0:
+        if not self.tab_pages:
+            # No windows/tabs left, create a new tab.
             self.active_tab_index = None
 
             if len(self.editor_buffers) > 0:
@@ -511,6 +519,14 @@ class WindowArrangement(object):
                 # Create a new buffer. (This will also create the window
                 # automatically.)
                 eb = self._get_or_create_editor_buffer()
+        elif active_tab is not None:
+            # Repair bookkeeping: re-point the active index at the same tab
+            # object, or clamp to a neighbouring one when it was removed.
+            if active_tab in self.tab_pages:
+                self.active_tab_index = self.tab_pages.index(active_tab)
+            else:
+                old_index = self.active_tab_index if self.active_tab_index is not None else 0
+                self.active_tab_index = max(0, min(old_index, len(self.tab_pages) - 1))
 
     def create_tab(self, location=None):
         """
