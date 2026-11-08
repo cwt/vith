@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 75 machine-verified findings across Round 1 (hg rev 164, 2026-11-06, 001–037, closed), Round 2 (hg rev 191–233, 2026-11-07, 038–062, fixed), and Round 3 (hg rev 87de3a3, 2026-11-08; filed as 063–080, re-validated, merged and renumbered to 063–075 on 2026-11-08 — open)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 75 machine-verified findings across Round 1 (hg rev 164, 2026-11-06, 001–037, closed), Round 2 (hg rev 191–233, 2026-11-07, 038–062, fixed), and Round 3 (hg rev 87de3a3, 2026-11-08; filed as 063–080, re-validated, merged and renumbered to 063–075; all fixed in hg rev 253–265 on 2026-11-08)."
 status: stable
 sources:
   - docs/bugs/
@@ -11,8 +11,8 @@ stale_after: 2027-01-01T00:00:00Z
 tags: [bugs, findings, audit]
 generated:
   by: "OpenCode (Crouton Alpha)"
-  at: "2026-11-08T18:35:00Z"
-timestamp: "2026-11-08T18:35:00Z"
+  at: "2026-11-08T19:20:00Z"
+timestamp: "2026-11-08T19:20:00Z"
 ---
 
 # vith Findings Bundle
@@ -24,11 +24,17 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 
 * **Round 1 (2026-11-06, hg rev 164 — [001](001.md)–[037](037.md), `fix_status: fixed`)**: 16 defects and 21 improvements verified against `prompt_toolkit 3.0.53`, live micro-probes, the test suite (68 passed), `mypy .` (40 files clean), and `tools/bench_plans.py`. Closed in hg rev 167–195 (100 tests, 43-file mypy baseline at the 3.10 floor, ruff clean).
 * **Round 2 (2026-11-07, hg rev 191–233 — [038](038.md)–[062](062.md), `fix_status: fixed`)**: 18 defects ([038](038.md)–[054](054.md), [062](062.md)) and 7 improvements ([055](055.md)–[061](061.md)). All fixed in hg rev 194–233.
-* **Round 3 (2026-11-08, hg rev 87de3a3 — [063](063.md)–[075](075.md), `fix_status: open`)**: 9 defects ([063](063.md)–[071](071.md)) and 4 improvements ([072](072.md)–[075](075.md)). Open; found in the post-rebrand deep review at 134 tests passing, `mypy`/`ruff` clean. Originally filed as 18 findings (063–080) at hg rev 251 and re-validated/merged/renumbered on 2026-11-08 — see the [renumbering note](#renumbering-note-2026-11-08).
+* **Round 3 (2026-11-08, hg rev 87de3a3 — [063](063.md)–[075](075.md), `fix_status: fixed`)**: 9 defects ([063](063.md)–[071](071.md)) and 4 improvements ([072](072.md)–[075](075.md)). All fixed in hg rev 253–265 (fix arc of 2026-11-08, one commit per finding or tightly-bound pairing, 179 tests passing, `mypy` 32 files clean, `ruff` clean). Originally filed as 18 findings (063–080) at hg rev 251 and re-validated/merged/renumbered on 2026-11-08 — see the [renumbering note](#renumbering-note-2026-11-08).
 
-## Round 3 Findings (2026-11-08, hg rev 87de3a3 — validated & renumbered — open)
+## Round 3 Findings (2026-11-08, hg rev 87de3a3 → fixed in rev 253–265)
 
-### Defects (`type: bug`, `fix_status: open`)
+**Resolution note (2026-11-08 fix arc):** every finding below was fixed one-by-one with regression tests,
+re-verified after each commit (pytest + `mypy vith` + `ruff check/format`). Fix revisions: 063 (253),
+064 (254), 065 (255), 066 (256), 067 (257), 068 (258), 069 (259), 070 (260), 071 (261),
+072 (262), 073 (263), 074 (264), 075 (265). Final verification: 179 tests, mypy 32 source files
+clean at the 3.10 floor, ruff clean, `tools/bench_plans.py` reproduces after the split.
+
+### Defects (`type: bug`, `fix_status: fixed`)
 
 | ID | Finding | Area | Priority |
 | :--- | :--- | :--- | :--- |
@@ -42,7 +48,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 | [070](070.md) | Startup and I/O robustness: single-level `mkdir`, bare `assert` on `-p -o`, latin-1 write failure, unknown-location indistinguishability | editor/io/startup | low |
 | [071](071.md) | Miscellaneous Vim-semantics/cold-text deviations (`r` count, file-explorer whole-line open, `is_combining_char` multi-char, cold-text undo cursor-restoration defect, private `_search`) | vim-semantics/cold-text | low |
 
-### Improvements & cleanup (`type: improvement`, `fix_status: open`)
+### Improvements & cleanup (`type: improvement`, `fix_status: fixed`)
 
 | ID | Finding | Category | Priority |
 | :-- | :--- | :--- | :--- |
