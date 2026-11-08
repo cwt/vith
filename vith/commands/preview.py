@@ -58,6 +58,18 @@ class CommandPreviewer(object):
         self._colorcolumn = e.colorcolumn
         self._tabstop = e.tabstop
         self._scroll_offset = e.scroll_offset
+        # The full `:set` catalog is previewable, so the whole state must be
+        # restorable — a preview abort (Esc) used to leak inverted values for
+        # every option outside the list below (docs/bugs/091.md).
+        self._paste_mode = e.paste_mode
+        self._show_wildmenu = e.show_wildmenu
+        self._expand_tab = e.expand_tab
+        self._incsearch = e.incsearch
+        self._display_unprintable_characters = e.display_unprintable_characters
+        self._enable_jedi = e.enable_jedi
+        self._wrap_lines = e.wrap_lines
+        self._break_indent = e.break_indent
+        self._enable_mouse_support = e.enable_mouse_support
 
     def restore(self):
         """
@@ -75,6 +87,15 @@ class CommandPreviewer(object):
         e.colorcolumn = self._colorcolumn
         e.tabstop = self._tabstop
         e.scroll_offset = self._scroll_offset
+        e.paste_mode = self._paste_mode
+        e.show_wildmenu = self._show_wildmenu
+        e.expand_tab = self._expand_tab
+        e.incsearch = self._incsearch
+        e.display_unprintable_characters = self._display_unprintable_characters
+        e.enable_jedi = self._enable_jedi
+        e.wrap_lines = self._wrap_lines
+        e.break_indent = self._break_indent
+        e.enable_mouse_support = self._enable_mouse_support
 
     def preview(self, input_string):
         """
@@ -131,9 +152,13 @@ class CommandPreviewer(object):
 
     @staticmethod
     def _preview_list_value(e, attribute, variables):
+        # Honor the catalog-provided attribute (used to hard-code
+        # `colorcolumn`, which 073-era drift left stale; docs/bugs/091.md).
+        if attribute is None:
+            return
         value = variables.get('set_value', '')
         if not value:
-            e.colorcolumn = []
+            setattr(e, attribute, [])
             return
         try:
             numbers = [int(v) for v in value.split(',')]

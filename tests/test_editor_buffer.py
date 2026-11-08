@@ -279,3 +279,19 @@ def test_dirty_flag_fast_path_and_same_length_semantics(editor_buffer):
 
     eb.buffer.text = "axy"  # same length, different content
     assert eb.has_unsaved_changes is True
+
+
+def test_reload_vanished_file_keeps_contents(editor, tmp_path):
+    # 088: `:e` on a file deleted since we read it must NOT silently blank
+    # the saved buffer (Vim: E211 + keep contents).
+    from vith.editor_buffer import EditorBuffer
+
+    watch = tmp_path / "watchme.txt"
+    watch.write_text("precious line\n")
+    buffer_ = EditorBuffer(editor, str(watch))
+
+    watch.unlink()
+    buffer_.reload()
+    assert editor.message and "watchme.txt" in editor.message
+    assert buffer_.buffer.text == "precious line"
+    assert buffer_.is_new is False

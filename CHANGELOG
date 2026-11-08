@@ -1,6 +1,36 @@
 CHANGELOG
 =========
 
+Unreleased: 2026-11-08 (post-0.10.0 field-verified fix arcs, hg rev 267-271)
+---------------------------------------------------------------------------
+
+Thai & Lao script support (the 076-085 selection-stack arcs):
+
+- Fixed a visual-highlight crash (`v` + `j`) and aligned visual selections,
+  visual blocks and block `I`/`A` insert positions on cell-cluster columns:
+  Thai/Lao clusters highlight, cut, yank and insert like Vim cells
+  (findings 076-085).
+- Fixed `j`/`k` keeping the *visual* column across Thai rows
+  (`preferred_column` was a raw codepoint column; finding 078).
+- Word spans no longer slice mixed-script clusters (`Latin base + Thai mark`,
+  generic accents) for `iw`/`aw`/`*`/`#` (finding 086).
+
+Editor commands & buffers (findings 063-091):
+
+- `:b <pattern>`/`:b <n>` no longer crash on untitled buffers; `:b <n>` and
+  the `:ls` pager share 1-based numbering with `[New file]` names.
+- `:s` flag parsing extended (`:s/x/y//g`, `:s/x/y/gg`) and `:0,1s/...` maps
+  row 0 to the first line; `:s` with a Thai replacement properly re-arms the
+  Thai renderer sanitizer.
+- `:e` on a file deleted since it was read shows E211-style error and keeps
+  the in-memory contents instead of blanking the buffer.
+- `:q`/`:wq` window-vs-exit semantics, `:wqa` writing all buffers, `:b`
+  completion/jump/numbering alignment, `__main__` import guard, reporter
+  invalidation, previewer abort-leak fixes are included in the arc above.
+
+Unreleased items are documented in detail in ``docs/bugs/index.md`` (91
+machine-verified findings, all closed).
+
 0.10.0: 2026-11-08
 ------------------
 

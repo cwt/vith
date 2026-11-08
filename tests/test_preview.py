@@ -101,3 +101,36 @@ def test_restore_undoes_the_preview(editor):
     previewer.restore()
     for attribute, value in SAMPLE_STATE.items():
         assert getattr(editor, attribute) == value, attribute
+
+
+def test_previewer_restores_full_catalog_through_abort(editor):
+    # 091: preview save/restore used to cover only 9 of the ~16 catalog
+    # toggles, so aborting an ESC'd `:set paste`/`nowrap` leaked the
+    # previewed value into the session.
+    from vith.commands.preview import CommandPreviewer
+
+    previewer = CommandPreviewer(editor)
+    previewer.preview(':set paste')
+    assert editor.paste_mode is True
+    previewer.restore()
+    assert editor.paste_mode is False
+
+    previewer.preview(':set nowrap')
+    assert editor.wrap_lines is False
+    previewer.restore()
+    assert editor.wrap_lines is True
+
+    previewer.preview(':set nojedi')
+    assert editor.enable_jedi is False
+    previewer.restore()
+    assert editor.enable_jedi is True
+
+
+def test_preview_list_value_uses_catalog_attribute(editor):
+    # 091: `_preview_list_value` hard-coded `colorcolumn` instead of the
+    # derived attribute.
+    from vith.commands.preview import CommandPreviewer
+
+    previewer = CommandPreviewer(editor)
+    previewer._preview_list_value(editor, 'colorcolumn', {'set_value': '4,8'})
+    assert editor.colorcolumn == [4, 8]

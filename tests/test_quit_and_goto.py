@@ -136,3 +136,27 @@ def test_command_stacks_normalize_on_base(monkeypatch):
     finally:
         commands_mod.COMMANDS_TO_HANDLERS.pop('fake-a', None)
         commands_mod.COMMANDS_TO_HANDLERS.pop('fake-b', None)
+
+
+def test_goto_buffer_pattern_with_untitled_buffers_is_guarded(editor, monkeypatch):
+    # 080: `:b <pattern>` used to crash with a TypeError whenever any buffer
+    # had location=None (untitled/new buffers exist by default).
+    from vith.commands.handler import handle_command
+
+    editor.load_initial_files([None])  # creates the untitled buffer
+
+    handle_command(editor, ":b zzz-nomatch")  # substring branch reached
+    assert editor.message and editor.message.startswith("E94")
+    handle_command(editor, ":b 2")  # numeric fallback after substring
+    handle_command(editor, ":b 1")
+
+
+def test_ls_pager_one_based_and_no_name(editor):
+    # 087: `:ls` pager numbers must match the 1-based `:b <n>` numbering and
+    # untitled buffers must print a name instead of repr(None).
+    from vith.commands.commands import buffer_list_lines
+
+    editor.load_initial_files([None])
+    lines = buffer_list_lines(editor)
+    assert lines and lines[0].lstrip().startswith("1 % ")  # was "0 %"
+    assert "None" not in lines[0]

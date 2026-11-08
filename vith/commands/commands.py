@@ -6,6 +6,7 @@ from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.document import Document
 
 from vith.cold_text import format_cold_text_stats
+from vith.thai import note_document_text
 
 __all__ = (
     'has_command_handler',
@@ -274,16 +275,34 @@ def buffer_list(editor):
     """
 
     def handler():
-        wa = editor.window_arrangement
-        for info in wa.list_open_buffers():
-            char = '%' if info.is_active else ''
-            eb = info.editor_buffer
-            print(
-                ' %3i %-2s %-20s  line %i'
-                % (info.index, char, eb.location, (eb.buffer.document.cursor_position_row + 1))
-            )
+        for line in buffer_list_lines(editor):
+            print(line)
 
     _run_pager(handler)
+
+
+def buffer_list_lines(editor):
+    """
+    Build the `:ls`/`:buffers` pager rows: 1-based buffer numbers (matching
+    `:b <n>` and the overlay, docs/bugs/087.md) with `[No Name]` for
+    untitled buffers.
+    """
+    wa = editor.window_arrangement
+    lines = []
+    for info in wa.list_open_buffers():
+        char = '%' if info.is_active else ''
+        eb = info.editor_buffer
+        display = eb.get_display_name()
+        lines.append(
+            ' %3i %-2s %-20s  line %i'
+            % (
+                info.index + 1,
+                char,
+                display,
+                (eb.buffer.document.cursor_position_row + 1),
+            )
+        )
+    return lines
 
 
 @cmd('compression')
@@ -649,13 +668,15 @@ def substitute(editor, range_start, range_end, search, replace, flags):
         editor.show_message('Invalid regex: %s' % e)
         return
 
-    # Convert and validate the captured range.
+    # Convert and validate the captured range. (`:0,1s` maps `0` to the
+    # first line, like Vim — E19 was raised for the 0-row trick before,
+    # docs/bugs/083.md.)
     if not range_start:
         assert not range_end
         range_start_row = range_end_row = cursor_position_row
     else:
-        range_start_row = int(range_start) - 1
-        range_end_row = int(range_end) - 1 if range_end else range_start_row
+        range_start_row = max(0, int(range_start) - 1)
+        range_end_row = max(0, int(range_end) - 1) if range_end else range_start_row
     if not 0 <= range_start_row <= range_end_row < len(buffer.document.lines):
         editor.show_message('E19: No such line in current buffer')
         return
@@ -690,8 +711,9 @@ def substitute(editor, range_start, range_end, search, replace, flags):
 
     # Apply substitution.
     buffer.save_to_undo_stack()
-    # Reuse the already-split lines (ptk caches `Document.lines`, but the
-    # shallow list copy is still avoidable; docs/bugs/072.md).
+    # Reuse the already-split lines: only the shallow per-row list copy is
+    # needed (ptk caches `Document.lines` per document; docs/bugs/072.md row
+    # 5 as corrected in 090's audit).
     lines = list(buffer_lines)
     for row in line_numbers:
         lines[row] = substituted[row]
@@ -699,6 +721,12 @@ def substitute(editor, range_start, range_end, search, replace, flags):
 
     doc = Document(new_text)
     buffer.document = doc
+    # The renderer gate: `_on_text_changed` notes only the *cursor line*,
+    # and at `document =` time the synthetic Document cursor is still at the
+    # end of `new_text` — substitute/paste-class mass edits introducing Thai
+    # on other rows could leave the 002/062-era sanitizer disarmed while the
+    # screen shows Thai (docs/bugs/081.md). Note the full replaced text.
+    note_document_text(new_text)
     row = last_substituted_row
     buffer.cursor_position = doc.translate_row_col_to_index(row, 0) + (
         len(doc.lines[row]) - len(doc.lines[row].lstrip())

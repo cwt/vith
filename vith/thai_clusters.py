@@ -5,6 +5,9 @@ Split out of `vith/thai.py` (docs/bugs/075.md); `vith.thai` re-exports the
 public names, so the import surface stays stable.
 """
 
+from functools import lru_cache
+from typing import List
+
 from vith.thai_classify import is_combining_char
 
 # ---------------------------------------------------------------------------
@@ -82,13 +85,17 @@ def cell_stops(line: str) -> list[int]:
     return stops
 
 
-def cell_starts(line: str) -> list[int]:
+@lru_cache(maxsize=4096)
+def cell_starts(line: str) -> List[int]:
     """
     Return valid Normal-mode cell start offsets in `line`
     (e.g. `"ที่ดิน"` -> `[0, 3, 5]`).
 
-    Exported for the test suite and benchmarks only (docs/bugs/074.md);
-    the editor itself walks via `snap_to_cell_start`/`next_cell_offset`.
+    The per-line result is cached: `_cell_ordinal`/`_start_of_cell_ordinal`
+    (077/079) and `-- vertical curswant` (078) consult this on every
+    `j`/`k`/block command — uncached, a 2000-codepoint Thai row paid two
+    O(line) scans per keypress (docs/bugs/090.md). TREAT THE RETURNED LIST
+    AS READ-ONLY (it is shared).
     """
     if not line:
         return []

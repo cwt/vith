@@ -388,9 +388,11 @@ class WindowArrangement(object):
         # Exact location match.
         matches = [eb for eb in ebs if eb.location == buffer_name]
 
-        # Unique substring match (the completer promises this).
+        # Unique substring match (the completer promises this). Guard the
+        # untitled buffers (`location None`) — the substring branch used to
+        # crash the editor whenever a No-Name buffer existed (docs/bugs/080.md).
         if not matches and buffer_name:
-            matches = [eb for eb in ebs if buffer_name in eb.location]
+            matches = [eb for eb in ebs if eb.location is not None and buffer_name in eb.location]
 
         # 1-based buffer number (Vim ':ls' numbering).
         if not matches and buffer_name.isdigit():

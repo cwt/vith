@@ -303,9 +303,20 @@ def reset_thai_text_gate_if_all_buffers_ascii(window_arrangement) -> None:
     """
     if not _THAI_GATE.value:
         return
+    editor = window_arrangement.editor
     for editor_buffer in window_arrangement.editor_buffers:
         if not editor_buffer.buffer.text.isascii():
             return
+        # The status bar, overlay and report messages also render Thai from
+        # non-text sources (buffer *locations*, `editor.message`): a session
+        # whose buffers are all-ASCII but with a Thai-named file / Thai error
+        # banner still draws Thai cells, so the sanitizer must stay armed
+        # for them (docs/bugs/082.md).
+        if editor_buffer.location and not editor_buffer.location.isascii():
+            return
+    message = getattr(editor, "message", None) or ""
+    if not message.isascii():
+        return
     _THAI_GATE.reset()
 
 
@@ -736,7 +747,21 @@ def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
         # mirroring docs/bugs/077.md, keeping 079: the "I"/"A" multi-cursor
         # positions must sit on cell boundaries — inserting on a combining
         # mark splits the cluster).
-        from_pos, to_pos = sorted((self.cursor_position, selection.original_cursor_position))
+        cursor_pos = self.cursor_position
+        original_pos = selection.original_cursor_position
+        # Operator wrappers (prompt_toolkit `TextObject.cut` et al.) move the
+        # cursor one codepoint back before re-reading the selection; when it
+        # thereby parks on a combining mark of its own cluster, block `d`
+        # would cut one cell wider than the on-screen highlight (block
+        # corner runs one cell up/left). Compensate that cursor-side corner
+        # (docs/bugs/084.md).
+        cursor_row, cursor_col = self.translate_index_to_position(cursor_pos)
+        cursor_row = min(cursor_row, len(self.lines) - 1)
+        cursor_line = self.lines[cursor_row]
+        if 0 < cursor_col < len(cursor_line) and is_combining_char(cursor_line[cursor_col]):
+            cursor_pos += 1
+        cursor_pos = min(cursor_pos, len(self.text))
+        from_pos, to_pos = sorted((cursor_pos, original_pos))
         row_from, col_from = self.translate_index_to_position(from_pos)
         row_to, col_to = self.translate_index_to_position(to_pos)
         line_from = self.lines[min(row_from, len(self.lines) - 1)]
@@ -781,6 +806,10 @@ def _cell_ordinal(line: str, col: int) -> int:
     starts = cell_starts(line)
     if not starts:
         return 0
+    if col >= len(line):
+        # A codepoint parked at/past the line end is the empty slot *after*
+        # the last cell (Vim curswant semantics), not the last cell itself.
+        return len(starts)
     return max(0, bisect_right(starts, col) - 1)
 
 
@@ -840,8 +869,13 @@ def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] |
             # end); take the larger of the two so no cluster is cut in half.
             end = max(end, _start_of_cell_ordinal(line, v_high + 1))
             return start, end
+        # Char selections: keep the highlight on whole cells for the LAST
+        # selected cell (docs/bugs/085.md) — whatever cell the inclusive
+        # upper bound `end - 1` falls in, extend to the end of its cluster.
+        # (The previous mark-only gate missed base cursors mid-cluster —
+        # highlight showed `ที่ด` while yank/cut took `ที่ดิ`.)
         cursor_col = end - 1
-        if 0 <= cursor_col < len(line) and is_combining_char(line[cursor_col]):
+        if 0 <= cursor_col < len(line):
             cluster_end_col = next_cell_offset(line, cursor_col, 1)
             if cluster_end_col > end:
                 end = cluster_end_col

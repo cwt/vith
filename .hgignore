@@ -9,6 +9,9 @@ __pycache__/
 build/
 dist/
 
+# Stray wheels downloaded for reference into the repo root
+*.whl
+
 # Tool caches
 .pytest_cache/
 .mypy_cache/

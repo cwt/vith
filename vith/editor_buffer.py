@@ -165,10 +165,19 @@ class EditorBuffer(object):
         """
         Reload file again from storage.
         """
+        existed_before = not self.is_new
+        location_snapshot = self.location
         text = self._read(self.location)
         if text is None:
             # Not readable (backend dropped/unknown scheme): keep current
             # contents instead of wiping the buffer with '' (docs/bugs/070.md).
+            return
+        if existed_before and self.is_new and not text:
+            # The file vanished since we read it. A plain `:e` used to
+            # silently blank the saved buffer with no message — Vim shows
+            # E211 and keeps the buffer contents (docs/bugs/088.md).
+            self.editor.show_message("E211: File no longer exists: %r" % (location_snapshot,))
+            self.is_new = False
             return
         cursor_position = min(self.buffer.cursor_position, len(text))
 

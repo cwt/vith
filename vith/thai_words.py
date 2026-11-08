@@ -15,6 +15,7 @@ from typing import Any, Callable, Pattern
 from prompt_toolkit.document import Document
 
 from .thai_classify import (
+    is_combining_char,
     is_thai,
     is_thai_base,
     is_thai_following_vowel,
@@ -227,14 +228,11 @@ _WORD_CHUNK_RE = re.compile(r"([\u0e00-\u0eff]+|[a-zA-Z0-9_]+|[^a-zA-Z0-9_\s\u0e
 _BIG_WORD_CHUNK_RE = re.compile(r"([\u0e00-\u0eff]+|[^\s\u0e00-\u0eff]+)")
 
 
-def _word_spans_for_line(line: str, WORD: bool = False) -> tuple[tuple[int, int], ...]:
+def _word_spans_for_line_uncached(line: str, WORD: bool = False) -> tuple[tuple[int, int], ...]:
     """
     Partition a single line into ``(start, end)`` word spans, splitting Thai
-    and Lao runs via `find_thai_word_breaks`.
-
-    Cached per line (keyed on the line text and ``WORD``): word-level Vi
-    motions and text objects re-scan only the lines they actually touch
-    instead of the whole document on every keypress (see ``docs/bugs/001.md``).
+    and Lao runs via `find_thai_word_breaks` (cluster-aligned by
+    `_cluster_aligned_spans`, docs/bugs/086.md).
     """
     regex = _BIG_WORD_CHUNK_RE if WORD else _WORD_CHUNK_RE
     spans: list[tuple[int, int]] = []
@@ -251,13 +249,62 @@ def _word_spans_for_line(line: str, WORD: bool = False) -> tuple[tuple[int, int]
                     spans.append((b0, b1))
         else:
             spans.append((m_start, m_end))
+    spans = _cluster_aligned_spans(line, spans)
     return tuple(spans)
+
+
+def _cluster_aligned_spans(line: str, spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """
+    Snap a raw span list onto cell-cluster boundaries (docs/bugs/086.md).
+
+    The per-codepoint chunk regexes classify Latin vs Thai runs separately,
+    so a mixed-script cluster (`Latin base + Thai/Lao combining mark`, or a
+    generic `Mn` accent: ``'ab̶c'``) is emitted as two adjacent spans with the
+    mark orphaned in the second one, violating the module contract that edits
+    never slice a cluster in half. Re-anchor every span start/end on a
+    cell-cluster boundary and merge spans that thereby touch.
+    """
+    n = len(line)
+    if n == 0 or not spans:
+        return spans
+    adjusted: list[tuple[int, int]] = []
+    for start, end in spans:
+        if 0 < start < n and is_combining_char(line[start]):
+            start = snap_to_cell_start(line, start)
+        while end < n and is_combining_char(line[end]):
+            end += 1
+        if start >= end:
+            continue
+        if adjusted and adjusted[-1][1] > start:
+            # Strict overlap only (a mark extension made the spans overlap):
+            # spans that merely *touch* are Vi word boundaries and must stay
+            # separate (docs/bugs/086.md).
+            previous_start, previous_end = adjusted[-1]
+            adjusted[-1] = (previous_start, max(previous_end, end))
+        else:
+            adjusted.append((start, end))
+    return adjusted
 
 
 # The span cache itself: word motions are pure functions of the (unchanged)
 # line, so an LRU cache gives O(1) re-scans for repeat presses on the same
-# text while using only line-sized keys.
-_word_spans_for_line = lru_cache(maxsize=2048)(_word_spans_for_line)
+# text while using only line-sized keys. Megabyte single-line documents are
+# bypassed: one cached entry for a 200k-codepoint line holds ~4.9 MB of
+# spans (and re-scan cost O(line)), so an lru-full of those would pin
+# gigabytes (docs/bugs/090.md).
+_WORD_SPAN_CACHE_MAX_LINE = 65536
+
+_word_spans_for_line_cache = lru_cache(maxsize=2048)(_word_spans_for_line_uncached)
+
+
+def _word_spans_for_line(line: str, WORD: bool = False) -> tuple:
+    if len(line) > _WORD_SPAN_CACHE_MAX_LINE:
+        return _word_spans_for_line_uncached(line, WORD)
+    return _word_spans_for_line_cache(line, WORD)
+
+
+_word_spans_for_line.cache_clear = _word_spans_for_line_cache.cache_clear  # type: ignore[attr-defined]
+_word_spans_for_line.cache_info = _word_spans_for_line_cache.cache_info  # type: ignore[attr-defined]
 
 
 def _iter_word_spans(text: str, WORD: bool = False) -> list[tuple[int, int]]:

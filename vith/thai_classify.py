@@ -129,7 +129,11 @@ def is_combining_char(ch: str) -> bool:
 
 
 def is_sara_am(cp: int) -> bool:
-    """True if `cp` is Thai SARA AM (`U+0E33`) or Lao SARA AM (`U+0EB3`)."""
+    """True if `cp` is Thai SARA AM (`U+0E33`) or Lao SARA AM (`U+0EB3`).
+
+    SARA-AM over-printing remains the SARA-AM renderer's logic
+    (`_cell_has_sara_am`) — this predicate has zero in-app callers today
+    (tests + re-export only, akin to the 074 test-helper row)."""
     return cp == 0x0E33 or cp == 0x0EB3
 
 

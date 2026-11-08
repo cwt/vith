@@ -1095,3 +1095,70 @@ def test_block_selection_ranges_ascii_matches_vanilla(editor):
         assert list(doc.selection_ranges()) == list(
             thai._ORIGINAL_DOCUMENT_METHODS["selection_ranges"](doc)
         )
+
+
+def test_block_d_aligned_with_highlight():
+    # 084: block `d` cuts exactly the highlighted cells — operators park the
+    # cursor one codepoint back (a combining mark), which previously skewed
+    # the cut rectangle one cell up/left vs the on-screen highlight.
+    editor = _make_editor_with_text("ที่ดิน\nสีส\nxyz\n")
+    # Single cell right (3l would compose a count-3 move): cursor on ด (cell
+    # ordinal 1), then C-v, j (cursor keeps ordinal 1 on row 1: ส), then d.
+    _feed_keys(editor, "l", Keys.ControlV, "j", "d")
+    # cut exactly the highlighted cells [ดิ] / [ส]:
+    assert editor.application.clipboard.get_data().text == "ดิ\nส"
+    assert editor.current_editor_buffer.buffer.text == "ที่น\nสี\nxyz\n"
+
+
+def test_gate_decay_respects_thai_statusbar_and_names(editor):
+    # 082: gate decay previously looked only at buffer texts; Thai file
+    # names (status bar/overlay) and Thai `editor.message` banners also
+    # render Thai cells and must keep the sanitizer armed.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    thai.note_document_text("ดำ")
+    assert thai._THAI_GATE.value is True
+    eb.location = "ดำ.py"
+    editor.sync_with_prompt_toolkit()
+    assert thai._THAI_GATE.value is True  # Thai location
+
+    eb.location = "plain.py"
+    editor.sync_with_prompt_toolkit()
+    assert thai._THAI_GATE.value is False
+
+    thai.note_document_text("ดำ")
+    editor.message = "E94: ขออภัย"
+    editor.sync_with_prompt_toolkit()
+    assert thai._THAI_GATE.value is True  # Thai message banner
+
+    editor.message = None
+    editor.sync_with_prompt_toolkit()
+    assert thai._THAI_GATE.value is False
+
+
+def test_charwise_highlight_matches_yank_cluster_boundaries(editor):
+    # 085: charwise highlight extends over the last selected cell's cluster
+    # — previously the highlight showed ที่ด while yank/cut took ที่ดิ.
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    with set_app(editor.application):
+        doc = Document(
+            "ที่ดิน", cursor_position=3, selection=SelectionState(0, SelectionType.CHARACTERS)
+        )
+        highlighted = doc.selection_range_at_line(0)
+        yanked = list(doc.selection_ranges())[0]
+        assert highlighted == yanked == (0, 5)
+
+
+def test_word_spans_never_slice_clusters():
+    # 086: spans must land on cluster boundaries in mixed-script lines
+    # (latin base + Thai/Lao/generic Mn marks used to be sliced in half).
+    from vith.thai import is_combining_char
+
+    for line in ("x abั de", "ab́c", "ที่ดิน", "กังวล abc"):
+        for start, end in thai._word_spans_for_line(line):
+            if 0 <= start < len(line):
+                assert not is_combining_char(line[start]), (line, start)
+            assert end == len(line) or not is_combining_char(line[end]), (line, end)

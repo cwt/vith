@@ -191,3 +191,32 @@ def test_substitute_zero_matches_does_not_mark_dirty(editor, editor_buffer):
     assert not editor_buffer.has_unsaved_changes
     handle_command(editor, ':s/notfound/x/g')
     assert not editor_buffer.has_unsaved_changes
+
+
+def test_substitute_double_slash_empty_replace_with_flags(editor, editor_buffer):
+    # 083: `:s/pat//g` (empty replacement + flags) parses like Vim.
+    given_sample_text(editor_buffer, 'land land\n')
+    handle_command(editor, ':s/land//g')
+    assert editor_buffer.buffer.text == ' \n'
+
+
+def test_substitute_row_zero_range(editor, editor_buffer):
+    # 083: `:0,1s` maps row 0 to the first line like Vim.
+    given_sample_text(editor_buffer, 'land land\n')
+    handle_command(editor, ':0,1s/land/sea/g')
+    assert 'sea sea' in editor_buffer.buffer.text
+
+
+def test_substitute_latches_thai_gate(editor, editor_buffer, monkeypatch):
+    # 081: mass replacement introducing Thai must latch the renderer gate
+    # (the cursor-line-only note used to miss it, leaving the 002/062-era
+    # sanitizer disarmed while the screen shows Thai).
+    import vith.thai as thai
+
+    monkeypatch.setattr(thai._THAI_GATE, "value", False)
+    try:
+        given_sample_text(editor_buffer, 'land is plain\n')
+        handle_command(editor, ':s/land/ทำ/g')
+        assert thai._THAI_GATE.value is True
+    finally:
+        thai._THAI_GATE.value = False

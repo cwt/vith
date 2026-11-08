@@ -26,6 +26,44 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 2 (2026-11-07, hg rev 191–233 — [038](038.md)–[062](062.md), `fix_status: fixed`)**: 18 defects ([038](038.md)–[054](054.md), [062](062.md)) and 7 improvements ([055](055.md)–[061](061.md)). All fixed in hg rev 194–233.
 * **Round 3 (2026-11-08, hg rev 87de3a3 — [063](063.md)–[075](075.md), `fix_status: fixed`)**: 9 defects ([063](063.md)–[071](071.md)) and 4 improvements ([072](072.md)–[075](075.md)). All fixed in hg rev 253–265 (fix arc of 2026-11-08, one commit per finding or tightly-bound pairing, 179 tests passing, `mypy` 32 files clean, `ruff` clean). Originally filed as 18 findings (063–080) at hg rev 251 and re-validated/merged/renumbered on 2026-11-08 — see the [renumbering note](#renumbering-note-2026-11-08).
 * **Round 3 addendum (2026-11-08, user-reported field bugs after the fix arc — [076](076.md)–[079](079.md))**: [076](076.md) — visual highlight + `j` crash (absolute/line-relative mix in the `selection_range_at_line` wrapper, fixed rev 267); [077](077.md) — visual block rectangle counts combining marks (cluster-ordinal rect, fixed rev 268); [078](078.md) + [079](079.md) — extrapolation audit of the same selection/cursor stack (fixed rev 269): `j`/`k` visual-column drift over Thai rows (ordinal-based `preferred_column` in `ColdTextBuffer`) and visual-block `I`/`A` anchors splitting clusters (block rectangle in `selection_ranges`).
+* **Round 4 addendum — stem-scan audit (2026-11-08, hg rev 269 → fixed rev 271)**: 12 machine-confirmed findings from re-scanning the whole project against all prior report classes ([080](080.md)–[091](091.md)). User-visible: 080 `:b <pattern>` crash with untitled buffers (HIGH); 084 block-`d` cut vs highlight corner skew; 086 mixed-script cluster slicing in word spans; 088 `:e` on a vanished file wiping the saved buffer; 091 previewer abort leaking every uncovered `:set` option; 083/087 command-grammar/pager nits. Correctness: 081 gate-latch holes on mass edits (substitute), 082 gate-decay non-text coverage (Thai names/banners), 085 charwise highlight-cluster parity. Perf/hygiene: 090 (`cell_starts` LRU, big-line span-cache bypass, `_cursor_vertical` lazy-import hoist, docstring/update chain) and 089 test-cwd pollution.
+
+## Round 3 Findings (2026-11-08, hg rev 87de3a3 → fixed in rev 253–265)
+
+**Resolution note (2026-11-08 fix arc):** every finding below was fixed one-by-one with regression tests,
+re-verified after each commit (pytest + `mypy vith` + `ruff check/format`). Fix revisions: 063 (253),
+064 (254), 065 (255), 066 (256), 067 (257), 068 (258), 069 (259), 070 (260), 071 (261),
+072 (262), 073 (263), 074 (264), 075 (265). Final verification: 179 tests, mypy 32 source files
+clean at the 3.10 floor, ruff clean, `tools/bench_plans.py` reproduces after the split.
+
+## Round 4 Findings (2026-11-08 stem-scan, hg rev 269 → fixed in rev 271)
+
+**Resolution note (2026-11-08 stem-scan):** a whole-project re-scan seeded with all prior report
+classes (as requested after the 076-079 field fixes) ran 4 parallel auditors + a confirmatory E2E
+harness at rev 269, producing **12 machine-confirmed findings** — fixed in one grouped arc at
+rev 271 with 53 new tests (198 passing, `mypy` 32 files clean, ruff clean).
+
+### Defects (`type: bug`, `fix_status: fixed`)
+
+| ID | Finding | Area | Priority |
+| :--- | :--- | :--- | :--- |
+| [080](080.md) | `:b <pattern>` runs `buffer_name in eb.location` without a None guard — crashes the whole TUI whenever the [No Name] buffer exists | commands/buffer | **high** |
+| [081](081.md) | Thai renderer gate not latched by `:s` replacements / multi-row paste (the cursor-line-only note misses document-wide edits) | thai/gate | medium |
+| [082](082.md) | Thai gate decay ignores Thai `editor.message` and Thai file locations (status bar/overlay) | thai/gate | medium |
+| [083](083.md) | `:s` flags grammar: only `` / `/g` accepted (`:s/x/y//g` and multi-letter flags rejected); `:0,1s` raised E19 | commands/substitute | medium |
+| [084](084.md) | Visual-block `d` cuts one cell wider than the on-screen highlight (operator cursor decrement mid-cluster) | thai/selection | medium |
+| [085](085.md) | Charwise `v` highlight not cluster-extended — highlight ≠ yank/cut at cluster granularity | thai/selection | low |
+| [086](086.md) | Word-walker spans slice mixed-script clusters (`Latin base + Thai mark`, generic Mn accents) | thai/words | medium |
+| [087](087.md) | `:ls` pager printed 0-based indices (contradicting `:b <n>`) and `None` names | commands/pager | low |
+| [088](088.md) | `:e` on a file deleted since it was read silently blanked the saved buffer (data loss) | io/editor-buffer | medium |
+| [089](089.md) | `tests/test_cd.py` leaked the process cwd, breaking two later subprocess tests | tests | low |
+
+### Improvements (`type: improvement`, `fix_status: fixed`)
+
+| ID | Finding | Category | Priority |
+| :-- | :--- | :--- | :--- |
+| [090](090.md) | Perf residuals: `j/k` cell-start re-scans (762 µs/move → LRU), megabyte-line span-cache bypass, `_cursor_vertical` lazy import hoist, docstring chain | performance | low |
+| [091](091.md) | Command previewer leaked every catalog option beyond save/restore on abort (`:set paste` × Esc left paste_mode on) | commands/previewer | medium |
 
 ## Round 3 Findings (2026-11-08, hg rev 87de3a3 → fixed in rev 253–265)
 
