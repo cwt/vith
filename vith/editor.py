@@ -26,6 +26,7 @@ from .help import HELP_TEXT
 from .io import DirectoryIO, FileIO, GZipFileIO, HttpIO
 from .key_bindings import create_key_bindings
 from .layout import EditorLayout
+from .process import set_process_name
 from .style import generate_built_in_styles, get_editor_style_by_name
 from .thai import install_prompt_toolkit_thai_patches, note_document_text
 from .window_arrangement import WindowArrangement
@@ -43,6 +44,7 @@ class Editor(object):
     """
 
     def __init__(self, config_directory='~/.vith', input=None, output=None):
+        set_process_name('vith')
         install_prompt_toolkit_thai_patches()
         self.input = input
         self.output = output
@@ -276,6 +278,81 @@ class Editor(object):
         if window:
             self.application.layout.focus(window)
 
+        self.update_title()
+
+    def get_title(self) -> str:
+        """
+        Return the terminal window title for this editor session.
+        """
+        eb = self.window_arrangement.active_editor_buffer
+        if eb and eb.location:
+            basename = os.path.basename(eb.location) or eb.location
+            return f"vith - {basename}"
+        return "vith"
+
+    def update_title(self) -> None:
+        """
+        Send ANSI escape sequences to update terminal / tmux / szn window title.
+        """
+        if not hasattr(self, 'application') or not self.application:
+            return
+
+        title = self.get_title()
+        self._write_terminal_title(title)
+
+    def _write_terminal_title(self, title: str) -> None:
+        """
+        Write window title escape sequences to terminal output.
+        """
+        out = getattr(self.application, 'output', None)
+        if not out:
+            return
+
+        clean_title = title.replace('\x1b', '').replace('\x07', '')
+
+        # 1. prompt_toolkit output set_title (OSC 2 on VT100, Win32 console API on Windows)
+        try:
+            out.set_title(clean_title)
+        except Exception:
+            pass
+
+        # 2. OSC 0 (sets both window title and icon name for xterm/iTerm2/Alacritty/Terminal.app)
+        # 3. If running under tmux / screen, also send the screen-title sequence: ESC k <title> ESC \
+        try:
+            extra_seq = f"\x1b]0;{clean_title}\x07"
+            if (
+                'TMUX' in os.environ
+                or 'STY' in os.environ
+                or os.environ.get('TERM', '').startswith(('screen', 'tmux'))
+            ):
+                extra_seq += f"\x1bk{clean_title}\x1b\\"
+            out.write_raw(extra_seq)
+            out.flush()
+        except Exception:
+            pass
+
+    def _clear_terminal_title(self) -> None:
+        """
+        Restore or clear terminal / tmux / szn window title on exit.
+        """
+        out = getattr(self.application, 'output', None)
+        if not out:
+            return
+
+        try:
+            out.clear_title()
+            extra_seq = "\x1b]0;\x07"
+            if (
+                'TMUX' in os.environ
+                or 'STY' in os.environ
+                or os.environ.get('TERM', '').startswith(('screen', 'tmux'))
+            ):
+                extra_seq += "\x1bk\x1b\\"
+            out.write_raw(extra_seq)
+            out.flush()
+        except Exception:
+            pass
+
     def show_help(self):
         """
         Show help in new window.
@@ -295,13 +372,19 @@ class Editor(object):
             # Start in navigation mode.
             self.application.vi_state.input_mode = InputMode.NAVIGATION
 
+            # Update terminal title on launch.
+            self.update_title()
+
             # Now that the event loop is running, start the reporters that
             # were deferred at startup (see EditorBuffer.run_reporter).
             for eb in self.window_arrangement.editor_buffers:
                 eb.run_reporter()
 
-        # Run eventloop of prompt_toolkit.
-        self.application.run(pre_run=pre_run)
+        try:
+            # Run eventloop of prompt_toolkit.
+            self.application.run(pre_run=pre_run)
+        finally:
+            self._clear_terminal_title()
 
     def enter_command_mode(self):
         """

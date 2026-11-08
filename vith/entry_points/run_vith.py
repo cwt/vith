@@ -16,12 +16,15 @@ import os
 import docopt
 
 from vith.editor import Editor
+from vith.process import set_process_name
 from vith.rc_file import run_rc_file
 
 __all__ = ('run',)
 
 
 def run():
+    set_process_name('vith')
+
     a = docopt.docopt(__doc__)
     locations = a['<location>']
     in_tab_pages = a['-p']
