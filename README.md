@@ -50,7 +50,7 @@ export EDITOR=vith
 
 ## The good things
 
-The editor is written completely in Python. (There are no C extensions). This makes development a lot faster. It's easy to prototype and integrate new features.
+The editor is written completely in Python. (There are no compiled editor extensions; on Python < 3.14 the default zstd cold-text backend uses the `zstandard` package.) This makes development a lot faster. It's easy to prototype and integrate new features.
 
 We have already many nice things, for instance:
 
@@ -58,6 +58,7 @@ We have already many nice things, for instance:
 - Horizontal and vertical splits, as well as tab pages. (Similar to Vim.)
 - All of the functionality of [prompt_toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit). This includes a lot of Vi key bindings, it's platform independent and runs every Python version covered by `python_requires >= 3.10`.
 - Thai/Lao input files: cell-cluster safe navigation and *syntax-aware* word segmentation, including dictionary segmentation when `libthai` is installed.
+- Compressed undo/redo history: cold snapshots are stored with `quez` (Zstandard level 1 by default), configurable via `editor.cold_text_compression` in `.vithrc` and inspectable with `:compression`.
 - Several `:set ...` commands have been implemented, like `incsearch`, `number`, `ignorecase`, `wildmenu`, `expandtab`, `hlsearch`, `ruler`, `paste` and `tabstop`.
 - Other working commands: `vsplit`, `tabnew`, `only`, `badd`, and many others.
 - For Python source code, auto completion uses the amazing Jedi library, and code checking is done (asynchronously) through Pyflakes.

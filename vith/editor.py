@@ -60,6 +60,10 @@ class Editor(object):
         self.enable_mouse_support = True
         self.display_unprintable_characters = True  # ':set list'
         self.enable_jedi = True  # ':set jedi', for Python Jedi completion.
+        # Cold-text compression for undo/redo snapshots. Configure in
+        # .vithrc with `editor.cold_text_compression = 'zstd'` etc.
+        self.cold_text_compression = 'zstd'
+        self.cold_text_compression_level = 1
         self.scroll_offset = 0  # ':set scrolloff'
         self.relative_number = False  # ':set relativenumber'
         self.wrap_lines = True  # ':set wrap'

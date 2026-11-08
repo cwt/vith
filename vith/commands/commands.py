@@ -7,6 +7,8 @@ from typing import Any, Dict, Set
 from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.document import Document
 
+from vith.cold_text import format_cold_text_stats
+
 __all__ = (
     'has_command_handler',
     'call_command_handler',
@@ -238,6 +240,31 @@ def buffer_list(editor):
                 ' %3i %-2s %-20s  line %i'
                 % (info.index, char, eb.location, (eb.buffer.document.cursor_position_row + 1))
             )
+        input('\nPress ENTER to continue...')
+
+    run_in_terminal(handler)
+
+
+@cmd('compression')
+@cmd('comp')
+@cmd('coldtext')
+def cold_text_compression(editor):
+    """
+    Show compressed undo/redo history size and ratio.
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    buffer = eb.buffer if eb is not None else None
+    stats_getter = getattr(buffer, 'cold_text_stats', None)
+
+    if stats_getter is None:
+        editor.show_message('Cold-text compression is not available for this buffer.')
+        return
+
+    stats = stats_getter()
+
+    def handler():
+        for line in format_cold_text_stats(stats):
+            print(line)
         input('\nPress ENTER to continue...')
 
     run_in_terminal(handler)

@@ -15,11 +15,11 @@ if _pyproject.is_file():
     _m = re.search(
         r'(?m)^version\s*=\s*["\']([^"\']+)["\']', _pyproject.read_text(encoding="utf-8")
     )
-    __version__ = _m.group(1) if _m else "0.9.1"
+    __version__ = _m.group(1) if _m else "0.10.0"
 else:
     try:
         __version__ = version("vith")
     except PackageNotFoundError:
-        __version__ = "0.9.1"
+        __version__ = "0.10.0"
 
 __all__ = ("__version__",)

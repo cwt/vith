@@ -41,6 +41,12 @@ def configure(editor):
     # Use Jedi for autocompletion of Python files. (:set jedi)
     editor.enable_jedi = True
 
+    # Cold-text compression for undo/redo snapshots.
+    # Options: zstd (default), zlib, zlib-fast, zlib-best, lzo, none.
+    # LZO requires `pip install vith[lzo]`; zstd is built in on Python 3.14+.
+    editor.cold_text_compression = 'zstd'
+    editor.cold_text_compression_level = 1
+
     # Apply colorscheme. (:colorscheme emacs)
     editor.use_colorscheme('emacs')
 

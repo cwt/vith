@@ -3,9 +3,9 @@ import os
 import weakref
 
 from prompt_toolkit.application.current import get_app
-from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 
+from vith.cold_text import ColdTextBuffer, make_cold_text_compressor
 from vith.completion import DocumentCompleter
 from vith.reporting import checks_python_file, report
 from vith.thai import note_document_text
@@ -49,13 +49,21 @@ class EditorBuffer(object):
         note_document_text(self.location)
         note_document_text(self._file_content)
 
-        # Create Buffer.
-        self.buffer = Buffer(
+        # Create Buffer. Undo/redo snapshots are cold text: store them
+        # compressed, while the active buffer text remains a plain string.
+        compressor, compression_name, compression_level = make_cold_text_compressor(
+            editor.cold_text_compression,
+            editor.cold_text_compression_level,
+        )
+        self.buffer = ColdTextBuffer(
             multiline=True,
             completer=DocumentCompleter(editor, self),
             document=Document(text, 0),
             on_text_changed=self._on_text_changed,
             read_only=self.isdir,
+            cold_compressor=compressor,
+            cold_compression_name=compression_name,
+            cold_compression_level=compression_level,
         )
 
         # List of reporting errors, and index of those errors by line.

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vith"
-version = "0.9.1"
+version = "0.10.0"
 description = "Vith — a pure-Python Vi clone with Thai & Lao script support (fork of pyvim)"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -22,6 +22,10 @@ dependencies = [
     "pyflakes",
     "pygments",
     "docopt",
+    "quez>=1.1.3",
+    # Python 3.14+ has zstd in the standard library; older versions need
+    # the zstandard package to keep zstd as the default cold-text backend.
+    "zstandard; python_version < '3.14'",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -41,6 +45,9 @@ Upstream = "https://github.com/prompt-toolkit/pyvim"
 [project.optional-dependencies]
 jedi = [
     "jedi",
+]
+lzo = [
+    "python-lzo",
 ]
 
 [project.scripts]

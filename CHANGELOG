@@ -1,7 +1,19 @@
 CHANGELOG
 =========
 
-0.9.1: unreleased
+0.10.0: 2026-11-08
+------------------
+
+Cold text:
+
+- Compressed undo/redo history via ``quez``: snapshots are stored compressed
+  with Zstandard level 1 by default. Configure with
+  ``editor.cold_text_compression`` in ``.vithrc`` (``zstd``, ``zlib``,
+  ``zlib-fast``, ``zlib-best``, ``lzo`` or ``none``). Inspect current buffer
+  statistics with ``:compression``.
+- Added the ``lzo`` optional dependency extra.
+
+0.9.1: 2026-11-08
 -----------------
 
 Packaging:
