@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 62 machine-verified findings across Round 1 (hg rev 164, 2026-11-06, 001–037, closed) and Round 2 (hg rev 191–233, 2026-11-07, 038–062, fixed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 80 machine-verified findings across Round 1 (hg rev 164, 2026-11-06, 001–037, closed), Round 2 (hg rev 191–233, 2026-11-07, 038–062, fixed), and Round 3 (hg rev 87de3a3, 2026-11-08, 063–080, open)."
 status: stable
 sources:
   - docs/bugs/
@@ -10,9 +10,9 @@ verified: machine-confirmed
 stale_after: 2027-01-01T00:00:00Z
 tags: [bugs, findings, audit]
 generated:
-  by: "Antigravity (Gemini 4 Argon)"
-  at: "2026-11-07T10:27:00Z"
-timestamp: "2026-11-07T10:27:00Z"
+  by: "OpenCode (Crouton Alpha)"
+  at: "2026-11-08T17:37:00Z"
+timestamp: "2026-11-08T17:37:00Z"
 ---
 
 # vith Findings Bundle
@@ -24,6 +24,37 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 
 * **Round 1 (2026-11-06, hg rev 164 — [001](001.md)–[037](037.md), `fix_status: fixed`)**: 16 defects and 21 improvements verified against `prompt_toolkit 3.0.53`, live micro-probes, the test suite (68 passed), `mypy .` (40 files clean), and `tools/bench_plans.py`. Closed in hg rev 167–195 (100 tests, 43-file mypy baseline at the 3.10 floor, ruff clean).
 * **Round 2 (2026-11-07, hg rev 191–233 — [038](038.md)–[062](062.md), `fix_status: fixed`)**: 18 defects ([038](038.md)–[054](054.md), [062](062.md)) and 7 improvements ([055](055.md)–[061](061.md)). All fixed in hg rev 194–233.
+* **Round 3 (2026-11-08, hg rev 87de3a3 — [063](063.md)–[080](080.md), `fix_status: open`)**: 13 defects ([063](063.md)–[073](073.md), [079](079.md), [080](080.md)) and 5 improvements ([074](074.md)–[078](078.md)). Open; found in the post-rebrand deep review at 134 tests passing, `mypy`/`ruff` clean.
+
+## Round 3 Findings (2026-11-08, hg rev 87de3a3 — open)
+
+### Defects (`type: bug`, `fix_status: open`)
+
+| ID | Finding | Area | Priority |
+| :--- | :--- | :--- | :--- |
+| [063](063.md) | `$` ignores `event.arg`: `3$` moves to the current line instead of three lines down | key-bindings/vim-motion | **high** |
+| [064](064.md) | `e`/`E` pass the whole document as a single “line” to `prev_cell_offset` | key-bindings/thai | medium |
+| [065](065.md) | `TextObject.operator_range` patch escapes the install rollback (half-patched fallback) | thai/version-gate | medium |
+| [066](066.md) | Legacy `DocumentLexer` fallback leaks `ClassNotFound` and rebuilds the lexer per frame | lexer/pygments | medium |
+| [067](067.md) | `import vith.__main__` starts the editor (unguarded `run()`) | entry-point | low |
+| [068](068.md) | `TabPage` can be left empty (`VSplit([])`, `active_window = None`) and `cycle_focus` then raises | window-arrangement/layout | medium |
+| [069](069.md) | `current_editor_buffer` returns `None` and file-explorer `open_path` dereferences it | editor/file-explorer | low |
+| [070](070.md) | Quit semantics count buffers, not windows (`:q` over-blocks, `:wqa` under-delivers) | commands/vim-semantics | medium |
+| [071](071.md) | `:b` requires an exact location match but its completer promises substring, and indices are 0-based | commands/buffer | medium |
+| [072](072.md) | `run_reporter` clears stale errors without `invalidate()`, leaving stale pyflakes highlight | reporting/editor-buffer | low |
+| [073](073.md) | Startup and I/O robustness: single-level `mkdir`, bare `assert` on `-p -o`, latin-1 write failure, unknown-location indistinguishability | editor/io/startup | low |
+| [079](079.md) | Miscellaneous Vim-semantics deviations (`r` count, file-explorer whole-line open, `is_combining_char` multi-char, cold-text version, private `_search`) | vim-semantics/cold-text | low |
+| [080](080.md) | Thai renderer patches rely on fragile prompt_toolkit internals (magic `args[]`, `_CHAR_CACHE`, style strings, dict order) | thai/renderer | medium |
+
+### Improvements & cleanup (`type: improvement`, `fix_status: open`)
+
+| ID | Finding | Category | Priority |
+| :-- | :--- | :--- | :--- |
+| [074](074.md) | `O(n)` string work per keystroke: dirty-check, completer key copy, `get_cwidth` and `find_spec` caches | performance | medium |
+| [075](075.md) | Per-frame allocations after the Thai gate latches: SARA-AM sanitizer, legacy lexer, overlay and tab handlers | performance | low |
+| [076](076.md) | Duplicate logic: five Thai word-motion row-walks and assorted handler clones | duplication | low |
+| [077](077.md) | Dead code and stale example: test-only exports, `examples/config/vithrc`, build artifacts, legacy imports | dead code | low |
+| [078](078.md) | Readability: `thai.py` monolith, import-time patching, decorators that return the wrong thing, remaining `lambda`s | readability | low |
 
 ## Round 2 Findings (2026-11-07, hg rev 191 → fixed in rev 194–233)
 

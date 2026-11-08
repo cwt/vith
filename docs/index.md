@@ -7,9 +7,9 @@ sources:
   - docs/
 verified: machine-confirmed
 generated:
-  by: "Antigravity (Gemini 4 Argon)"
-  at: "2026-11-07T10:27:00Z"
-timestamp: "2026-11-07T10:27:00Z"
+  by: "OpenCode (Crouton Alpha)"
+  at: "2026-11-08T17:37:00Z"
+timestamp: "2026-11-08T17:37:00Z"
 ---
 
 # vith Documentation Bundle
@@ -24,7 +24,8 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Audit & Findings
 
-* [Findings Bundle](bugs/index.md) — **62 findings across 2 audit rounds**:
+* [Findings Bundle](bugs/index.md) — **80 findings across 3 audit rounds**:
+  * **Round 3 (2026-11-08, hg rev 87de3a3 — open)**: 18 machine-verified findings ([063](bugs/063.md)–[080](bugs/080.md)) — 13 defects (`type: bug`: `$` count, `e`/`E` offset, `TextObject` rollback, legacy lexer, `__main__`, empty `TabPage`, `None` buffer, quit/`:b` semantics, reporter invalidation, startup/IO lows, grouped Vim deviations, renderer fragility) and 5 improvements (`type: improvement`: `O(n)` keystroke work, per-frame allocations, duplicated word-motion walks, dead code/example, readability).
   * **Round 2 (2026-11-07, hg rev 191–233 — closed in rev 194–233)**: 25 machine-verified findings ([038](bugs/038.md)–[062](bugs/062.md)) — 18 defects (`type: bug`, including high-priority crashes and Thai/Lao Visual mode, inclusive motion, word-completion, and right-margin combining-mark bugs) and 7 improvements (`type: improvement`: performance, dead code, duplication, readability/test hygiene, and plan/benchmark drift).
   * **Round 1 (2026-11-06, hg rev 164 — closed in rev 167–195)**: 37 machine-verified findings ([001](bugs/001.md)–[037](bugs/037.md)) — defects 001–016 and improvements 017–037, all fixed with recorded hg revisions.
 
