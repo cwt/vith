@@ -142,3 +142,83 @@ def test_python_m_vith_help_smoke(capsys):
     )
     assert result.returncode == 0
     assert result.stdout
+
+
+def test_replace_single_cell_count_semantics():
+    # 071: Vim `r` with a count replaces N characters with ONE char:
+    # `2rX` on "abcdef" yields "Xcdef" with the cursor on the replacement,
+    # not "XXcdef" as before.
+    from prompt_toolkit.document import Document
+
+    from vith.key_bindings import _replace_cell_clusters
+
+    class Event:
+        pass
+
+    event = Event()
+    event.app = MagicMock()
+    event.arg = 2
+    event.data = "X"
+    buff = Buffer(document=Document("abcdef", 0))
+    event.current_buffer = buff
+
+    _replace_cell_clusters(event)
+
+    assert buff.document.text == "Xcdef"
+    assert buff.cursor_position == 0
+    event.app.vi_state.input_mode = event.app.vi_state.input_mode  # noqa (mock used)
+
+
+def test_replace_single_cell_single_count():
+    from prompt_toolkit.document import Document
+
+    from vith.key_bindings import _replace_cell_clusters
+
+    class Event:
+        pass
+
+    event = Event()
+    event.app = MagicMock()
+    event.arg = 1
+    event.data = "x"
+    buff = Buffer(document=Document("abcdef", 0))
+    event.current_buffer = buff
+
+    _replace_cell_clusters(event)
+
+    assert buff.document.text == "xbcdef"
+
+
+def test_name_under_cursor_selections():
+    # 071: the file-explorer <Enter> opens the token under the cursor, not
+    # the whole line.
+    from prompt_toolkit.document import Document
+
+    from vith.key_bindings import _name_under_cursor
+
+    def name_at(line, col):
+        return _name_under_cursor(Document(line, col))
+
+    assert name_at("readme.txt notes dir_with space", 0) == "readme.txt"
+    # Between two tokens -> the next token ("w"-style):
+    assert name_at("readme.txt notes dir_with space", 13) == "notes"
+    # Late in a token -> that token:
+    assert name_at("readme.txt notes dir_with space", 9) == "readme.txt"
+    # Cursor clamped to the line end with trailing spaces -> nearest token:
+    assert name_at("readme.txt notes  ", 18) == "notes"
+    assert name_at("", 0) == ""
+
+
+def test_negative_count_delegate_documented_as_upstream_parity():
+    # 071 row 7 (documented upstream-parity dead branch): the Thai
+    # find_previous_word_ending(-count) delegate must behave exactly like
+    # prompt_toolkit's own negative-count path on ASCII content.
+    from prompt_toolkit.document import Document
+
+    import vith.thai as thai
+    from vith.thai import find_previous_word_ending
+
+    orig_next = thai._ORIGINAL_DOCUMENT_METHODS["find_next_word_ending"]
+    doc = Document("alpha beta gamma", 10)
+    result = find_previous_word_ending(doc, count=-1, WORD=False)
+    assert result == orig_next(doc, count=1, WORD=False)

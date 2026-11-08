@@ -136,10 +136,15 @@ class ColdTextStack:
         self._meta.append((text_version, cursor_position))
 
     def pop(self) -> tuple[str, int, int]:
-        """Pop and decompress the newest snapshot."""
+        """Pop and decompress the newest snapshot.
+
+        The cursor comes from the *metadata* side (which
+        `update_top_cursor` keeps in sync for cursor-only saves), so a
+        cursor-only undo restores the recorded cursor (docs/bugs/071.md).
+        """
         item = cast(tuple[str, int, int], self._items.pop())
-        self._meta.pop()
-        return item
+        text_version, cursor_position = self._meta.pop()
+        return (item[0], cursor_position, item[2])
 
     def update_top_cursor(self, cursor_position: int) -> None:
         """Update the cursor of the top snapshot without recompressing it."""

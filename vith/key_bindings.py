@@ -1,4 +1,5 @@
 import os
+import re
 
 from prompt_toolkit.application import get_app
 from prompt_toolkit.filters import (
@@ -54,6 +55,31 @@ def _snap_word_end_to_cell(doc, position):
     return doc.translate_row_col_to_index(row, col)
 
 
+def _name_under_cursor(doc):
+    """
+    Return the whitespace-delimited token under the cursor of `doc` (``''
+    when the line has no tokens). For the file explorer this is the
+    file/directory name under the cursor, not the whole line — lines may
+    list several entries (docs/bugs/071.md).
+    """
+    line = doc.current_line
+    col = doc.cursor_position_col
+    tokens = [(m.start(), m.end()) for m in re.finditer(r'\S+', line)]
+    if not tokens:
+        return ''
+    for start, end in tokens:
+        if start <= col <= end:
+            return line[start:end]
+    if col < tokens[0][0]:
+        return line[tokens[0][0] : tokens[0][1]]
+    if col > tokens[-1][1]:
+        return line[tokens[-1][0] : tokens[-1][1]]
+    for start, end in tokens:
+        if start > col:
+            return line[start:end]
+    return ''
+
+
 def _delete_cell_clusters(event, backward):
     """
     Delete `event.arg` cell clusters before/after the cursor on the current line.
@@ -69,6 +95,24 @@ def _delete_cell_clusters(event, backward):
     if span > 0:
         text = buff.delete_before_cursor(count=span) if backward else buff.delete(count=span)
         event.app.clipboard.set_text(text)
+
+
+def _replace_cell_clusters(event):
+    """
+    Replace `event.arg` cell clusters at the cursor position with a single
+    `event.data` character (Vim `r` semantics: `2rx` replaces two characters
+    with one `x`; the cursor lands on the replacement).
+    """
+    buff = event.current_buffer
+    doc = buff.document
+    line = doc.current_line
+    col = doc.cursor_position_col
+    span = next_cell_offset(line, col, event.arg) - col
+    if span > 0:
+        buff.delete(count=span)
+    buff.insert_text(event.data, overwrite=False)
+    buff.cursor_position += buff.document.get_cursor_left_position(count=1)
+    event.app.vi_state.input_mode = InputMode.NAVIGATION
 
 
 def create_key_bindings(editor):
@@ -142,10 +186,12 @@ def create_key_bindings(editor):
         & ~has_focus(editor.command_buffer)
         & whitespace_before_cursor_on_line,
     )
-    def autocomplete_or_indent(event):
+    def insert_indentation(event):
         """
-        When the 'tab' key is pressed with only whitespace character before the
-        cursor, do autocompletion. Otherwise, insert indentation.
+        Insert one indentation step (tabstop spaces with `expand_tab`,
+        otherwise a literal tab). Despite the whitespace-only-before-cursor
+        filter this deliberately does NOT trigger autocompletion — Tab is
+        reserved for indentation here (docs/bugs/071.md).
         """
         b = event.app.current_buffer
         if editor.expand_tab:
@@ -218,7 +264,7 @@ def create_key_bindings(editor):
         if current_editor_buffer is None:
             # Transient focus state (docs/bugs/066.md): nothing to open.
             return
-        name_under_cursor = event.current_buffer.document.current_line
+        name_under_cursor = _name_under_cursor(event.current_buffer.document)
         if not name_under_cursor.strip() or name_under_cursor.lstrip().startswith('"'):
             return
         new_path = os.path.normpath(os.path.join(current_editor_buffer.location, name_under_cursor))
@@ -271,18 +317,10 @@ def create_key_bindings(editor):
     @kb.add(Keys.Any, filter=vi_replace_single_mode)
     def replace_single_cell(event):
         """
-        Replace `event.arg` cell clusters at the cursor position with `event.data`.
+        Replace `event.arg` cell clusters at the cursor position with a
+        single `event.data` character (Vim `r` semantics; see the helper).
         """
-        buff = event.current_buffer
-        doc = buff.document
-        line = doc.current_line
-        col = doc.cursor_position_col
-        span = next_cell_offset(line, col, event.arg) - col
-        if span > 0:
-            buff.delete(count=span)
-        buff.insert_text(event.data * event.arg, overwrite=False)
-        buff.cursor_position += buff.document.get_cursor_left_position(count=1)
-        event.app.vi_state.input_mode = InputMode.NAVIGATION
+        _replace_cell_clusters(event)
 
     @kb.add('~', filter=vi_navigation_mode & ~Condition(lambda: get_app().vi_state.tilde_operator))
     def reverse_case_cell(event):

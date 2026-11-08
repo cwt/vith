@@ -188,6 +188,10 @@ def is_combining_char(ch: str) -> bool:
     Fast-path check for Thai/Lao combining marks (`_THAI_COMBINING_CPS`),
     with general Unicode `Mn` / `get_cwidth(ch) == 0` fallback for other scripts.
 
+    `ch` must be ONE codepoint (callers pass `line[idx]` etc.); a
+    multi-codepoint string is classified by its first codepoint only and the
+    rest is silently ignored (docs/bugs/071.md).
+
     NOTE: characters below U+0300 always classify as non-combining — in
     particular `\n`. The cell-cluster scanners (`snap_to_cell_start`,
     `prev_cell_offset`) rely on newline never behaving like a combining
@@ -721,6 +725,10 @@ def find_previous_word_ending(doc: Document, count: int = 1, WORD: bool = False)
     (used by Vi `ge`/`gE`).
     """
     if count < 0:
+        # Delegate symmetrically like upstream prompt_toolkit
+        # (document.py:637-638). No Vi handler can generate a negative count
+        # here — `ge`/`gE` pass a positive digit arg — so this is
+        # upstream-parity dead code kept for API parity (docs/bugs/071.md).
         return find_next_word_ending(doc, count=-count, WORD=WORD)
     if doc.text.isascii():
         orig = _ORIGINAL_DOCUMENT_METHODS.get("find_previous_word_ending")

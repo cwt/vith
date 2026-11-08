@@ -177,3 +177,33 @@ def test_compression_command_prints_stats(editor, editor_buffer, monkeypatch, ca
     assert 'Cold-text compression:' in output
     assert 'undo:' in output
     assert 'total:' in output
+
+
+def test_cold_text_stack_update_top_cursor_affects_pop():
+    # 071: `update_top_cursor` records the new cursor in metadata; `pop`
+    # must hand back the metadata cursor so cursor-only saves survive undo.
+    stack = _make_stack()
+    stack.push('first', 10, 1)
+    stack.update_top_cursor(7)
+    assert stack.pop() == ('first', 7, 1)
+
+
+def test_cursor_only_save_updates_undo_cursor(editor_buffer):
+    # 071: undo after a cursor-only save must restore the *recorded* cursor
+    # (the one at update time), not the stale push-time cursor.
+    buffer = editor_buffer.buffer
+    buffer.text = 'abcdef'
+    buffer.cursor_position = 0
+    buffer.save_to_undo_stack()  # push ('abcdef', cursor=0)
+
+    buffer.cursor_position = 2
+    buffer.save_to_undo_stack()  # cursor-only: update top -> cursor=2
+    assert buffer.cold_text_stats()['undo']['count'] == 1
+
+    buffer.cursor_position = 5  # move away without saving
+    buffer.text = 'other'
+    buffer.save_to_undo_stack()  # push ('other', ...)
+
+    buffer.undo()  # pops 'other' (no text delta) then restores 'abcdef'
+    assert buffer.text == 'abcdef'
+    assert buffer.cursor_position == 2

@@ -838,7 +838,9 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     buffer.cursor_position = doc.translate_row_col_to_index(row, 0) + (
         len(doc.lines[row]) - len(doc.lines[row].lstrip())
     )
-    buffer._search(search_state, include_current_position=True)
+    # (The former private `buffer._search(...)` call here discarded its
+    # result and did nothing; the cursor targets the last substituted row
+    # directly. docs/bugs/071.md)
 
     # update editor state
     editor.last_substitute_text = replace
