@@ -90,9 +90,16 @@ class EditorBuffer(object):
 
     def _on_text_changed(self, *args):
         "Buffer text changed."
-        # Update the dirty flag once per text change, so that per-frame
-        # `has_unsaved_changes` lookups are O(1).
-        self._has_unsaved_changes = self.buffer.text != self._file_content
+        # Amortized-O(1) dirty flag (docs/bugs/072.md): typing/deleting change
+        # the text length, so the O(1) length check resolves the flag without
+        # a linear memcmp; only same-length edits (overwrite/paste-over)
+        # still pay one string comparison. The previous implementation ran a
+        # full-text memcmp per keystroke on multi-MB buffers.
+        text = self.buffer.text
+        if len(text) != len(self._file_content):
+            self._has_unsaved_changes = True
+        else:
+            self._has_unsaved_changes = text != self._file_content
 
         # Keep the sticky Thai-text renderer gate up to date (O(1) for ASCII
         # content; one C-regex scan per edit while unlatched and non-ASCII).
@@ -168,6 +175,9 @@ class EditorBuffer(object):
         self.buffer.document = Document(text, cursor_position)
         self._file_content = text
         self._has_unsaved_changes = False
+        # Feed the sticky Thai-gate with the reloaded text, else the first
+        # render after reload runs unsanitized until the next edit.
+        note_document_text(text)
 
     def write(self, location=None):
         """

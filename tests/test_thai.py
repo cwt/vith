@@ -259,10 +259,12 @@ def sticky_gate(monkeypatch):
 
 def test_sara_am_renderer_neighbor_refresh() -> None:
     install_prompt_toolkit_thai_patches()
-    # The wrapper only sanitizes once the session reported Thai-capable text;
-    # this test renders กำ/ກຳ frames, so latch the sticky gate.
-    thai.note_document_text("\u0e33")
     editor = _make_editor_with_text("")
+    # The wrapper only sanitizes once the session reported Thai-capable text;
+    # this test renders กำ/ກຳ frames, so latch the sticky gate (after the
+    # editor is created: its sync pass may decay an earlier latch once every
+    # buffer is plain ASCII, docs/bugs/072.md).
+    thai.note_document_text("\u0e33")
     app = editor.application
     size = Size(rows=24, columns=80)
     attrs_cache = ptk_renderer._StyleStringToAttrsCache(
@@ -949,3 +951,23 @@ def test_zero_width_escape_style_comes_from_prompt_toolkit_token() -> None:
     from prompt_toolkit.token import ZeroWidthEscape
 
     assert thai._PtkZeroWidthEscape == ZeroWidthEscape == "[ZeroWidthEscape]"
+
+
+def test_thai_gate_decays_when_all_buffers_ascii(editor):
+    # 072 row 7: the sticky latch decays when every open buffer is ASCII
+    # again (called from sync_with_prompt_toolkit).
+    editor.load_initial_files([None])
+    wa = editor.window_arrangement
+    eb = wa.active_editor_buffer
+    assert eb.buffer.text == ""
+
+    thai.note_document_text("\u0e01\u0e33")
+    assert thai._THAI_GATE.value is True
+    editor.sync_with_prompt_toolkit()
+    assert thai._THAI_GATE.value is False
+
+    # A buffer holding Thai text keeps the session latched:
+    thai.note_document_text("\u0e01")
+    eb.buffer.text = "\u0e01\u0e33"
+    editor.sync_with_prompt_toolkit()
+    assert thai._THAI_GATE.value is True

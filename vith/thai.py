@@ -239,10 +239,20 @@ def is_thai_base(cp: int) -> bool:
     Port of `szn/src/thai.zig:126-133` (`isThaiBase`):
     True if `cp` is a width-1 Thai/Lao codepoint that is not a combining mark,
     leading vowel, following vowel, or right-attaching mark.
+
+    The result is folded into a precomputed table at import (the predicate
+    used to evaluate `get_cwidth(chr(cp))` per call from the word-motion
+    helpers; docs/bugs/072.md).
     """
-    return (
-        is_thai_or_lao(cp)
-        and not is_thai_combining(cp)
+    return cp in _THAI_BASE_CPS
+
+
+def _build_thai_base_table() -> frozenset[int]:
+    """Precompute `is_thai_base` over the Thai/Lao blocks."""
+    return frozenset(
+        cp
+        for cp in range(0x0E00, 0x0EFF + 1)
+        if not is_thai_combining(cp)
         and not is_thai_leading_vowel(cp)
         and not is_thai_following_vowel(cp)
         and not is_thai_right_attaching(cp)
@@ -250,6 +260,9 @@ def is_thai_base(cp: int) -> bool:
         and cp not in _THAI_SYMBOL_CPS
         and get_cwidth(chr(cp)) == 1
     )
+
+
+_THAI_BASE_CPS = _build_thai_base_table()
 
 
 # ---------------------------------------------------------------------------
@@ -966,6 +979,23 @@ def reset_thai_text_gate() -> None:
     _THAI_GATE.reset()
 
 
+def reset_thai_text_gate_if_all_buffers_ascii(window_arrangement) -> None:
+    """
+    Decay the sticky Thai-gate latch once every open buffer currently holds
+    ASCII-only content (mixed-session renderer cost; used to stay latched
+    forever, docs/bugs/072.md — improving on the old 075 row 7). Called
+    from `Editor.sync_with_prompt_toolkit`, i.e. on buffer switches and
+    command executions, not per keystroke; the next Thai keystroke
+    re-latches immediately via `note_document_text`.
+    """
+    if not _THAI_GATE.value:
+        return
+    for editor_buffer in window_arrangement.editor_buffers:
+        if not editor_buffer.buffer.text.isascii():
+            return
+    _THAI_GATE.reset()
+
+
 def _cell_has_sara_am(cell: Char) -> bool:
     ch = cell.char
     if not ch:
@@ -999,8 +1029,9 @@ def _sanitize_and_invalidate_sara_am(
 
         # 1. Clear stray width-0 combining cells not overwritten by a trailing
         #    character. (Only values are replaced, so mutating while
-        #    iterating `items()` is safe and avoids copying the row.)
-        for x, cell in list(new_row.items()):
+        #    iterating the dict is safe and avoids a per-row list copy;
+        #    docs/bugs/072.md.)
+        for x, cell in new_row.items():
             if cell.width == 0 and cell.char != "":
                 new_row[x] = Char(char=" ", style=cell.style)
 
@@ -1008,8 +1039,15 @@ def _sanitize_and_invalidate_sara_am(
         if previous_screen is None or y not in previous_screen.data_buffer:
             continue
         prev_row = previous_screen.data_buffer[y]
-        all_xs = set(new_row.keys()) | set(prev_row.keys())
-        for x in sorted(x for x in all_xs if x >= 1):
+        # Deterministic ascending order without a double set union +
+        # `sorted(rs(...))` chain per row: distinct keys >= 1 sorted once
+        # (the poisoned keys 1011/1045 can only be added below the current
+        # `x`, never after the loop global order matters; docs/bugs/072.md).
+        all_xs = {x for x in new_row.keys() if x >= 1}
+        for x in prev_row:
+            if x >= 1:
+                all_xs.add(x)
+        for x in sorted(all_xs):
             if x not in prev_row or x not in new_row:
                 # Use defaults without inflating defaultdicts.
                 prev_cell = prev_row.get(x, _SARA_AM_DEFAULT_CHAR)

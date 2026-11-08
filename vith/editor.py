@@ -28,7 +28,11 @@ from .key_bindings import create_key_bindings
 from .layout import EditorLayout
 from .process import set_process_name
 from .style import generate_built_in_styles, get_editor_style_by_name
-from .thai import install_prompt_toolkit_thai_patches, note_document_text
+from .thai import (
+    install_prompt_toolkit_thai_patches,
+    note_document_text,
+    reset_thai_text_gate_if_all_buffers_ascii,
+)
 from .window_arrangement import WindowArrangement
 
 __all__ = ('Editor',)
@@ -273,6 +277,11 @@ class Editor(object):
         # After executing a command, make sure that the layout of
         # prompt-toolkit matches our WindowArrangement.
         self.editor_layout.update()
+
+        # Decay the sticky Thai-renderer gate when every buffer is plain
+        # ASCII again (called here on buffer switches / commands, never
+        # per keystroke; docs/bugs/072.md).
+        reset_thai_text_gate_if_all_buffers_ascii(self.window_arrangement)
 
         # Make sure that the focus stack of prompt-toolkit has the current
         # page.

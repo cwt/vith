@@ -94,6 +94,19 @@ class TabsControl(FormattedTextControl):
 
             return handler
 
+        # Cache mouse handlers per tab index: `get_tokens` runs per frame,
+        # and building a fresh closure per tab per frame churned allocations
+        # (docs/bugs/072.md). Tab handlers are stateless w.r.t. the index.
+        tab_handlers = {}
+
+        def get_tab_handler(index):
+            try:
+                return tab_handlers[index]
+            except KeyError:
+                handler = create_tab_handler(index)
+                tab_handlers[index] = handler
+                return handler
+
         def get_tokens():
             selected_tab_index = editor.window_arrangement.active_tab_index
 
@@ -105,7 +118,7 @@ class TabsControl(FormattedTextControl):
                 if tab.has_unsaved_changes:
                     caption = ' + ' + caption
 
-                handler = create_tab_handler(i)
+                handler = get_tab_handler(i)
 
                 if i == selected_tab_index:
                     append(('class:tabbar.tab.active', ' %s ' % caption, handler))
@@ -208,17 +221,17 @@ class BufferListOverlay(ConditionalContainer):
     """
 
     def __init__(self, editor):
-        def highlight_location(location, search_string, default_token):
+        def highlight_location(location, pattern, search_string, default_token):
             """
             Return a tokenlist with the `search_string` highlighted.
             """
-            if not search_string:
+            if pattern is None:
                 return [(default_token, location)]
 
             result = [(default_token, c) for c in location]
 
             # Replace token of matching positions.
-            for m in re.finditer(re.escape(search_string), location):
+            for m in pattern.finditer(location):
                 for i in range(m.start(), m.end()):
                     result[i] = ('class:searchmatch', result[i][1])
 
@@ -234,6 +247,10 @@ class BufferListOverlay(ConditionalContainer):
             # Filter infos according to typed text.
             input_params = editor.command_buffer.text.lstrip().split(None, 1)
             search_string = input_params[1] if len(input_params) > 1 else ''
+
+            # Compile the search pattern once per frame (used to re-escape
+            # and re-compile it for every buffer row; docs/bugs/072.md).
+            search_pattern = re.compile(re.escape(search_string)) if search_string else None
 
             if search_string:
 
@@ -296,7 +313,9 @@ class BufferListOverlay(ConditionalContainer):
                             (t, '%s ' % char3),
                         ]
                     )
-                    result.extend(highlight_location(eb.get_display_name(), search_string, t))
+                    result.extend(
+                        highlight_location(eb.get_display_name(), search_pattern, search_string, t)
+                    )
                     result.extend(
                         [
                             (t, ' ' * (max_location_len - len(eb.get_display_name()))),

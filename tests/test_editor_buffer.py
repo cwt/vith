@@ -263,3 +263,19 @@ def test_substitute_marks_unsaved_changes(editor, tmp_path):
     handle_command(editor, ':s/Violet/Rose')
     assert eb.has_unsaved_changes is True
     assert eb.buffer.text == 'Rose is Violet'
+
+
+def test_dirty_flag_fast_path_and_same_length_semantics(editor_buffer):
+    # 072 row 1: length changes resolve the dirty flag O(1); same-length
+    # edits keep the exact memcmp semantics.
+    eb = editor_buffer
+    eb._file_content = "abc"
+
+    eb.buffer.text = "abcd"  # length change
+    assert eb.has_unsaved_changes is True
+
+    eb.buffer.text = "abc"  # exact revert
+    assert eb.has_unsaved_changes is False
+
+    eb.buffer.text = "axy"  # same length, different content
+    assert eb.has_unsaved_changes is True

@@ -255,3 +255,62 @@ def test_report_message_toolbar_shows_all_errors_of_line(editor, editor_buffer):
     texts = [t for _style, t in fragments]
 
     assert texts == ['first', '  ', 'second']
+
+
+def _text_callable(control_container):
+    """Unwrap `.content` until a FormattedTextControl's `text` callable."""
+    obj = control_container
+    while not hasattr(obj, 'text'):
+        obj = obj.content
+    return obj.text
+
+
+def test_buffer_list_overlay_highlights_and_compiles_pattern_once(editor, monkeypatch):
+    # 072: the search pattern is compiled once per get_tokens frame (was
+    # re-escaped + re-compiled per buffer row), and highlighting still works.
+    import re as re_module
+
+    import vith.layout as layout_module
+    from vith.layout import BufferListOverlay
+    from vith.window_arrangement import EditorBuffer
+
+    wa = editor.window_arrangement
+    eb_alpha = EditorBuffer(editor, 'alpha.txt')
+    wa._add_editor_buffer(eb_alpha)
+    eb_beta = EditorBuffer(editor, 'beta.txt')
+    wa._add_editor_buffer(eb_beta)
+    editor.sync_with_prompt_toolkit()
+
+    compiles = []
+    real_compile = re_module.compile
+
+    def counting_compile(pattern, flags=0):
+        compiles.append(pattern)
+        return real_compile(pattern, flags)
+
+    monkeypatch.setattr(layout_module.re, 'compile', counting_compile)
+
+    overlay = BufferListOverlay(editor)
+    editor.command_buffer.text = ':b al'
+    tokens = _text_callable(overlay)()
+
+    joined = ''.join(text for _style, text in tokens)
+    assert 'alpha.txt' in joined and 'beta.txt' not in joined
+    assert any(style.startswith('class:searchmatch') for style, _text in tokens)
+    # One compile per frame, not one per buffer:
+    assert compiles == ['al']
+
+
+def test_tabs_control_reuses_handler_per_index(editor):
+    # 072: mouse handlers for tab i are cached across frames instead of
+    # building a fresh closure per tab per frame.
+    from vith.layout import TabsControl
+
+    editor.load_initial_files([None])
+    editor.window_arrangement.create_tab()
+
+    control = TabsControl(editor)
+    get_tokens = control.text
+    first = [fragment[2] for fragment in get_tokens() if len(fragment) >= 3]
+    second = [fragment[2] for fragment in get_tokens() if len(fragment) >= 3]
+    assert first and first == second  # same handler objects

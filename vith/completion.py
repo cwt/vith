@@ -1,6 +1,7 @@
 import bisect
 import re
 import weakref
+from functools import lru_cache
 from importlib.util import find_spec
 
 from prompt_toolkit.completion import Completer, Completion
@@ -15,9 +16,12 @@ __all__ = (
 _JEDI_TAKES_COLUMN = None
 
 
+@lru_cache(maxsize=None)
 def _jedi_available():
     """
-    Return whether the optional jedi dependency is importable.
+    Return whether the optional jedi dependency is importable (cached:
+    availability is session-constant, and `find_spec` used to probe the
+    import system on every Tab; docs/bugs/072.md).
 
     `importlib.util.find_spec` is a cheap, side-effect-free probe (it does
     not import jedi - importing jedi is slow and must stay deferred to the
@@ -60,15 +64,19 @@ class DocumentWordsCompleter(Completer):
         doc_lines = document.lines
         line_start = document.translate_row_col_to_index(row, 0)
         line_end = line_start + len(doc_lines[row])
-        prefix_text = document.text[:line_start]
-        suffix_text = document.text[line_end:]
-        key = (len(doc_lines), row, prefix_text, suffix_text)
+        # Cheap O(1) key instead of full-text prefix/suffix slices: typing on
+        # the cursor line does not change the prefix/suffix lengths (nor the
+        # row), so the non-cursor word cache keeps hitting across keystrokes
+        # without slicing + hashing the whole document per Tab
+        # (docs/bugs/072.md). A same-length edit on another line is not
+        # detected until the next length change — a deliberate trade-off.
+        key = (len(doc_lines), row, len(document.text) - len(doc_lines[row]))
 
         # Cache the words from all *other* lines; only recompute them when
         # the surrounding text (or the cursor line) changed.
         if key != self._cached_key:
-            other_words = set(self._WORD_RE.findall(prefix_text))
-            other_words.update(self._WORD_RE.findall(suffix_text))
+            other_words = set(self._WORD_RE.findall(document.text[:line_start]))
+            other_words.update(self._WORD_RE.findall(document.text[line_end:]))
             self._other_words_sorted = sorted(other_words)
             self._cached_key = key
 

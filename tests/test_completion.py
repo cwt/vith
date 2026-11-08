@@ -156,3 +156,44 @@ def test_thai_words_not_split_at_combining_marks():
     assert 'ที่ดิน' in comps or 'ดิน' not in comps
     # The corrupted single-base token 'ใหญ' (missing tone mark) must not appear.
     assert 'ใหญ' not in comps
+
+
+def test_document_words_completer_cache_key_is_cheap():
+    # 072: the cache key must not slice/hash the whole document per Tab.
+    # Typing on the cursor line keeps the cache; length changes on other
+    # lines invalidate it.
+    from prompt_toolkit.document import Document
+
+    from vith.completion import DocumentWordsCompleter
+
+    completer = DocumentWordsCompleter()
+    fake_event = object()  # (complete_event is unused by this completer)
+
+    doc1 = Document('alpha bet\nother line\n', 2)  # 'al' completes 'alpha'
+    words1 = [c.text for c in completer.get_completions(doc1, fake_event)]
+    assert 'alpha' in words1
+    key1 = completer._cached_key
+
+    # Typing on the cursor line (row 0): key unchanged -> cache hit.
+    doc2 = Document('alpha bets\nother line\n', 3)
+    words2 = [c.text for c in completer.get_completions(doc2, fake_event)]
+    assert 'alpha' in words2
+    assert completer._cached_key == key1
+
+    # Editing another line (suffix length changed): cache recomputed.
+    doc3 = Document('alpha bets\nother longer line\n', 3)
+    list(completer.get_completions(doc3, fake_event))
+    assert completer._cached_key != key1
+
+
+def test_jedi_availability_probe_is_cached():
+    # 072: the find_spec probe used to run on every Tab.
+    from vith.completion import _jedi_available
+
+    _jedi_available.cache_clear()
+    first = _jedi_available()
+    second = _jedi_available()
+    assert first is second
+    info = _jedi_available.cache_info()
+    assert info.misses == 1
+    assert info.hits == 1

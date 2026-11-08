@@ -827,7 +827,9 @@ def substitute(editor, range_start, range_end, search, replace, flags):
 
     # Apply substitution.
     buffer.save_to_undo_stack()
-    lines = list(buffer.document.lines)
+    # Reuse the already-split lines (ptk caches `Document.lines`, but the
+    # shallow list copy is still avoidable; docs/bugs/072.md).
+    lines = list(buffer_lines)
     for row in line_numbers:
         lines[row] = substituted[row]
     new_text = "\n".join(lines)
