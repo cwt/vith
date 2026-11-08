@@ -106,3 +106,39 @@ def test_snap_word_end_to_cell_thai_cluster():
     doc = Document("น้ำ abc\n\nnext", 0)
     pos = _snap_word_end_to_cell(doc, doc.translate_row_col_to_index(0, 3))
     assert doc.translate_index_to_position(pos) == (0, 2)
+
+
+def test_import_vith_main_does_not_start_editor(monkeypatch):
+    # 068: importing the `__main__` submodule must not launch the editor;
+    # `python -m vith` still runs because the module executes as `__main__`.
+    # The guard in vith/__main__.py must keep `run()` import-order safe.
+    import importlib
+
+    import vith.entry_points.run_vith as run_vith
+
+    started = []
+
+    def fake_run():
+        started.append(1)
+
+    monkeypatch.setattr(run_vith, "run", fake_run)
+
+    importlib.import_module("vith.__main__")
+
+    assert started == []
+    importlib.invalidate_caches()
+
+
+def test_python_m_vith_help_smoke(capsys):
+    # `python -m vith --help` exercises the actual guarded entrypoint.
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "vith", "--help"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0
+    assert result.stdout
