@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "OpenCode (Crouton Alpha)"
-  at: "2026-11-08T17:37:00Z"
-timestamp: "2026-11-08T17:37:00Z"
+  at: "2026-11-08T18:35:00Z"
+timestamp: "2026-11-08T18:35:00Z"
 ---
 
 # Documentation Bundle Log
@@ -30,4 +30,5 @@ This file tracks all modifications, extensions, and updates to the `vith` OKF do
 | 2026-11-07T07:28:00Z | [bugs/](bugs/index.md), [bugs/038.md](bugs/038.md)…[bugs/061.md](bugs/061.md), [index.md](index.md) | Appended (Round 2) | Appended 24 machine-verified Round 2 audit findings (`038`–`061`, `fix_status: open`) from the full-project review at hg rev 191 (`369831e8f7b8`): 17 defects (`038`–`054`) and 7 improvements (`055`–`061`), and updated `docs/bugs/index.md`, `docs/bugs/log.md`, and `docs/index.md`. |
 | 2026-11-07T10:27:00Z | [bugs/062.md](bugs/062.md), [bugs/index.md](bugs/index.md), [index.md](index.md) | Appended & closed | Recorded and fixed [062](bugs/062.md) (`fix_status: fixed (hg rev 233)`): right-margin Thai/Lao combining marks (`GC=Mn`) dropped by `Window._copy_body` at `x == width` or shifted onto `width - 2` by `_output_screen_diff` with `DECAWM` off (`\x1b[?7l`). |
 | 2026-11-08T01:37:00Z | [vith_rebrand_plan.md](vith_rebrand_plan.md), [index.md](index.md), [../CHANGELOG](../CHANGELOG) | Executed | Executed the vith (วิธ) rebrand & PEP 621 packaging modernization: renamed package tree pyvim -> vith, PEP 621 pyproject.toml, stacked copyright in LICENSE, updated README.md with fork attribution to Jonathan Slenders / prompt-toolkit/pyvim, user-data fallback (~/.vithrc -> ~/.pyvimrc, ~/.vith -> ~/.pyvim), docs sweep and 1.0.0 CHANGELOG entry. |
-| 2026-11-08T17:37:00Z | [bugs/](bugs/index.md), [bugs/063.md](bugs/063.md)…[bugs/080.md](bugs/080.md), [index.md](index.md) | Appended (Round 3) | Appended 18 machine-verified Round 3 audit findings (`063`–`080`, `fix_status: open`) from the post-rebrand deep review at hg rev 87de3a3 (134 tests passing, `mypy`/`ruff` clean): 13 defects ([063](bugs/063.md)–[073](bugs/073.md), [079](bugs/079.md), [080](bugs/080.md)) and 5 improvements ([074](bugs/074.md)–[078](bugs/078.md)), and updated `docs/bugs/index.md`, `docs/bugs/log.md`, `docs/index.md`, and this log. |
+| 2026-11-08T17:37:00Z | [bugs/](bugs/index.md), [bugs/063.md](bugs/063.md)…`bugs/080.md` (original numbering), [index.md](index.md) | Appended (Round 3) | Appended 18 machine-verified Round 3 audit findings (`063`–`080`, `fix_status: open`) from the post-rebrand deep review at hg rev 87de3a3 (134 tests passing, `mypy`/`ruff` clean): 13 defects ([063](bugs/063.md)–[073](bugs/073.md), [079](bugs/079.md), [080](bugs/080.md)) and 5 improvements ([074](bugs/074.md)–[078](bugs/078.md)), and updated `docs/bugs/index.md`, `docs/bugs/log.md`, `docs/index.md`, and this log. |
+| 2026-11-08T18:35:00Z | [bugs/](bugs/index.md), [bugs/063.md](bugs/063.md)…[bugs/075.md](bugs/075.md), [index.md](index.md) | Re-validated / renumbered | Re-validated every open Round 3 finding against hg rev 251 (tip, docs-only over audit rev 87de3a3; 134 tests passing): 10 findings confirmed verbatim, 8 partially confirmed with overstated sub-claims corrected in the docs (details in [`bugs/log.md`](bugs/index.md)). Merged same-area findings and renumbered the open set `063`–`080` → `063`–`075` (9 defects — [063](bugs/063.md)–[071](bugs/071.md); 4 improvements — [072](bugs/072.md)–[075](bugs/075.md)); old files 076-080 removed, mapping table in `bugs/index.md`. Bundle now totals 75 findings across 3 rounds (62 closed + 13 open). |
