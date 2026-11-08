@@ -892,3 +892,60 @@ def test_output_screen_diff_last_column_autowrap_guard(sticky_gate) -> None:
     rendered = buf.getvalue()
     assert "\x1b[?7hที่\x1b[?7l\x1b[10G" in rendered
     assert 9 not in screen.zero_width_escapes[0]
+
+
+def test_rollback_covers_text_object_patch(monkeypatch) -> None:
+    """064A: a failure after TextObject.operator_range is installed must roll
+    the TextObject patch back together with everything in `applied`."""
+
+    class FakeTextObject:
+        def operator_range(self, document):
+            return (0, 1)
+
+    fake_orig = FakeTextObject.operator_range
+
+    monkeypatch.setattr(thai, "_PtkTextObject", FakeTextObject)
+
+    def _fail_selftest() -> None:
+        raise RuntimeError("simulated self-test failure")
+
+    monkeypatch.setattr(thai, "_thai_install_selftest", _fail_selftest)
+
+    assert thai.install_prompt_toolkit_thai_patches() is False
+
+    # The TextObject patch must be rolled back, not left half-installed:
+    assert getattr(FakeTextObject.operator_range, "_vith_thai_patched", False) is False
+    assert FakeTextObject.operator_range is fake_orig
+
+
+def test_window_copy_body_patch_skips_on_signature_drift(monkeypatch) -> None:
+    """064B: signature drift in Window._copy_body must skip the patch (fail
+    loudly) instead of mis-binding arguments positionally."""
+    from prompt_toolkit.layout.containers import Window
+
+    def drifted(self, ui_content, new_screen):  # incomplete signature
+        return {}, {}
+
+    monkeypatch.setattr(Window, "_copy_body", drifted)
+    assert thai._install_window_copy_body_patch() is False
+    # Nothing was installed on drift:
+    assert Window._copy_body is drifted
+
+
+def test_renderer_patch_skips_on_signature_drift(monkeypatch) -> None:
+    """064B: signature drift in _output_screen_diff must skip the patch."""
+
+    def drifted(app, output):  # incomplete signature
+        return None
+
+    monkeypatch.setattr(thai.ptk_renderer, "_output_screen_diff", drifted)
+    assert thai._install_renderer_patch() is False
+    assert thai.ptk_renderer._output_screen_diff is drifted
+
+
+def test_zero_width_escape_style_comes_from_prompt_toolkit_token() -> None:
+    """064B: vith imports the shared token instead of hard-coding a magic
+    style substring."""
+    from prompt_toolkit.token import ZeroWidthEscape
+
+    assert thai._PtkZeroWidthEscape == ZeroWidthEscape == "[ZeroWidthEscape]"

@@ -43,9 +43,22 @@ except Exception:  # pragma: no cover
     _PtkTextObjectType = None  # type: ignore[assignment,misc]
 from prompt_toolkit.data_structures import Point
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent, KeyProcessor
-from prompt_toolkit.layout.containers import _CHAR_CACHE, Window
+from prompt_toolkit.layout.containers import Window
 from prompt_toolkit.layout.screen import Char, Screen
 from prompt_toolkit.utils import get_cwidth
+
+try:
+    from prompt_toolkit.layout.containers import _CHAR_CACHE as _PtkCharCache
+except ImportError:  # pragma: no cover - private cache may be renamed upstream
+    _PtkCharCache = None  # type: ignore[assignment,misc]
+
+try:
+    # prompt_toolkit.token exports this same class-name token used by the
+    # renderer itself (prompt_toolkit/renderer.py:809); import it instead of
+    # hard-coding the magic substring.
+    from prompt_toolkit.token import ZeroWidthEscape as _PtkZeroWidthEscape
+except ImportError:  # pragma: no cover - token may be renamed upstream
+    _PtkZeroWidthEscape = "[ZeroWidthEscape]"  # type: ignore[assignment,misc]
 
 __all__ = (
     "is_thai",
@@ -1014,7 +1027,27 @@ def _sanitize_and_invalidate_sara_am(
 _AUTOWRAP_ARM_TAG = "\x00_VITH_THAI_AUTOWRAP_\x00"
 
 
-def _install_window_copy_body_patch() -> bool:
+def _named_arg_resolver(params: list[str], is_method: bool):
+    """
+    Build a resolver that maps a wrapper's positional `args`/`kwargs` to
+    parameter names captured from the *verified* prompt_toolkit signature.
+    Resolving by name (instead of bare `args[i]` indices) means an inserted
+    prompt_toolkit parameter shifts with its name rather than silently
+    re-binding; `is_method=True` accounts for the bound `self` argument.
+    """
+    skip = 1 if is_method else 0
+    positions = {name: idx - skip for idx, name in enumerate(params)}
+
+    def resolve(name: str, args: tuple[Any, ...], kwargs: dict[str, Any], default: Any = None):
+        idx = positions.get(name)
+        if idx is not None and idx >= 0 and idx < len(args):
+            return args[idx]
+        return kwargs.get(name, default)
+
+    return resolve
+
+
+def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | None = None) -> bool:
     """
     Wrap `prompt_toolkit.layout.containers.Window._copy_body` so zero-width
     combining marks (`GC=Mn`, `char_width == 0`) immediately following a base
@@ -1029,25 +1062,41 @@ def _install_window_copy_body_patch() -> bool:
     if getattr(orig_copy_body, "_vith_thai_patched", False):
         return True
 
-    try:
-        params = list(inspect.signature(orig_copy_body).parameters.keys())
-    except (TypeError, ValueError):
-        logger.warning("Could not inspect Window._copy_body signature; skipping patch.")
-        return False
-
-    if len(params) < 6 or params[:6] != [
+    # The wrapper resolves `has_focus` by parameter name against this full
+    # expected prefix (Window._copy_body in prompt_toolkit 3.0.53); a
+    # signature drift fails loudly (patch skipped) instead of mis-binding.
+    expected_params = (
         "self",
         "ui_content",
         "new_screen",
         "write_position",
         "move_x",
         "width",
-    ]:
+        "vertical_scroll",
+        "horizontal_scroll",
+        "wrap_lines",
+        "highlight_lines",
+        "vertical_scroll_2",
+        "always_hide_cursor",
+        "has_focus",
+        "align",
+        "get_line_prefix",
+    )
+    try:
+        params = list(inspect.signature(orig_copy_body).parameters.keys())
+    except (TypeError, ValueError):
+        logger.warning("Could not inspect Window._copy_body signature; skipping patch.")
+        return False
+
+    if len(params) < len(expected_params) or params[: len(expected_params)] != list(
+        expected_params
+    ):
         logger.warning(
             "Unexpected Window._copy_body parameters %r; skipping right-margin patch.",
             params,
         )
         return False
+    resolve_arg = _named_arg_resolver(params, is_method=True)
 
     def _patched_copy_body(
         self: Any,
@@ -1096,7 +1145,7 @@ def _install_window_copy_body_patch() -> bool:
         if not candidate_rows:
             return visible_line_to_row_col, rowcol_to_yx
 
-        has_focus = bool(kwargs.get("has_focus", args[6] if len(args) > 6 else False))
+        has_focus = bool(resolve_arg("has_focus", args, kwargs, False))
         line_chars_cache: dict[int, str] = {}
         for (lineno, col), (sy, sx) in list(rowcol_to_yx.items()):
             if sy not in candidate_rows:
@@ -1110,7 +1159,7 @@ def _install_window_copy_body_patch() -> bool:
                 chars = "".join(
                     t
                     for style, t, *_ in ui_content.get_line(lineno)
-                    if "[ZeroWidthEscape]" not in style
+                    if _PtkZeroWidthEscape not in style
                 )
                 line_chars_cache[lineno] = chars
             if col >= len(chars) or get_cwidth(chars[col]) == 0:
@@ -1124,12 +1173,16 @@ def _install_window_copy_body_patch() -> bool:
                 _THAI_GATE.note(comb)
                 prev_char = data_buffer[sy][sx]
                 if not prev_char.char.endswith(comb):
-                    data_buffer[sy][sx] = _CHAR_CACHE[prev_char.char + comb, prev_char.style]
+                    if _PtkCharCache is not None:
+                        data_buffer[sy][sx] = _PtkCharCache[prev_char.char + comb, prev_char.style]
+                    else:
+                        data_buffer[sy][sx] = Char(prev_char.char + comb, prev_char.style)
                 for c_idx in range(col + 1, j):
                     rowcol_to_yx[lineno, c_idx] = (sy, sx)
-                # Keep the base character last in insertion order so mouse
-                # click reverse-lookup `{v: k for k, v in rowcol_to_yx.items()}`
-                # resolves `(sy, sx)` to `(lineno, col)`.
+                # Keep the base character last in insertion order so prompt_toolkit's
+                # mouse reverse-lookup `yx_to_rowcol = {v: k for k, v in
+                # rowcol_to_yx.items()}` (layout/containers.py:1828) resolves
+                # `(sy, sx)` to `(lineno, col)`, not a combining mark column.
                 del rowcol_to_yx[lineno, col]
                 rowcol_to_yx[lineno, col] = (sy, sx)
                 cpos = ui_content.cursor_position
@@ -1141,10 +1194,12 @@ def _install_window_copy_body_patch() -> bool:
     setattr(_patched_copy_body, "_vith_thai_patched", True)
     setattr(_patched_copy_body, "_vith_original", orig_copy_body)
     Window._copy_body = _patched_copy_body  # type: ignore[method-assign]
+    if applied is not None:
+        applied.append((Window, "_copy_body", orig_copy_body))
     return True
 
 
-def _install_renderer_patch() -> bool:
+def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None) -> bool:
     """
     Wrap `prompt_toolkit.renderer._output_screen_diff` with signature verification.
     Returns `True` if installed (or already installed), `False` if skipped.
@@ -1162,19 +1217,47 @@ def _install_renderer_patch() -> bool:
         logger.warning("Could not inspect _output_screen_diff signature; skipping patch.")
         return False
 
-    if len(params) < 12 or params[2] != "screen" or params[5] != "previous_screen":
+    # The wrapper resolves `output`/`screen`/`previous_screen`/`is_done`/`size`
+    # by parameter name against this full expected prefix
+    # (`_output_screen_diff` in prompt_toolkit 3.0.53); a signature drift
+    # fails loudly (patch skipped) instead of mis-binding arguments.
+    expected_params = (
+        "app",
+        "output",
+        "screen",
+        "current_pos",
+        "color_depth",
+        "previous_screen",
+        "last_style",
+        "is_done",
+        "full_screen",
+        "attrs_for_style_string",
+        "style_string_has_style",
+        "size",
+        "previous_width",
+    )
+    try:
+        params = list(inspect.signature(orig_diff).parameters.keys())
+    except (TypeError, ValueError):
+        logger.warning("Could not inspect _output_screen_diff signature; skipping patch.")
+        return False
+
+    if len(params) < len(expected_params) or params[: len(expected_params)] != list(
+        expected_params
+    ):
         logger.warning(
             "Unexpected _output_screen_diff parameters %r; skipping renderer patch.",
             params,
         )
         return False
+    resolve_arg = _named_arg_resolver(params, is_method=False)
 
     def _wrapped_output_screen_diff(*args: Any, **kwargs: Any) -> Any:
-        output = args[1] if len(args) > 1 else kwargs.get("output")
-        screen = args[2] if len(args) > 2 else kwargs.get("screen")
-        previous_screen = args[5] if len(args) > 5 else kwargs.get("previous_screen")
-        is_done = bool(args[7] if len(args) > 7 else kwargs.get("is_done", False))
-        size = kwargs.get("size") or (args[11] if len(args) > 11 else None)
+        output = resolve_arg("output", args, kwargs)
+        screen = resolve_arg("screen", args, kwargs)
+        previous_screen = resolve_arg("previous_screen", args, kwargs)
+        is_done = bool(resolve_arg("is_done", args, kwargs, False))
+        size = resolve_arg("size", args, kwargs)
         # Skip the full-screen scan while the sticky gate says this session
         # has never rendered Thai/Lao text (see `docs/bugs/002.md`); once a
         # Thai-capable string was observed, always sanitize (unchanged
@@ -1221,6 +1304,12 @@ def _install_renderer_patch() -> bool:
         if not saved_escapes or output is None:
             return orig_diff(*args, **kwargs)
 
+        if getattr(output, "_vith_write_swap_active", False):
+            # Another `Application` already swapped `write`/`write_raw` on
+            # this output object (re-entrant or nested `run_in_terminal`):
+            # serialize by running the diff without a second swap.
+            return orig_diff(*args, **kwargs)
+
         orig_write = output.write
         orig_write_raw = output.write_raw
         armed = False
@@ -1242,9 +1331,11 @@ def _install_renderer_patch() -> bool:
 
         output.write = _wrapped_write  # type: ignore[method-assign]
         output.write_raw = _wrapped_write_raw  # type: ignore[method-assign]
+        output._vith_write_swap_active = True
         try:
             return orig_diff(*args, **kwargs)
         finally:
+            output._vith_write_swap_active = False
             output.write = orig_write  # type: ignore[method-assign]
             output.write_raw = orig_write_raw  # type: ignore[method-assign]
             for y, col_idx, old_esc in saved_escapes:
@@ -1258,6 +1349,8 @@ def _install_renderer_patch() -> bool:
     setattr(_wrapped_output_screen_diff, "_vith_thai_patched", True)
     setattr(_wrapped_output_screen_diff, "_vith_original", orig_diff)
     ptk_renderer._output_screen_diff = _wrapped_output_screen_diff  # type: ignore[assignment]
+    if applied is not None:
+        applied.append((ptk_renderer, "_output_screen_diff", orig_diff))
     return True
 
 
@@ -1355,6 +1448,15 @@ _DOCUMENT_PATCH_SPECS: tuple[tuple[str, tuple[str, ...], Callable[..., object]],
 )
 
 
+def _thai_install_selftest() -> None:
+    """Validate the patched Document primitives; raise on any mismatch."""
+    test_doc = Document("ที่ดิน", cursor_position=0)
+    if test_doc.get_cursor_right_position(1) != 3:
+        raise RuntimeError(
+            "Thai Document self-test failed: Document('ที่ดิน', 0).get_cursor_right_position(1) != 3"
+        )
+
+
 def install_prompt_toolkit_thai_patches() -> bool:
     """
     Install Thai/Lao cell-cluster and renderer patches onto `prompt_toolkit`
@@ -1363,7 +1465,7 @@ def install_prompt_toolkit_thai_patches() -> bool:
     # Every patch applied in this call, so the except-path can roll back to
     # an entirely unpatched prompt_toolkit (docs/bugs/005.md): (target,
     # attribute, original function) triples.
-    applied: list[tuple[type, str, object]] = []
+    applied: list[tuple[Any, str, object]] = []
     try:
         for method_name, expected_params, replacement in _DOCUMENT_PATCH_SPECS:
             current = getattr(Document, method_name, None)
@@ -1408,9 +1510,13 @@ def install_prompt_toolkit_thai_patches() -> bool:
             if _orig_operator_range is not None and not getattr(
                 _orig_operator_range, "_vith_thai_patched", False
             ):
+                # Register the patch for rollback before installing it, so a
+                # failure after this point cannot leave a half-patched
+                # `TextObject` behind (the rollback gap from docs/bugs/005.md).
+                applied.append((_PtkTextObject, "operator_range", _orig_operator_range))
 
-                def _thai_operator_range(self, document):
-                    start, end = _orig_operator_range(self, document)
+                def _thai_operator_range(self, document, _orig=_orig_operator_range):
+                    start, end = _orig(self, document)
                     doc = document
                     # Snap the lower bound off a combining mark onto its cell start.
                     abs_start = doc.cursor_position + start
@@ -1439,21 +1545,21 @@ def install_prompt_toolkit_thai_patches() -> bool:
                 setattr(_thai_operator_range, "_vith_thai_patched", True)
                 _PtkTextObject.operator_range = _thai_operator_range  # type: ignore[method-assign]
 
+        # Window copy-body and renderer patches. They fail soft (warn + skip)
+        # on genuine signature drift; an unexpected raise inside them still
+        # reaches the rollback below because each install appends its own
+        # (target, attribute, original) triple on success.
+        _install_window_copy_body_patch(applied)
+        _install_renderer_patch(applied)
+
         # Startup self-test required by Section 4.1:
-        test_doc = Document("ที่ดิน", cursor_position=0)
-        if test_doc.get_cursor_right_position(1) != 3:
-            raise RuntimeError(
-                "Thai Document self-test failed: "
-                "Document('ที่ดิน', 0).get_cursor_right_position(1) != 3"
-            )
+        _thai_install_selftest()
     except Exception as exc:
         for target, attribute, orig_fn in applied:
             setattr(target, attribute, orig_fn)
         logger.warning("Falling back to unpatched prompt_toolkit Document: %s", exc)
         return False
 
-    _install_window_copy_body_patch()
-    _install_renderer_patch()
     return True
 
 
