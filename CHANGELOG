@@ -1,35 +1,56 @@
 CHANGELOG
 =========
 
-Unreleased: 2026-11-08 (post-0.10.0 field-verified fix arcs, hg rev 267-271)
----------------------------------------------------------------------------
+0.11.0: 2026-11-08
+-------------------
 
-Thai & Lao script support (the 076-085 selection-stack arcs):
+Field-verified correctness arcs since 0.10.0 (documented in detail in
+``docs/bugs/index.md``: 91 machine-verified findings, all closed; every fix
+carries regression tests):
 
-- Fixed a visual-highlight crash (`v` + `j`) and aligned visual selections,
-  visual blocks and block `I`/`A` insert positions on cell-cluster columns:
-  Thai/Lao clusters highlight, cut, yank and insert like Vim cells
-  (findings 076-085).
-- Fixed `j`/`k` keeping the *visual* column across Thai rows
-  (`preferred_column` was a raw codepoint column; finding 078).
-- Word spans no longer slice mixed-script clusters (`Latin base + Thai mark`,
-  generic accents) for `iw`/`aw`/`*`/`#` (finding 086).
+Thai & Lao script support:
 
-Editor commands & buffers (findings 063-091):
+- Visual-mode correctness: visual selections, visual blocks and block
+  ``I``/``A`` insert positions align on **cell-cluster columns** — Thai/Lao
+  clusters highlight, cut, yank and insert like Vim cells (findings 076-085).
+- ``j``/``k`` keep the *visual* column across Thai rows (``preferred_column``
+  was a raw codepoint column; finding 078).
+- Word spans no longer slice mixed-script clusters (Latin base + Thai mark,
+  generic accents) for ``iw``/``aw``/``*``/``#`` (finding 086).
+- Cluster-safe counted operations: counted ``$`` (``3$``), line-local
+  ``e``/``E`` snapping, whole-cell ``2rX``, counted ``~`` respecting
+  ``:set tildeop`` (findings 053, 063, 071).
+- ``:s`` with a Thai replacement re-arms the SARA-AM neighbor sanitizer; gate
+  latching/decay covers Thai file names and message banners
+  (findings 081, 082).
 
-- `:b <pattern>`/`:b <n>` no longer crash on untitled buffers; `:b <n>` and
-  the `:ls` pager share 1-based numbering with `[New file]` names.
-- `:s` flag parsing extended (`:s/x/y//g`, `:s/x/y/gg`) and `:0,1s/...` maps
-  row 0 to the first line; `:s` with a Thai replacement properly re-arms the
-  Thai renderer sanitizer.
-- `:e` on a file deleted since it was read shows E211-style error and keeps
-  the in-memory contents instead of blanking the buffer.
-- `:q`/`:wq` window-vs-exit semantics, `:wqa` writing all buffers, `:b`
-  completion/jump/numbering alignment, `__main__` import guard, reporter
-  invalidation, previewer abort-leak fixes are included in the arc above.
+Editor commands & buffers:
 
-Unreleased items are documented in detail in ``docs/bugs/index.md`` (91
-machine-verified findings, all closed).
+- ``:b`` fixes: untitled-buffer crash (080), completed patterns jumping, a
+  1-based numbering shared by ``:b <n>``/``:ls``/``BufferListOverlay`` and
+  ``[New file]`` names (findings 067, 080, 087).
+- ``:s`` flags parsing (``:s/x/y//g``, ``gg``, multi-letter flags) with
+  ``:0,1s/`` mapping to the first line (finding 083).
+- ``:e`` on a file deleted since it was read shows E211-style error and keeps
+  the in-memory contents (finding 088).
+- ``:q``/``:wqa`` window-vs-exit semantics; ``:bd`` across tabs keeps the
+  invariant (findings 066, 067, 070).
+- ``__main__`` import guard, reporter invalidation, aborted ``:set`` preview
+  leak fix (``:set paste`` × ``Esc``), I/O robustness (latin-1 → utf-8 save
+  fallback, unknown-backend read-only buffers), first-run startup fixes
+  (findings 068, 069, 091, 070).
+
+Performance & maintenance:
+
+- Thai ``j``/``k`` cell-start scans cached with LRU (~762 µs per keypress on
+  2000-codepoint rows → O(1)); megabyte line span-cache bypass; lazy-import
+  hoists in the cursor path; ``:s`` single-split reuse (finding 090).
+- ``thai.py`` split into ``thai_classify``/``thai_clusters``/``thai_words``;
+  the prompt_toolkit patch installer moved out of import time into
+  ``Editor.__init__`` (finding 075).
+- Dead-code sweep including a working ``.vithrc`` example; duplicate ``:set``
+  logic consolidated into a single catalog; duplicate word-walk logic unified
+  into one generator (findings 073, 074).
 
 0.10.0: 2026-11-08
 ------------------
