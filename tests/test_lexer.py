@@ -130,3 +130,63 @@ def test_directory_listing_lexer_is_cached():
     # Two `lex_document` calls (keystrokes) reuse it as well:
     lexer.lex_document(doc)
     assert lexer._get_directory_lexer() is first
+
+
+def test_legacy_fallback_caches_pygments_lexer_per_location(monkeypatch) -> None:
+    """065: the non-streaming legacy branch must cache the lexer per location
+    instead of re-scanning the Pygments registry (and building a fresh
+    `PygmentsLexer`) on every frame."""
+    from unittest.mock import MagicMock
+
+    import vith.lexer as lexer_mod
+
+    monkeypatch.setattr(lexer_mod, "_STREAMING_AVAILABLE", False)
+
+    calls = []
+    sentinel_lexer = MagicMock()
+    sentinel_lexer.lex_document = lambda document: lambda i: []
+
+    def fake_from_filename(cls, filename, sync_from_start=True):
+        calls.append(filename)
+        return sentinel_lexer
+
+    monkeypatch.setattr(lexer_mod.PygmentsLexer, "from_filename", classmethod(fake_from_filename))
+
+    editor_buffer = MagicMock()
+    editor_buffer.location = "f.txt"
+    editor_buffer.in_file_explorer_mode = False
+    document = MagicMock()
+
+    lexer_instance = lexer_mod.DocumentLexer(editor_buffer)
+    lexer_instance.lex_document(document)
+    lexer_instance.lex_document(document)
+    # Second call is a cache hit:
+    assert calls == ["f.txt"]
+
+    # A different location invalidates the cache:
+    editor_buffer.location = "g.py"
+    lexer_instance.lex_document(document)
+    assert calls == ["f.txt", "g.py"]
+
+
+def test_legacy_fallback_degrades_to_simple_lexer(monkeypatch) -> None:
+    """065: unknown extensions on the legacy branch degrade to a `SimpleLexer`
+    (prompt_toolkit's own `ClassNotFound` handling), not a crash."""
+    from unittest.mock import MagicMock
+
+    from prompt_toolkit.lexers import SimpleLexer
+
+    import vith.lexer as lexer_mod
+
+    monkeypatch.setattr(lexer_mod, "_STREAMING_AVAILABLE", False)
+
+    editor_buffer = MagicMock()
+    editor_buffer.location = "unknownextension.zzzz"
+    editor_buffer.in_file_explorer_mode = False
+
+    lexer_instance = lexer_mod.DocumentLexer(editor_buffer)
+    for document in (MagicMock(), MagicMock()):
+        result = lexer_instance.lex_document(document)
+        assert result is not None
+    # The degraded lexer was cached (not rebuilt per call):
+    assert isinstance(lexer_instance._pygments_lexer, SimpleLexer)

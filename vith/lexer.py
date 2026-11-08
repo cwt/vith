@@ -48,7 +48,7 @@ class DocumentLexer(Lexer):
     def __init__(self, editor_buffer):
         self.editor_buffer = editor_buffer
         self._cached_location = None
-        self._pygments_lexer = None
+        self._pygments_lexer: Any = None
         self._syntax_sync = None
         self._directory_lexer = None
 
@@ -108,10 +108,19 @@ class DocumentLexer(Lexer):
                 return self._get_directory_lexer().lex_document(document)
 
             if not _STREAMING_AVAILABLE:
-                # Fallback for older prompt_toolkit versions.
-                return PygmentsLexer.from_filename(location, sync_from_start=False).lex_document(
-                    document
-                )
+                # Legacy fallback for prompt_toolkit builds without
+                # `RegexSync`: cache the `PygmentsLexer` per location the same
+                # way the streaming branch caches its lexer (the registry scan
+                # costs ~0.6 ms/frame otherwise; docs/bugs/030.md and
+                # docs/bugs/065.md). `PygmentsLexer.from_filename` degrades to
+                # `SimpleLexer` itself when Pygments cannot guess a lexer
+                # (unknown extension), so no crash escapes to the renderer.
+                if self._cached_location != location or self._pygments_lexer is None:
+                    self._pygments_lexer = PygmentsLexer.from_filename(
+                        location, sync_from_start=False
+                    )
+                    self._cached_location = location
+                return self._pygments_lexer.lex_document(document)
 
             if self._cached_location != location or self._pygments_lexer is None:
                 if not self._ensure_lexer(location):
