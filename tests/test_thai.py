@@ -972,3 +972,48 @@ def test_thai_gate_decays_when_all_buffers_ascii(editor):
     eb.buffer.text = "\u0e01\u0e33"
     editor.sync_with_prompt_toolkit()
     assert thai._THAI_GATE.value is True
+
+
+def test_selection_range_at_line_is_line_relative(editor):
+    # 076: prompt_toolkit's `Document.selection_range_at_line` returns
+    # LINE-RELATIVE columns; the Thai cluster extension used to interpret
+    # them as absolute indices — correct only on row 0 (highlight right),
+    # crashing `HighlightSelectionProcessor` with a KeyError on any later
+    # row (visual highlight + `j`).
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    editor.load_initial_files([None])
+    text = "ที่ดิน\nปั้\nกำแพง\n"  # row 1: ป + ั + ้ = one cluster
+    with set_app(editor.application):
+        eb = editor.window_arrangement.active_editor_buffer
+        eb.buffer.text = text
+        # Cursor on the ั mark of row 1's cluster [ปั้] (absolute index 8;
+        # row 0 is 6 codepoints + newline). Document.cursor_position is
+        # read-only, so it is set via the constructor.
+        doc = Document(
+            text, cursor_position=8, selection=SelectionState(0, SelectionType.CHARACTERS)
+        )
+
+        orig = thai._ORIGINAL_DOCUMENT_METHODS["selection_range_at_line"](doc, 1)
+        assert orig == (0, 2)  # exclusive end: ั included, ้ not
+
+        patched = doc.selection_range_at_line(1)
+        assert patched == (0, 3)  # extended over ้, in LINE-relative coords
+
+        # And the line-relative contract holds for every covered row:
+        for row in range(len(doc.lines)):
+            result = doc.selection_range_at_line(row)
+            if result is not None:
+                start, end = result
+                assert 0 <= start <= end
+                assert end <= len(doc.lines[row]) + 1  # vi EOL inclusive +1
+
+        # EOL selection (cursor at the newline after row 1, absolute 10):
+        # ptk's own (0, len+1) is passed through unchanged — no absolute
+        # mangling, no crash:
+        doc_eol = Document(
+            text, cursor_position=10, selection=SelectionState(0, SelectionType.CHARACTERS)
+        )
+        result = doc_eol.selection_range_at_line(1)
+        assert result == thai._ORIGINAL_DOCUMENT_METHODS["selection_range_at_line"](doc_eol, 1)

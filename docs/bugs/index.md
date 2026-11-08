@@ -25,6 +25,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 1 (2026-11-06, hg rev 164 — [001](001.md)–[037](037.md), `fix_status: fixed`)**: 16 defects and 21 improvements verified against `prompt_toolkit 3.0.53`, live micro-probes, the test suite (68 passed), `mypy .` (40 files clean), and `tools/bench_plans.py`. Closed in hg rev 167–195 (100 tests, 43-file mypy baseline at the 3.10 floor, ruff clean).
 * **Round 2 (2026-11-07, hg rev 191–233 — [038](038.md)–[062](062.md), `fix_status: fixed`)**: 18 defects ([038](038.md)–[054](054.md), [062](062.md)) and 7 improvements ([055](055.md)–[061](061.md)). All fixed in hg rev 194–233.
 * **Round 3 (2026-11-08, hg rev 87de3a3 — [063](063.md)–[075](075.md), `fix_status: fixed`)**: 9 defects ([063](063.md)–[071](071.md)) and 4 improvements ([072](072.md)–[075](075.md)). All fixed in hg rev 253–265 (fix arc of 2026-11-08, one commit per finding or tightly-bound pairing, 179 tests passing, `mypy` 32 files clean, `ruff` clean). Originally filed as 18 findings (063–080) at hg rev 251 and re-validated/merged/renumbered on 2026-11-08 — see the [renumbering note](#renumbering-note-2026-11-08).
+* **Round 3 addendum (2026-11-08, user-reported field bug after the fix arc — [076](076.md), fixed rev 267)**: [076](076.md) — visual highlight + `j` crash (absolute/line-relative mix in the `selection_range_at_line` wrapper).
 
 ## Round 3 Findings (2026-11-08, hg rev 87de3a3 → fixed in rev 253–265)
 

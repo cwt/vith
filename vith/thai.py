@@ -740,16 +740,20 @@ def _thai_selection_range_at_line(self, row: int) -> tuple[int, int] | None:
     res = orig(self, row)
     if res is None:
         return None
+    # prompt_toolkit returns LINE-RELATIVE columns `(from_column, to_column)`
+    # with an exclusive upper bound (vi mode already adds +1 for inclusion).
+    # Extend the highlight over a trailing combining mark of the last
+    # selected cell — in line-relative coordinates (the former absolute
+    # mix-up produced out-of-mapping columns on rows > 0 and crashed
+    # `HighlightSelectionProcessor` with a KeyError; docs/bugs/076.md).
     start, end = res
-    if vi_mode() and end > start and end <= len(self.text):
-        last_idx = end - 1
-        r, col = self.translate_index_to_position(last_idx)
-        if r < len(self.lines):
-            line = self.lines[r]
-            cluster_end_col = next_cell_offset(line, col, 1)
-            new_end = self.translate_row_col_to_index(r, cluster_end_col)
-            if new_end > end:
-                end = new_end
+    if vi_mode() and end > start:
+        line = self.lines[row]
+        cursor_col = end - 1
+        if 0 <= cursor_col < len(line) and is_combining_char(line[cursor_col]):
+            cluster_end_col = next_cell_offset(line, cursor_col, 1)
+            if cluster_end_col > end:
+                end = cluster_end_col
     return start, end
 
 
