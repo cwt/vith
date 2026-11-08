@@ -38,6 +38,23 @@ from .window_arrangement import WindowArrangement
 __all__ = ('Editor',)
 
 
+def _terminal_title_extra_sequence(title_osc_body: str) -> str:
+    """
+    Build the combined OSC-0 window-title + tmux/screen suffix sequence,
+    shared by set/clear paths (docs/bugs/073.md): when running under tmux or
+    GNU screen, the stacked `ESC k <body> ESC \\` title sequence follows the
+    OSC-0 escape.
+    """
+    extra_seq = f"\x1b]0;{title_osc_body}\x07"
+    if (
+        'TMUX' in os.environ
+        or 'STY' in os.environ
+        or os.environ.get('TERM', '').startswith(('screen', 'tmux'))
+    ):
+        extra_seq += f"\x1bk{title_osc_body}\x1b\\"
+    return extra_seq
+
+
 class Editor(object):
     """
     The main class. Containing the whole editor.
@@ -330,13 +347,7 @@ class Editor(object):
         # 2. OSC 0 (sets both window title and icon name for xterm/iTerm2/Alacritty/Terminal.app)
         # 3. If running under tmux / screen, also send the screen-title sequence: ESC k <title> ESC \
         try:
-            extra_seq = f"\x1b]0;{clean_title}\x07"
-            if (
-                'TMUX' in os.environ
-                or 'STY' in os.environ
-                or os.environ.get('TERM', '').startswith(('screen', 'tmux'))
-            ):
-                extra_seq += f"\x1bk{clean_title}\x1b\\"
+            extra_seq = _terminal_title_extra_sequence(clean_title)
             out.write_raw(extra_seq)
             out.flush()
         except Exception:
@@ -352,13 +363,7 @@ class Editor(object):
 
         try:
             out.clear_title()
-            extra_seq = "\x1b]0;\x07"
-            if (
-                'TMUX' in os.environ
-                or 'STY' in os.environ
-                or os.environ.get('TERM', '').startswith(('screen', 'tmux'))
-            ):
-                extra_seq += "\x1bk\x1b\\"
+            extra_seq = _terminal_title_extra_sequence('')
             out.write_raw(extra_seq)
             out.flush()
         except Exception:

@@ -1,30 +1,36 @@
+from .commands import SET_INT_OPTIONS, SET_LIST_OPTIONS, SET_TOGGLE_GROUPS
 from .grammar import COMMAND_GRAMMAR
 
 __all__ = ('CommandPreviewer',)
 
 
-#: (attribute, option names, value to set when the option is toggled).
-_TOGGLE_PREVIEW_SPECS = (
-    ('highlight_search', ('hlsearch', 'hls'), True),
-    ('highlight_search', ('nohlsearch', 'nohls'), False),
-    ('show_line_numbers', ('nu', 'number'), True),
-    ('show_line_numbers', ('nonu', 'nonumber'), False),
-    ('show_ruler', ('ruler', 'ru'), True),
-    ('show_ruler', ('noruler', 'noru'), False),
-    ('relative_number', ('relativenumber', 'rnu'), True),
-    ('relative_number', ('norelativenumber', 'nornu'), False),
-    ('cursorline', ('cursorline', 'cul'), True),
-    ('cursorline', ('nocursorline', 'nocul'), False),
-    ('cursorcolumn', ('cursorcolumn', 'cuc'), True),
-    ('cursorcolumn', ('nocursorcolumn', 'nocuc'), False),
-)
+def _build_preview_maps():
+    """
+    Per-alias lookup maps derived from the commands.py `:set` catalog —
+    the single source of truth shared with the command handlers
+    (docs/bugs/073.md, closing the 028 two-tables drift).
+    """
+    toggles = {}
+    for _display, attribute, on_names, off_names in SET_TOGGLE_GROUPS:
+        for name in on_names:
+            toggles[name] = (attribute, True)
+        for name in off_names:
+            toggles[name] = (attribute, False)
 
-#: (attribute, option names) for integer-valued options; their actual
-#: value belongs to the `set_value` variable of the typed command.
-_INT_VALUE_PREVIEW_SPECS = (
-    ('tabstop', ('tabstop', 'ts')),
-    ('scroll_offset', ('scrolloff', 'so')),
-)
+    ints = {}
+    for _display, attribute, names, minimum in SET_INT_OPTIONS:
+        for name in names:
+            ints[name] = (attribute, minimum)
+
+    lists = {}
+    for _display, attribute, names in SET_LIST_OPTIONS:
+        for name in names:
+            lists[name] = attribute
+
+    return toggles, ints, lists
+
+
+_TOGGLE_PREVIEWS, _INT_VALUE_PREVIEWS, _LIST_VALUE_PREVIEWS = _build_preview_maps()
 
 
 class CommandPreviewer(object):
@@ -98,37 +104,39 @@ class CommandPreviewer(object):
             if colorscheme:
                 e.use_colorscheme(colorscheme)
 
-        # Preview `:set` commands through a compact spec table instead of a
-        # hand-written elif chain, so the options covered here stay in sync
-        # with the `:set` handlers (docs/bugs/028.md).
+        # Preview `:set` commands through the shared catalog above (the
+        # same table the `:set` handlers are generated from, docs/bugs/
+        # 073.md). Options that mutate vi_state (tildeop) are not
+        # preview-restorable and stay ignored, as before.
         if command == 'set':
-            for attribute, names, value in _TOGGLE_PREVIEW_SPECS:
-                if set_option in names:
-                    setattr(e, attribute, value)
-                    return
+            spec = _TOGGLE_PREVIEWS.get(set_option)
+            if spec is not None:
+                setattr(e, spec[0], spec[1])
+                return
 
-            for attribute, names in _INT_VALUE_PREVIEW_SPECS:
-                if set_option in names:
-                    self._preview_int_value(e, attribute, variables)
-                    return
+            spec = _INT_VALUE_PREVIEWS.get(set_option)
+            if spec is not None:
+                self._preview_int_value(e, spec[0], spec[1], variables)
+                return
 
-            if set_option in ('colorcolumn', 'cc'):
-                self._preview_colorcolumn(e, variables)
+            attribute = _LIST_VALUE_PREVIEWS.get(set_option)
+            if attribute is not None:
+                self._preview_list_value(e, attribute, variables)
 
     @staticmethod
-    def _preview_int_value(e, attribute, variables):
+    def _preview_int_value(e, attribute, minimum, variables):
         raw_value = variables.get('set_value')
-        minimum = 0 if attribute == 'scroll_offset' else 1
         if raw_value and raw_value.isdigit() and int(raw_value) >= minimum:
             setattr(e, attribute, int(raw_value))
 
     @staticmethod
-    def _preview_colorcolumn(e, variables):
+    def _preview_list_value(e, attribute, variables):
         value = variables.get('set_value', '')
         if not value:
             e.colorcolumn = []
             return
         try:
-            e.colorcolumn = [int(v) for v in value.split(',')]
+            numbers = [int(v) for v in value.split(',')]
         except ValueError:
             return
+        setattr(e, attribute, numbers)

@@ -597,6 +597,38 @@ def _iter_word_spans(text: str, WORD: bool = False) -> list[tuple[int, int]]:
     return spans
 
 
+def _iter_word_span_rows(doc: Document, WORD: bool, direction: int):
+    """
+    Shared cursor-line-then-row walker for the word-motion family.
+
+    Yields ``(row, line_start, start, end)`` per word span, walking the
+    cursor line first and then adjacent lines in `direction` (+1 forward,
+    -1 backward). Spans within each row follow Vi order (natural when
+    walking forward, reversed when walking backward). The single shared
+    generator replaces four hand-rolled loops that differed only by
+    direction and predicate (docs/bugs/073.md).
+
+    Only *cursor-line* rows need predicates; for any other row the spans
+    are unconditionally before/after the cursor, so callers can predicate
+    uniformly without changing counting semantics.
+    """
+    row = doc.cursor_position_row
+    lines = doc.lines
+    if direction > 0:
+        rows: range = range(row, len(lines))
+        reverse = False
+    else:
+        rows = range(row, -1, -1)
+        reverse = True
+    for r in rows:
+        line_start = doc.translate_row_col_to_index(r, 0)
+        spans: list[tuple[int, int]] = list(_word_spans_for_line(lines[r], WORD))
+        if reverse:
+            spans.reverse()
+        for start, end in spans:
+            yield r, line_start, start, end
+
+
 def find_next_word_beginning(doc: Document, count: int = 1, WORD: bool = False) -> int | None:
     """
     Thai/Lao-aware replacement for `Document.find_next_word_beginning`.
@@ -610,21 +642,11 @@ def find_next_word_beginning(doc: Document, count: int = 1, WORD: bool = False) 
             return orig(doc, count=count, WORD=WORD)
 
     pos = doc.cursor_position
-    row = doc.cursor_position_row
-    lines = doc.lines
-
-    # Only spans starting strictly after the cursor qualify; walk the cursor
-    # line first, then forward one line at a time (per-line span cache).
-    line_start = doc.translate_row_col_to_index(row, 0)
     matched = 0
-    for start, _end in _word_spans_for_line(lines[row], WORD):
+    # Only spans starting strictly after the cursor qualify; on the cursor
+    # line this is the Vi rule, on later rows it holds automatically.
+    for _row, line_start, start, _end in _iter_word_span_rows(doc, WORD, 1):
         if line_start + start > pos:
-            matched += 1
-            if matched == count:
-                return line_start + start - pos
-    for row in range(row + 1, len(lines)):
-        line_start = doc.translate_row_col_to_index(row, 0)
-        for start, _end in _word_spans_for_line(lines[row], WORD):
             matched += 1
             if matched == count:
                 return line_start + start - pos
@@ -654,27 +676,18 @@ def find_next_word_ending(
             )
 
     pos = doc.cursor_position
-    row = doc.cursor_position_row
-    lines = doc.lines
-
-    # A span qualifies when its last cell cluster starts after the cursor
-    # (the Vi `e` text object then subtracts one to rest on that cluster).
-    line_start = doc.translate_row_col_to_index(row, 0)
-    line = lines[row]
     matched = 0
-    for _start, end in _word_spans_for_line(line, WORD):
+    # A span qualifies when its last cell cluster starts after the cursor
+    # (the Vi `e` text object then subtracts one to rest on that cluster);
+    # on later rows this holds automatically.
+    for row, line_start, _start, end in _iter_word_span_rows(doc, WORD, 1):
+        line = doc.lines[row]
         last_cell = line_start + prev_cell_offset(line, end, 1)
         if include_current_position:
             qualifies = line_start + end > pos
         else:
             qualifies = last_cell > pos
         if qualifies:
-            matched += 1
-            if matched == count:
-                return line_start + end - pos
-    for row in range(row + 1, len(lines)):
-        line_start = doc.translate_row_col_to_index(row, 0)
-        for _start, end in _word_spans_for_line(lines[row], WORD):
             matched += 1
             if matched == count:
                 return line_start + end - pos
@@ -694,21 +707,12 @@ def find_previous_word_beginning(doc: Document, count: int = 1, WORD: bool = Fal
             return orig(doc, count=count, WORD=WORD)
 
     pos = doc.cursor_position
-    row = doc.cursor_position_row
-    lines = doc.lines
-
-    # Only spans starting strictly before the cursor qualify; walk the cursor
-    # line first, then backward one line at a time.
-    line_start = doc.translate_row_col_to_index(row, 0)
     matched = 0
-    for start, _end in reversed(_word_spans_for_line(lines[row], WORD)):
+    # Only spans starting strictly before the cursor qualify (on earlier
+    # rows this holds automatically); walk the cursor line reversed first,
+    # then backward one row at a time.
+    for _row, line_start, start, _end in _iter_word_span_rows(doc, WORD, -1):
         if line_start + start < pos:
-            matched += 1
-            if matched == count:
-                return line_start + start - pos
-    for row in range(row - 1, -1, -1):
-        line_start = doc.translate_row_col_to_index(row, 0)
-        for start, _end in reversed(_word_spans_for_line(lines[row], WORD)):
             matched += 1
             if matched == count:
                 return line_start + start - pos
@@ -749,20 +753,11 @@ def find_previous_word_ending(doc: Document, count: int = 1, WORD: bool = False)
             return orig(doc, count=count, WORD=WORD)
 
     pos = doc.cursor_position
-    row = doc.cursor_position_row
-    lines = doc.lines
-
-    # A span qualifies when its end is at or before the cursor.
-    line_start = doc.translate_row_col_to_index(row, 0)
     matched = 0
-    for _start, end in reversed(_word_spans_for_line(lines[row], WORD)):
+    # A span qualifies when its end is at or before the cursor (on earlier
+    # rows this holds automatically).
+    for _row, line_start, _start, end in _iter_word_span_rows(doc, WORD, -1):
         if line_start + end <= pos:
-            matched += 1
-            if matched == count:
-                return line_start + end - pos
-    for row in range(row - 1, -1, -1):
-        line_start = doc.translate_row_col_to_index(row, 0)
-        for _start, end in reversed(_word_spans_for_line(lines[row], WORD)):
             matched += 1
             if matched == count:
                 return line_start + end - pos

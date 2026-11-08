@@ -25,6 +25,33 @@ _NO_WRITE_SINCE_LAST_CHANGE_TEXT = 'No write since last change (add ! to overrid
 _NO_FILE_NAME = 'No file name'
 
 
+def _confirm_unsaved_changes(editor, force):
+    """
+    Standard unsaved-changes guard for buffer switch/close/edit commands
+    (shared by `:b`, `:bn`, `:bp`, `:bd`/`:bw` and `:e`; docs/bugs/073.md).
+
+    Returns `True` when the operation should proceed.
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if not force and eb.has_unsaved_changes:
+        editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
+        return False
+    return True
+
+
+def _run_pager(print_handler):
+    """
+    Run `print_handler` in a terminal pager and wait for Enter afterwards
+    (shared by `:ls`, `:compression` and the rc-file loader; docs/bugs/073.md).
+    """
+
+    def pager_handler():
+        print_handler()
+        input('\nPress ENTER to continue...')
+
+    run_in_terminal(pager_handler)
+
+
 def has_command_handler(command):
     return command in COMMANDS_TO_HANDLERS
 
@@ -146,11 +173,7 @@ def _bn(editor, force=False):
     """
     Go to next buffer.
     """
-    eb = editor.window_arrangement.active_editor_buffer
-
-    if not force and eb.has_unsaved_changes:
-        editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
-    else:
+    if _confirm_unsaved_changes(editor, force):
         editor.window_arrangement.go_to_next_buffer()
 
 
@@ -159,11 +182,7 @@ def _bp(editor, force=False):
     """
     Go to previous buffer.
     """
-    eb = editor.window_arrangement.active_editor_buffer
-
-    if not force and eb.has_unsaved_changes:
-        editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
-    else:
+    if _confirm_unsaved_changes(editor, force):
         editor.window_arrangement.go_to_previous_buffer()
 
 
@@ -240,9 +259,8 @@ def buffer_list(editor):
                 ' %3i %-2s %-20s  line %i'
                 % (info.index, char, eb.location, (eb.buffer.document.cursor_position_row + 1))
             )
-        input('\nPress ENTER to continue...')
 
-    run_in_terminal(handler)
+    _run_pager(handler)
 
 
 @cmd('compression')
@@ -265,9 +283,8 @@ def cold_text_compression(editor):
     def handler():
         for line in format_cold_text_stats(stats):
             print(line)
-        input('\nPress ENTER to continue...')
 
-    run_in_terminal(handler)
+    _run_pager(handler)
 
 
 @_cmd('b')
@@ -276,15 +293,9 @@ def _buffer(editor, variables):
     """
     Go to one of the open buffers.
     """
-    eb = editor.window_arrangement.active_editor_buffer
-    force = bool(variables['force'])
-
     buffer_name = variables.get('buffer_name')
-    if buffer_name:
-        if not force and eb.has_unsaved_changes:
-            editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
-        else:
-            editor.window_arrangement.go_to_buffer(buffer_name)
+    if buffer_name and _confirm_unsaved_changes(editor, bool(variables['force'])):
+        editor.window_arrangement.go_to_buffer(buffer_name)
 
 
 @cmd('bw', accepts_force=True)
@@ -293,10 +304,7 @@ def buffer_wipe(editor, force=False):
     """
     Wipe buffer.
     """
-    eb = editor.window_arrangement.active_editor_buffer
-    if not force and eb.has_unsaved_changes:
-        editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
-    else:
+    if _confirm_unsaved_changes(editor, force):
         editor.window_arrangement.close_buffer()
 
 
@@ -314,9 +322,7 @@ def buffer_edit(editor, location, force=False):
         eb = editor.window_arrangement.active_editor_buffer
         if eb.location is None:
             editor.show_message(_NO_FILE_NAME)
-        elif not force and eb.has_unsaved_changes:
-            editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
-        else:
+        elif _confirm_unsaved_changes(editor, force):
             eb.reload()
     else:
         editor.window_arrangement.open_buffer(location, show_in_current_window=True)
@@ -480,88 +486,6 @@ def color_scheme(editor, variables):
         editor.use_colorscheme(colorscheme)
 
 
-@set_cmd('nu')
-@set_cmd('number')
-def line_numbers_show(editor):
-    """Show line numbers."""
-    editor.show_line_numbers = True
-
-
-@set_cmd('nonu')
-@set_cmd('nonumber')
-def line_numbers_hide(editor):
-    """Hide line numbers."""
-    editor.show_line_numbers = False
-
-
-@set_cmd('hlsearch')
-@set_cmd('hls')
-def search_highlight(editor):
-    """Highlight search matches."""
-    editor.highlight_search = True
-
-
-@set_cmd('nohlsearch')
-@set_cmd('nohls')
-def search_no_highlight(editor):
-    """Don't highlight search matches."""
-    editor.highlight_search = False
-
-
-@set_cmd('paste')
-def paste_mode(editor):
-    """Enter paste mode."""
-    editor.paste_mode = True
-
-
-@set_cmd('nopaste')
-def paste_mode_leave(editor):
-    """Leave paste mode."""
-    editor.paste_mode = False
-
-
-@set_cmd('ruler')
-@set_cmd('ru')
-def ruler_show(editor):
-    """Show ruler."""
-    editor.show_ruler = True
-
-
-@set_cmd('noruler')
-@set_cmd('noru')
-def ruler_hide(editor):
-    """Hide ruler."""
-    editor.show_ruler = False
-
-
-@set_cmd('wildmenu')
-@set_cmd('wmnu')
-def wild_menu_show(editor):
-    """Show wildmenu."""
-    editor.show_wildmenu = True
-
-
-@set_cmd('nowildmenu')
-@set_cmd('nowmnu')
-def wild_menu_hide(editor):
-    """Hide wildmenu."""
-    editor.show_wildmenu = False
-
-
-@set_cmd('expandtab')
-@set_cmd('et')
-def tab_expand(editor):
-    """Enable tab expension."""
-    editor.expand_tab = True
-
-
-@set_cmd('noexpandtab')
-@set_cmd('noet')
-def tab_no_expand(editor):
-    """Disable tab expension."""
-    editor.expand_tab = False
-
-
 def _set_int_option(editor, value, attribute, display_name, minimum):
     """
     Shared implementation of the integer-valued `:set` handlers.
@@ -583,182 +507,98 @@ def _set_int_option(editor, value, attribute, display_name, minimum):
         setattr(editor, attribute, number)
 
 
-@set_cmd('tabstop', accepts_value=True)
-@set_cmd('ts', accepts_value=True)
-def tab_stop(editor, value):
-    """
-    Set tabstop.
-    """
-    _set_int_option(editor, value, 'tabstop', 'tabstop', minimum=1)
+#: Canonical `:set` option catalog — the single source of truth for option
+#: names, editor attributes and validation bounds. Both the generated
+#: `:set` handlers below and the command-line previewer
+#: (`vith/commands/preview.py`) are built from this table (docs/bugs/073.md
+#: finalizing the 028/partial-073 Table-6 dedup).
+#: (option, editor attribute, ON aliases, OFF aliases)
+SET_TOGGLE_GROUPS = (
+    ('number', 'show_line_numbers', ('nu', 'number'), ('nonu', 'nonumber')),
+    ('hlsearch', 'highlight_search', ('hlsearch', 'hls'), ('nohlsearch', 'nohls')),
+    ('paste', 'paste_mode', ('paste',), ('nopaste',)),
+    ('ruler', 'show_ruler', ('ruler', 'ru'), ('noruler', 'noru')),
+    ('wildmenu', 'show_wildmenu', ('wildmenu', 'wmnu'), ('nowildmenu', 'nowmnu')),
+    ('expandtab', 'expand_tab', ('expandtab', 'et'), ('noexpandtab', 'noet')),
+    ('incsearch', 'incsearch', ('incsearch', 'is'), ('noincsearch', 'nois')),
+    ('ignorecase', 'ignore_case', ('ignorecase', 'ic'), ('noignorecase', 'noic')),
+    ('list', 'display_unprintable_characters', ('list',), ('nolist',)),
+    ('jedi', 'enable_jedi', ('jedi',), ('nojedi',)),
+    ('relativenumber', 'relative_number', ('relativenumber', 'rnu'), ('norelativenumber', 'nornu')),
+    ('wrap', 'wrap_lines', ('wrap',), ('nowrap',)),
+    ('breakindent', 'break_indent', ('breakindent', 'bri'), ('nobreakindent', 'nobri')),
+    ('mouse', 'enable_mouse_support', ('mouse',), ('nomouse',)),
+    ('cursorline', 'cursorline', ('cursorline', 'cul'), ('nocursorline', 'nocul')),
+    ('cursorcolumn', 'cursorcolumn', ('cursorcolumn', 'cuc'), ('nocursorcolumn', 'nocuc')),
+)
+
+#: (display name, editor attribute, aliases, minimum)
+SET_INT_OPTIONS = (
+    ('tabstop', 'tabstop', ('tabstop', 'ts'), 1),
+    ('scrolloff', 'scroll_offset', ('scrolloff', 'so'), 0),
+)
+
+#: (display name, editor attribute, aliases) — comma-separated integer list.
+SET_LIST_OPTIONS = (('colorcolumn', 'colorcolumn', ('colorcolumn', 'cc')),)
 
 
-@set_cmd('scrolloff', accepts_value=True)
-@set_cmd('so', accepts_value=True)
-def set_scroll_offset(editor, value):
-    """
-    Set scroll offset.
-    """
-    _set_int_option(editor, value, 'scroll_offset', 'scrolloff', minimum=0)
+def _register_generated_set_options() -> None:
+    """Materialize the `:set` catalog into `SET_COMMANDS` (docs/bugs/073.md)."""
+    for _display, attribute, on_names, off_names in SET_TOGGLE_GROUPS:
+
+        def _on(editor, _attribute=attribute):
+            setattr(editor, _attribute, True)
+
+        def _off(editor, _attribute=attribute):
+            setattr(editor, _attribute, False)
+
+        for name in on_names:
+            SET_COMMANDS[name] = _on
+        for name in off_names:
+            SET_COMMANDS[name] = _off
+
+    for display, attribute, names, minimum in SET_INT_OPTIONS:
+
+        def _int_option(editor, value, _display=display, _attribute=attribute, _minimum=minimum):
+            _set_int_option(editor, value, _attribute, _display, _minimum)
+
+        for name in names:
+            SET_COMMANDS[name] = _int_option
+            SET_COMMANDS_TAKING_VALUE.add(name)
+
+    for _display, attribute, names in SET_LIST_OPTIONS:
+
+        def _list_option(editor, value, _attribute=attribute):
+            try:
+                if value:
+                    numbers = [int(val) for val in value.split(',')]
+                else:
+                    numbers = []
+            except ValueError:
+                editor.show_message('Invalid value. Expecting comma separated list of integers')
+            else:
+                setattr(editor, _attribute, numbers)
+
+        for name in names:
+            SET_COMMANDS[name] = _list_option
+            SET_COMMANDS_TAKING_VALUE.add(name)
 
 
-@set_cmd('incsearch')
-@set_cmd('is')
-def incsearch_enable(editor):
-    """Enable incsearch."""
-    editor.incsearch = True
-
-
-@set_cmd('noincsearch')
-@set_cmd('nois')
-def incsearch_disable(editor):
-    """Disable incsearch."""
-    editor.incsearch = False
-
-
-@set_cmd('ignorecase')
-@set_cmd('ic')
-def search_ignorecase(editor):
-    """Enable case insensitive searching."""
-    editor.ignore_case = True
-
-
-@set_cmd('noignorecase')
-@set_cmd('noic')
-def search_no_ignorecase(editor):
-    """Disable case insensitive searching."""
-    editor.ignore_case = False
-
-
-@set_cmd('list')
-def unprintable_show(editor):
-    """Display unprintable characters."""
-    editor.display_unprintable_characters = True
-
-
-@set_cmd('nolist')
-def unprintable_hide(editor):
-    """Hide unprintable characters."""
-    editor.display_unprintable_characters = False
-
-
-@set_cmd('jedi')
-def jedi_enable(editor):
-    """Enable Jedi autocompletion for Python files."""
-    editor.enable_jedi = True
-
-
-@set_cmd('nojedi')
-def jedi_disable(editor):
-    """Disable Jedi autocompletion."""
-    editor.enable_jedi = False
-
-
-@set_cmd('relativenumber')
-@set_cmd('rnu')
-def relative_number(editor):
-    "Enable relative number"
-    editor.relative_number = True
-
-
-@set_cmd('norelativenumber')
-@set_cmd('nornu')
-def no_relative_number(editor):
-    "Disable relative number"
-    editor.relative_number = False
-
-
-@set_cmd('wrap')
-def enable_wrap(editor):
-    "Enable line wrapping."
-    editor.wrap_lines = True
-
-
-@set_cmd('nowrap')
-def disable_wrap(editor):
-    "disable line wrapping."
-    editor.wrap_lines = False
-
-
-@set_cmd('breakindent')
-@set_cmd('bri')
-def enable_breakindent(editor):
-    "Enable the breakindent option."
-    editor.break_indent = True
-
-
-@set_cmd('nobreakindent')
-@set_cmd('nobri')
-def disable_breakindent(editor):
-    "Disable the breakindent option."
-    editor.break_indent = False
-
-
-@set_cmd('mouse')
-def enable_mouse(editor):
-    "Enable mouse ."
-    editor.enable_mouse_support = True
-
-
-@set_cmd('nomouse')
-def disable_mouse(editor):
-    "Disable mouse."
-    editor.enable_mouse_support = False
+_register_generated_set_options()
 
 
 @set_cmd('tildeop')
 @set_cmd('top')
 def enable_tildeop(editor):
-    "Enable tilde operator."
+    """Enable tilde operator."""
     editor.application.vi_state.tilde_operator = True
 
 
 @set_cmd('notildeop')
 @set_cmd('notop')
 def disable_tildeop(editor):
-    "Disable tilde operator."
+    """Disable tilde operator."""
     editor.application.vi_state.tilde_operator = False
-
-
-@set_cmd('cursorline')
-@set_cmd('cul')
-def enable_cursorline(editor):
-    "Highlight the line that contains the cursor."
-    editor.cursorline = True
-
-
-@set_cmd('nocursorline')
-@set_cmd('nocul')
-def disable_cursorline(editor):
-    "No cursorline."
-    editor.cursorline = False
-
-
-@set_cmd('cursorcolumn')
-@set_cmd('cuc')
-def enable_cursorcolumn(editor):
-    "Highlight the column that contains the cursor."
-    editor.cursorcolumn = True
-
-
-@set_cmd('nocursorcolumn')
-@set_cmd('nocuc')
-def disable_cursorcolumn(editor):
-    "No cursorcolumn."
-    editor.cursorcolumn = False
-
-
-@set_cmd('colorcolumn', accepts_value=True)
-@set_cmd('cc', accepts_value=True)
-def set_colorcolumn(editor, value):
-    try:
-        if value:
-            numbers = [int(val) for val in value.split(',')]
-        else:
-            numbers = []
-    except ValueError:
-        editor.show_message('Invalid value. Expecting comma separated list of integers')
-    else:
-        editor.colorcolumn = numbers
 
 
 def substitute(editor, range_start, range_end, search, replace, flags):

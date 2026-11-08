@@ -17,7 +17,7 @@ __all__ = ('run_rc_file',)
 
 
 def _press_enter_to_continue():
-    """Wait for the user to press enter."""
+    """Wait for the user to press enter (startup path, no terminal pager)."""
     input('\nPress ENTER to continue...')
 
 

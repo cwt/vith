@@ -115,6 +115,18 @@ def _replace_cell_clusters(event):
     event.app.vi_state.input_mode = InputMode.NAVIGATION
 
 
+def _insert_indentation(editor, buffer_):
+    """
+    Insert one indentation step at `buffer_`'s cursor (tabstop spaces with
+    `editor.expand_tab`, otherwise a literal tab). Shared by the `<C-t>`
+    indent binding and the Insert-mode `tab` binding (docs/bugs/073.md).
+    """
+    if editor.expand_tab:
+        buffer_.insert_text(' ' * editor.tabstop)
+    else:
+        buffer_.insert_text('\t')
+
+
 def create_key_bindings(editor):
     """
     Create custom key bindings.
@@ -157,11 +169,8 @@ def create_key_bindings(editor):
         pos = b.document.get_start_of_line_position(after_whitespace=True)
         b.cursor_position += pos
 
-        # Insert tab.
-        if editor.expand_tab:
-            b.insert_text(' ' * editor.tabstop)
-        else:
-            b.insert_text('\t')
+        # Insert tab (shared with the Insert-mode `tab` binding).
+        _insert_indentation(editor, b)
 
         # Restore cursor.
         b.cursor_position -= pos
@@ -193,11 +202,7 @@ def create_key_bindings(editor):
         filter this deliberately does NOT trigger autocompletion — Tab is
         reserved for indentation here (docs/bugs/071.md).
         """
-        b = event.app.current_buffer
-        if editor.expand_tab:
-            b.insert_text(' ' * editor.tabstop)
-        else:
-            b.insert_text('\t')
+        _insert_indentation(editor, event.app.current_buffer)
 
     def command_buffer_is_empty():
         return editor.command_buffer.text == ''

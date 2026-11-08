@@ -2,6 +2,15 @@ from prompt_toolkit.contrib.regular_languages.compiler import compile
 
 from .commands import get_commands_taking_locations
 
+
+def _longest_first(name: str) -> tuple[int, str]:
+    # Sort key: longest alternatives first, so `wq`/`write` win over `w`
+    # without relying on parser backtracking (docs/bugs/073.md). The
+    # secondary alphabetical term keeps ordering deterministic
+    # (docs/bugs/009.md).
+    return (-len(name), name)
+
+
 #: The compiled grammar for the Vim command line.
 COMMAND_GRAMMAR = compile(
     r"""
@@ -43,8 +52,12 @@ COMMAND_GRAMMAR = compile(
     \s*
 """
     % {
-        # `sorted` keeps the regex alternation deterministic between runs
-        # (docs/bugs/009.md); a set's iteration order changes per interpreter.
-        'commands_taking_locations': '|'.join(sorted(get_commands_taking_locations())),
+        # Longest-first alternation for commands taking locations: the
+        # longest command name is matched directly instead of relying on
+        # generic-branch backtracking (deterministic ordering is retained;
+        # docs/bugs/009.md and docs/bugs/073.md).
+        'commands_taking_locations': '|'.join(
+            sorted(get_commands_taking_locations(), key=_longest_first)
+        ),
     }
 )
