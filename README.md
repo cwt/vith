@@ -77,7 +77,7 @@ It is possible to create a `.vithrc` file for a custom configuration (with grace
 Compared to Vi Improved, Vith is still less powerful in many aspects.
 
 - `prompt_toolkit` does not (or not yet) allow buffers to have an individual cursor when buffers are opened in several windows. Currently, this results in some unexpected behaviour, when a file is displayed in two windows at the same time. (The cursor could be displayed in the wrong window and other windows will sometimes scroll along when the cursor moves.) This has to be fixed in the future.
-- The data structure for a buffer is extremely simple. (Right now, it's just a Python string, and an integer for the cursor position.) This works extremely well for development and quickly prototyping of new features.
+- The data structure for a buffer relies directly on `prompt_toolkit`'s string buffer (`Document.text`). This works well for normal-sized files and keeps the editor fast and simple, though very large files will experience keystroke latency due to whole-string copies.
 - A lot of nice Vim features, like line folding, macros, etcetera are not yet implemented.
 - Windows support is not that nice. It works, but could be improved.
 
@@ -85,16 +85,14 @@ Compared to Vi Improved, Vith is still less powerful in many aspects.
 
 Pull requests and issues are welcome. Feel free to create a GitHub issue to discuss ideas or report problems.
 
-Maybe some day we will have a better data structure (Rope), that makes it possible to open really large files. (With good algorithms, Python does not have to be slower than C code.)
-
-Maybe we will also have line folding and probably block editing. Maybe some day we will have a built-in Python debugger or mouse support. We'll see. :)
+Maybe we will have line folding and probably block editing. Maybe some day we will have a built-in Python debugger or mouse support. We'll see. :)
 
 ## Testing
 
-To run all tests, install the development requirements (pytest, mypy, ruff):
+To run all tests, install the development dependencies (pytest, mypy, ruff):
 
 ```sh
-python -m pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 ```
 
 And then run from the root `vith` directory:
@@ -135,14 +133,9 @@ The Thai/Lao design is adapted from [`szn`](https://github.com/cwt/szn), a Zig t
 
 Certainly have a look at the alternatives:
 
+- [PyVim](https://github.com/prompt-toolkit/pyvim) by @jonathanslenders (the upstream project)
 - [Kaa](https://github.com/kaaedit/kaa) by @atsuoishimoto
-- [Vai](https://github.com/stefanoborini/vai) by @stefanoborini
 - [Vis](https://github.com/martanne/vis) by @martanne
-
-## Q & A
-
-**Q: Do you use curses?**  
-**A:** No, it uses only `prompt-toolkit`.
 
 ## Thanks
 

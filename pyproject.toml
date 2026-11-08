@@ -49,6 +49,11 @@ jedi = [
 lzo = [
     "python-lzo",
 ]
+dev = [
+    "pytest>=9.2.0",
+    "mypy>=2.4.1",
+    "ruff>=0.17.4",
+]
 
 [project.scripts]
 vith = "vith.entry_points.run_vith:run"
