@@ -351,8 +351,10 @@ def test_document_jk_vertical_snap() -> None:
     down_delta = doc.get_cursor_down_position(1)
     doc_down = Document(doc.text, cursor_position=doc.cursor_position + down_delta)
     assert doc_down.cursor_position_row == 1
-    assert doc_down.cursor_position_col == 0
-    assert doc_down.current_char == "ท"
+    # 078: j/k keep the VISUAL column (cell-cluster ordinal): row 0's 'c' is
+    # visual column 2, row 1's visual column 2 is 'น' (never a mark).
+    assert doc_down.cursor_position_col == 5
+    assert doc_down.current_char == "น"
 
     # Also test upward motion from row 1 col=2 of "abcdef" onto row 0 "ที่ดิน":
     doc2 = Document("ที่ดิน\nabcdef", cursor_position=len("ที่ดิน\n") + 2)
@@ -361,8 +363,9 @@ def test_document_jk_vertical_snap() -> None:
     up_delta = doc2.get_cursor_up_position(1)
     doc_up = Document(doc2.text, cursor_position=doc2.cursor_position + up_delta)
     assert doc_up.cursor_position_row == 0
-    assert doc_up.cursor_position_col == 0
-    assert doc_up.current_char == "ท"
+    # 078: visual column 2 of row 1 ('c' at x 2) maps to น on the Thai row:
+    assert doc_up.cursor_position_col == 5
+    assert doc_up.current_char == "น"
 
 
 def test_vi_x_X_s_r_tilde_dollar_via_key_processor() -> None:
@@ -1063,3 +1066,32 @@ def test_block_selection_ascii_rectangle_matches_vanilla(editor):
             assert doc.selection_range_at_line(row) == thai._ORIGINAL_DOCUMENT_METHODS[
                 "selection_range_at_line"
             ](doc, row)
+
+
+def test_block_selection_ranges_align_on_cells(editor):
+    # 079: 'C-v I'/'A' multi-cursor positions come from selection_ranges();
+    # they must sit on visual cell boundaries, never on a combining mark
+    # (insertions on a mark split Thai clusters).
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    editor.load_initial_files([None])
+    text = "ที่ดิน\nปั้\nกำแพง\n"
+    with set_app(editor.application):
+        doc = Document(text, cursor_position=8, selection=SelectionState(1, SelectionType.BLOCK))
+        ranges = list(doc.selection_ranges())
+        assert ranges == [(0, 3), (7, 10)]  # whole [ที่] and [ปั้] cells
+
+
+def test_block_selection_ranges_ascii_matches_vanilla(editor):
+    # 079: on ASCII documents block ranges are prompt_toolkit's own.
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    editor.load_initial_files([None])
+    text = "0123456\nabcdef\n"
+    with set_app(editor.application):
+        doc = Document(text, cursor_position=8, selection=SelectionState(1, SelectionType.BLOCK))
+        assert list(doc.selection_ranges()) == list(
+            thai._ORIGINAL_DOCUMENT_METHODS["selection_ranges"](doc)
+        )

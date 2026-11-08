@@ -194,6 +194,62 @@ class ColdTextBuffer(Buffer):
         self._undo_stack = ColdTextStack(self._cold_compressor)  # type: ignore[assignment]
         self._redo_stack = ColdTextStack(self._cold_compressor)  # type: ignore[assignment]
 
+    # -- Cluster-aware vertical cursor movement (docs/bugs/078.md) ------------
+
+    def cursor_up(self, count: int = 1) -> None:
+        self._cursor_vertical(count, up=True)
+
+    def cursor_down(self, count: int = 1) -> None:
+        self._cursor_vertical(count, up=False)
+
+    def _cursor_vertical(self, count: int, up: bool) -> None:
+        """
+        Cluster-aware replacement for `Buffer.cursor_up/cursor_down`.
+
+        prompt_toolkit records `preferred_column` as a codepoint column of the
+        row it was recorded on, so `j`/`k` drift visually across Thai/Lao rows
+        with different numbers of combining marks (the cursor zig-zags and can
+        even land on the line end). We interpret the original column as a
+        visual cell-cluster ordinal and remember it together with the row it
+        was recorded on, so every landing row maps back to the same visual
+        column (Vim parity).
+        """
+        from vith.thai import _cell_ordinal, _start_of_cell_ordinal
+
+        if count is None:
+            count = 1
+        count = max(1, int(count))
+
+        doc = self.document
+        lines = doc.lines
+        remembered = getattr(self, "_vith_cell_column", None)
+        sticky = self.preferred_column
+        if sticky is None or remembered is None or remembered[0] != sticky:
+            # Fresh recording (first vertical move, or prompt_toolkit reset
+            # the sticky): recorded on the *current* row.
+            src_col = sticky if sticky is not None else doc.cursor_position_col
+            src_row = doc.cursor_position_row
+        else:
+            # Unchanged sticky: it belongs to the previously remembered row.
+            src_col, src_row = remembered
+        src_row = min(src_row, len(lines) - 1)
+
+        if up:
+            target_row = max(0, doc.cursor_position_row - count)
+        else:
+            target_row = min(len(lines) - 1, doc.cursor_position_row + count)
+
+        src_line = lines[src_row]
+        ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)))
+        target_col = _start_of_cell_ordinal(lines[target_row], ordinal)
+
+        self.cursor_position = doc.translate_row_col_to_index(target_row, target_col)
+
+        # Keep prompt_toolkit's sticky compatible for other readers, and
+        # remember it for the next vertical move on the target row.
+        self.preferred_column = src_col
+        self._vith_cell_column = (src_col, src_row)
+
     def _text_changed(self) -> None:
         # Covers text assignment, Document replacement and history-index
         # changes, so the undo stack can detect "cursor moved only" in O(1).

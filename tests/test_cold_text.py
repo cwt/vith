@@ -207,3 +207,38 @@ def test_cursor_only_save_updates_undo_cursor(editor_buffer):
     buffer.undo()  # pops 'other' (no text delta) then restores 'abcdef'
     assert buffer.text == 'abcdef'
     assert buffer.cursor_position == 2
+
+
+def test_vertical_cursor_keeps_visual_column_over_thai(editor_buffer):
+    # 078: j/k keep the *visual* column (cell-cluster ordinal) across Thai
+    # rows; ptk's codepoint-based preferred_column drifted and landed on
+    # line ends.
+    buffer = editor_buffer.buffer
+    buffer.text = "ที่ดิน\nกำแพง\nสหัส\n"
+    doc = buffer.document
+
+    buffer.cursor_position = 5  # row 0, cp col 5 = น (visual column 2)
+    buffer.cursor_down()
+    assert buffer.cursor_position == doc.translate_row_col_to_index(1, 2)  # แ
+    buffer.cursor_down()
+    assert buffer.cursor_position == doc.translate_row_col_to_index(2, 3)  # row 2 visual col 2
+    buffer.cursor_up()
+    assert buffer.cursor_position == doc.translate_row_col_to_index(1, 2)
+    buffer.cursor_up()
+    assert buffer.cursor_position == doc.translate_row_col_to_index(0, 5)  # original cell
+
+    # Multi-row count with a shorter intermediate row keeps the ordinal:
+    buffer.cursor_position = 0
+    buffer.cursor_down(count=2)
+    assert buffer.cursor_position == doc.translate_row_col_to_index(2, 0)
+
+
+def test_vertical_cursor_ascii_parity(editor_buffer):
+    # 078: ASCII rows keep ptk's codepoint == visual column identity.
+    buffer = editor_buffer.buffer
+    buffer.text = "abcde\nfoo\nxyzwv\n"
+    buffer.cursor_position = 3
+    buffer.cursor_down()
+    assert buffer.cursor_position == buffer.document.translate_row_col_to_index(1, 3)
+    buffer.cursor_down()
+    assert buffer.cursor_position == buffer.document.translate_row_col_to_index(2, 3)

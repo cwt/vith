@@ -158,13 +158,20 @@ def _vertical_cursor_position(
     self: Document, target_row: int, preferred_column: int | None = None
 ) -> int:
     """
-    Index delta for moving to `target_row`, snapping the column to the
-    nearest cell-cluster start of the target line (shared by the up/down
-    Document wrappers; docs/bugs/029.md).
+    Index delta for moving to `target_row` with the *same visual column*
+    (cell-cluster ordinal, docs/bugs/078.md). `preferred_column` is a
+    codepoint column recorded on a previous row — for the common live-cursor
+    case (`preferred_column is None`, or a column of the current row) the
+    conversion via `_cell_ordinal` on the current row is exact; for sticky
+    columns recorded on a different Thai row this is a best-effort mapping
+    (the sticky-correct path is the `ColdTextBuffer.cursor_up/down`
+    override).
     """
     column = self.cursor_position_col if preferred_column is None else preferred_column
+    current_line = self.lines[self.cursor_position_row]
+    ordinal = _cell_ordinal(current_line, min(column, len(current_line)))
     target_line = self.lines[target_row]
-    target_col = snap_to_cell_start(target_line, min(column, len(target_line)))
+    target_col = _start_of_cell_ordinal(target_line, ordinal)
     return self.translate_row_col_to_index(target_row, target_col) - self.cursor_position
 
 
@@ -715,14 +722,39 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
 # top of this module (docs/bugs/075.md).
 
 
-def _thai_selection_ranges(self) -> Iterable[tuple[int, int]]:
+def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
     """Thai-aware wrapper for `Document.selection_ranges`."""
     orig = _ORIGINAL_DOCUMENT_METHODS.get("selection_ranges")
     if orig is None:
         # Fallback to the (unpatched) bound method.
         orig = type(self).selection_ranges
+    selection = self.selection
+    block = selection is not None and selection.type == SelectionType.BLOCK
+    v_low = v_high = 0
+    if block and vi_mode() and selection is not None:
+        # Visual block rectangle in cell-cluster ordinals (Vim semantics,
+        # mirroring docs/bugs/077.md, keeping 079: the "I"/"A" multi-cursor
+        # positions must sit on cell boundaries — inserting on a combining
+        # mark splits the cluster).
+        from_pos, to_pos = sorted((self.cursor_position, selection.original_cursor_position))
+        row_from, col_from = self.translate_index_to_position(from_pos)
+        row_to, col_to = self.translate_index_to_position(to_pos)
+        line_from = self.lines[min(row_from, len(self.lines) - 1)]
+        line_to = self.lines[min(row_to, len(self.lines) - 1)]
+        v_low = min(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
+        v_high = max(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
     for from_, to in orig(self):
         if vi_mode() and to > from_ and to <= len(self.text):
+            if block:
+                row, _col = self.translate_index_to_position(from_)
+                line = self.lines[min(row, len(self.lines) - 1)]
+                start_col = _start_of_cell_ordinal(line, v_low)
+                end_col = _start_of_cell_ordinal(line, v_high + 1)
+                from_ = self.translate_row_col_to_index(row, start_col)
+                end_abs = self.translate_row_col_to_index(row, end_col)
+                to = max(to, end_abs)
+                yield from_, to
+                continue
             last_idx = to - 1
             row, col = self.translate_index_to_position(last_idx)
             if row < len(self.lines):
