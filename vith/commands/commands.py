@@ -326,17 +326,23 @@ def buffer_edit(editor, location, force=False):
 @cmd('quit', accepts_force=True)
 def quit(editor, all_=False, force=False):
     """
-    Quit.
+    Quit. With several windows/tabs open this closes the current window (Vim
+    semantics); the editor exits only on the last window.
     """
-    ebs = editor.window_arrangement.editor_buffers
+    window_arrangement = editor.window_arrangement
+    ebs = window_arrangement.editor_buffers
 
     # When there are buffers that have unsaved changes, show balloon.
     if not force and any(eb.has_unsaved_changes for eb in ebs):
         editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
 
-    # When there is more than one buffer open.
-    elif not all_ and len(ebs) > 1:
-        editor.show_message('%i more files to edit' % (len(ebs) - 1))
+    # ":q" closes the current window (or the whole tab when it has a single
+    # window); hidden buffers do not block it any more (docs/bugs/067.md).
+    # ":qa" skips the window-close step and exits directly.
+    elif not all_ and (
+        len(window_arrangement.tab_pages) > 1 or window_arrangement.active_tab.window_count() > 1
+    ):
+        window_arrangement.close_window()
 
     else:
         editor.application.exit()
@@ -390,13 +396,14 @@ def quit_nonzero(editor):
 @cmd('wqa')
 def write_and_quit_all(editor):
     """
-    Write current buffer and quit all.
+    Write every buffer with unsaved changes and quit. Does not quit when any
+    write failed (docs/bugs/067.md).
     """
-    eb = editor.window_arrangement.active_editor_buffer
-    if eb.location is None:
-        editor.show_message(_NO_FILE_NAME)
-    elif eb.write():
-        quit(editor, all_=True, force=False)
+    for eb in editor.window_arrangement.editor_buffers:
+        if eb.has_unsaved_changes and not eb.write():
+            return
+
+    editor.application.exit()
 
 
 @cmd('h')

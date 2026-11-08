@@ -140,3 +140,40 @@ def test_close_buffer_repairs_when_active_tab_itself_is_removed(editor):
 
     assert wa.tab_pages != []
     assert wa.active_tab is wa.tab_pages[wa.active_tab_index]
+
+
+def test_go_to_buffer_resolution_order(editor, monkeypatch):
+    # 067: ':b' resolves exact location -> unique substring (ambiguous
+    # rejected) -> 1-based display number; previously it required an exact
+    # match or a 0-based index, and a completed substring did nothing.
+    wa = editor.window_arrangement
+    eb_alpha = EditorBuffer(editor, "alpha.txt")
+    wa._add_editor_buffer(eb_alpha)
+    eb_beta = EditorBuffer(editor, "beta.txt")
+    wa._add_editor_buffer(eb_beta)
+    eb_gamma = EditorBuffer(editor, "gamma.txt")
+    wa._add_editor_buffer(eb_gamma)
+
+    # Substring completion now jumps to the unique match:
+    wa.go_to_buffer("gam")
+    assert wa.active_editor_buffer is eb_gamma
+
+    # Exact match still wins:
+    wa.go_to_buffer("beta.txt")
+    assert wa.active_editor_buffer is eb_beta
+
+    # 1-based number: ':b 1' is the FIRST buffer (previously off by one):
+    wa.go_to_buffer("1")
+    assert wa.active_editor_buffer is wa.editor_buffers[0]
+
+    # Ambiguous substring (after adding 'alphabet.txt') is rejected:
+    wa.go_to_buffer("bet")  # unique still
+    eb_alphabet = EditorBuffer(editor, "alphabet.txt")
+    wa._add_editor_buffer(eb_alphabet)
+    wa.go_to_buffer("bet")
+    assert editor.message and editor.message.startswith("E93")
+    assert editor.message.endswith("bet")
+
+    # No match at all is rejected:
+    wa.go_to_buffer("zzz-nomatch")
+    assert editor.message and editor.message.startswith("E94")

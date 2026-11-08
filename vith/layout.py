@@ -245,8 +245,9 @@ class BufferListOverlay(ConditionalContainer):
                     if input_params[1] in (info.editor_buffer.location or ''):
                         return True
 
-                    # When the input matches this buffer his index number.
-                    if input_params[1] in str(info.index):
+                    # When the input matches this buffer's displayed (1-based,
+                    # Vim ':ls'-style) index number.
+                    if input_params[1] in str(info.index + 1):
                         return True
 
                     # When this entry is part of the current completions list.
@@ -289,7 +290,7 @@ class BufferListOverlay(ConditionalContainer):
                     result.extend(
                         [
                             ('', ' '),
-                            (t, '%3i ' % info.index),
+                            (t, '%3i ' % (info.index + 1)),
                             (t, '%s' % char),
                             (t, '%s ' % char2),
                             (t, '%s ' % char3),

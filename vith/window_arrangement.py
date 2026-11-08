@@ -376,14 +376,34 @@ class WindowArrangement(object):
 
     def go_to_buffer(self, buffer_name):
         """
-        Go to one of the open buffers.
+        Show the editor buffer for this name.
+
+        Resolution order (docs/bugs/067.md): exact location, then a *unique*
+        substring match (ambiguous names are rejected like Vim's E93), then
+        the 1-based buffer number as displayed by `:ls`/`BufferListOverlay`.
         """
         assert isinstance(buffer_name, str)
+        ebs = self.editor_buffers
 
-        for i, eb in enumerate(self.editor_buffers):
-            if eb.location == buffer_name or (buffer_name.isdigit() and int(buffer_name) == i):
-                self.show_editor_buffer(eb)
-                break
+        # Exact location match.
+        matches = [eb for eb in ebs if eb.location == buffer_name]
+
+        # Unique substring match (the completer promises this).
+        if not matches and buffer_name:
+            matches = [eb for eb in ebs if buffer_name in eb.location]
+
+        # 1-based buffer number (Vim ':ls' numbering).
+        if not matches and buffer_name.isdigit():
+            number = int(buffer_name)
+            if 1 <= number <= len(ebs):
+                matches = [ebs[number - 1]]
+
+        if len(matches) == 1:
+            self.show_editor_buffer(matches[0])
+        elif not matches:
+            self.editor.show_message("E94: No matching buffer for %s" % buffer_name)
+        else:
+            self.editor.show_message("E93: More than one match for %s" % buffer_name)
 
     def _add_editor_buffer(self, editor_buffer, show_in_current_window=False):
         """
