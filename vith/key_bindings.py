@@ -30,6 +30,30 @@ def _keep_keysync_disabled(event):
     return False
 
 
+def _end_of_line_cell_position(doc, count):
+    """
+    Absolute cursor position of the start of the last cell cluster on the
+    line `count` rows below the current one (Vim's counted `$`).
+    """
+    count = max(1, int(count or 1))
+    target_row = min(len(doc.lines) - 1, doc.cursor_position_row + count - 1)
+    line = doc.lines[target_row]
+    col = prev_cell_offset(line, len(line), 1)
+    return doc.translate_row_col_to_index(target_row, col)
+
+
+def _snap_word_end_to_cell(doc, position):
+    """
+    Given an absolute position produced by `find_next_word_ending` (the cell
+    behind the exclusive word end), return the absolute position of its base
+    character. The backward cell walk is applied *within that word's line*
+    (`prev_cell_offset` has a line-local `line, col` contract).
+    """
+    row, col = doc.translate_index_to_position(position)
+    col = prev_cell_offset(doc.lines[row], col, 1)
+    return doc.translate_row_col_to_index(row, col)
+
+
 def _delete_cell_clusters(event, backward):
     """
     Delete `event.arg` cell clusters before/after the cursor on the current line.
@@ -276,15 +300,14 @@ def create_key_bindings(editor):
     @kb.add('$', filter=(vi_navigation_mode | vi_selection_mode) & ~vi_waiting_for_text_object_mode)
     def move_to_end_of_line_cell(event):
         """
-        Move cursor to the start of the last cell cluster on the current line.
+        Move cursor to the start of the last cell cluster `event.arg` lines
+        below the current one (Vim counted `$`).
         Operator-pending `$` (`d$`, `c$`, `y$`) remains handled by `vi.py` so
         that trailing combining marks are included in the operator range.
         """
         buff = event.current_buffer
         doc = buff.document
-        line = doc.current_line
-        target_col = prev_cell_offset(line, len(line), 1)
-        buff.cursor_position += target_col - doc.cursor_position_col
+        buff.cursor_position = _end_of_line_cell_position(doc, event.arg)
 
     def _move_to_end_of_word_cell(event, WORD):
         "Move cursor to the base character of the last cell cluster of the word."
@@ -292,7 +315,7 @@ def create_key_bindings(editor):
         doc = buff.document
         end = doc.find_next_word_ending(count=event.arg, WORD=WORD)
         if end:
-            buff.cursor_position = prev_cell_offset(doc.text, buff.cursor_position + end, 1)
+            buff.cursor_position = _snap_word_end_to_cell(doc, buff.cursor_position + end)
 
     @kb.add('e', filter=(vi_navigation_mode | vi_selection_mode) & ~vi_waiting_for_text_object_mode)
     def move_to_end_of_word_cell(event):
