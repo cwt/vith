@@ -84,6 +84,18 @@ def _cmd(name):
     return decorator
 
 
+def _unwrap_command(func):
+    """
+    Return the base command function for a possibly already-wrapped handler
+    (a registered `command_wrapper` carries its own base under
+    `_vith_wrapped_command`), so stacked decorators like
+    `@cmd('q') @cmd('quit') def quit(...)` both bind the *original* base.
+    """
+    if getattr(func, "_is_command_wrapper", False):
+        return func._vith_wrapped_command
+    return func
+
+
 def location_cmd(name, accepts_force=False):
     """
     Decorator that registers a command that takes a location as (optional)
@@ -92,7 +104,8 @@ def location_cmd(name, accepts_force=False):
     COMMANDS_TAKING_LOCATIONS.add(name)
 
     def decorator(func):
-        @_cmd(name)
+        base = _unwrap_command(func)
+
         def command_wrapper(editor, variables):
             location = variables.get('location')
             force = bool(variables['force'])
@@ -100,10 +113,16 @@ def location_cmd(name, accepts_force=False):
             if force and not accepts_force:
                 editor.show_message('No ! allowed')
             elif accepts_force:
-                func(editor, location, force=force)
+                base(editor, location, force=force)
             else:
-                func(editor, location)
+                base(editor, location)
 
+        command_wrapper._is_command_wrapper = True
+        command_wrapper._vith_wrapped_command = base
+        COMMANDS_TO_HANDLERS[name] = command_wrapper
+        # The base function is returned so the module-local alias keeps the
+        # original signature (`write_and_quit` still calls `write(...)`);
+        # stacked decorators normalize on `base` via `_unwrap_command`.
         return func
 
     return decorator
@@ -115,17 +134,23 @@ def cmd(name, accepts_force=False):
     """
 
     def decorator(func):
-        @_cmd(name)
+        base = _unwrap_command(func)
+
         def command_wrapper(editor, variables):
             force = bool(variables['force'])
 
             if force and not accepts_force:
                 editor.show_message('No ! allowed')
             elif accepts_force:
-                func(editor, force=force)
+                base(editor, force=force)
             else:
-                func(editor)
+                base(editor)
 
+        command_wrapper._is_command_wrapper = True
+        command_wrapper._vith_wrapped_command = base
+        COMMANDS_TO_HANDLERS[name] = command_wrapper
+        # See `location_cmd`: the base is returned for module-local calls;
+        # stacks bind the unwrapped base (docs/bugs/075.md).
         return func
 
     return decorator

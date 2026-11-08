@@ -327,7 +327,12 @@ def create_key_bindings(editor):
         """
         _replace_cell_clusters(event)
 
-    @kb.add('~', filter=vi_navigation_mode & ~Condition(lambda: get_app().vi_state.tilde_operator))
+    @Condition
+    def tilde_operator_enabled():
+        "True while `:set tildeop` is active."
+        return bool(get_app().vi_state.tilde_operator)
+
+    @kb.add('~', filter=vi_navigation_mode & ~tilde_operator_enabled)
     def reverse_case_cell(event):
         """
         Swap case of the current cell cluster and advance one cell cluster.

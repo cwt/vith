@@ -22,15 +22,18 @@ def set_process_name(name: str = 'vith') -> None:
 
             libc = ctypes.CDLL(None)
             if hasattr(libc, '_NSGetArgv'):
-                # char ***_NSGetArgv(void)
+                # char ***_NSGetArgv(void) — fetch argv once, then re-address
+                # argv[0]'s raw buffer via a static cast; the previous
+                # implementation changed `restype` mid-function and called
+                # `_NSGetArgv` again (two syscalls for the same answer,
+                # docs/bugs/075.md).
                 libc._NSGetArgv.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_char_p))
-                argv_str = libc._NSGetArgv().contents
-                if argv_str and argv_str[0]:
-                    old_len = len(argv_str[0])
-                    libc._NSGetArgv.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))
+                argv = libc._NSGetArgv().contents
+                if argv and argv[0]:
+                    old_len = len(argv[0])
                     libc.memset.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t]
                     libc.memcpy.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
-                    raw_argv0 = libc._NSGetArgv().contents[0]
+                    raw_argv0 = ctypes.cast(argv, ctypes.POINTER(ctypes.c_void_p)).contents.value
                     new_bytes = name.encode('utf-8') + b'\0'
                     libc.memset(raw_argv0, 0, old_len)
                     libc.memcpy(raw_argv0, new_bytes, min(len(new_bytes), old_len))

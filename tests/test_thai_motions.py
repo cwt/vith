@@ -14,6 +14,7 @@ import pathlib
 from prompt_toolkit.document import Document
 
 import vith.thai as thai
+from vith import thai_words
 
 # Captured from the whole-document scan implementation before introducing
 # the per-line span cache (Tier-2 segmentation, ``_get_libthai`` disabled).
@@ -38,7 +39,7 @@ _TEXT = "\n".join(
 
 def _plain_doc(monkeypatch):
     """A Document over the fixture text with Tier-2 (deterministic) breaking."""
-    monkeypatch.setattr(thai, "_get_libthai", lambda: None)
+    monkeypatch.setattr(thai_words, "_get_libthai", lambda: None)
     # Drop spans cached under Tier-1 (or other) segmentation by earlier tests.
     thai._word_spans_for_line.cache_clear()
     return Document(_TEXT, 0)

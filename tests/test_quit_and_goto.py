@@ -110,3 +110,29 @@ def test_wqa_aborts_when_a_write_fails(editor, editor_buffer, tmp_path, monkeypa
     assert exits == []
     assert editor.message  # failure surfaced
     assert not good.exists()
+
+
+def test_command_stacks_normalize_on_base(monkeypatch):
+    # 075 row 3: stacked command decorators must both bind the base function
+    # via `_unwrap_command` (a wrapped alias can be re-aliased safely),
+    # while the module-level name keeps the original callable.
+    from unittest.mock import MagicMock
+
+    from vith.commands import commands as commands_mod
+
+    calls = []
+
+    def fake_command(editor, force=False):
+        calls.append(("cmd", force))
+
+    commands_mod.cmd('fake-a', accepts_force=True)(fake_command)
+    commands_mod.cmd('fake-b', accepts_force=True)(commands_mod.COMMANDS_TO_HANDLERS['fake-a'])
+
+    try:
+        editor = MagicMock()
+        editor.show_message = lambda *a: None
+        commands_mod.COMMANDS_TO_HANDLERS['fake-b'](editor, {"force": True, "location": None})
+        assert calls == [("cmd", True)]
+    finally:
+        commands_mod.COMMANDS_TO_HANDLERS.pop('fake-a', None)
+        commands_mod.COMMANDS_TO_HANDLERS.pop('fake-b', None)

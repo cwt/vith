@@ -128,7 +128,7 @@ class TabsControl(FormattedTextControl):
 
             return result
 
-        super(TabsControl, self).__init__(get_tokens, style='class:tabbar')
+        super().__init__(get_tokens, style='class:tabbar')
 
 
 class TabsToolbar(ConditionalContainer):
@@ -136,7 +136,7 @@ class TabsToolbar(ConditionalContainer):
         def several_tabs():
             return len(editor.window_arrangement.tab_pages) > 1
 
-        super(TabsToolbar, self).__init__(
+        super().__init__(
             Window(TabsControl(editor), height=1),
             filter=Condition(several_tabs),
         )
@@ -148,7 +148,7 @@ class CommandLine(ConditionalContainer):
     """
 
     def __init__(self, editor):
-        super(CommandLine, self).__init__(
+        super().__init__(
             Window(
                 BufferControl(
                     buffer=editor.command_buffer,
@@ -186,7 +186,7 @@ class WelcomeMessageWindow(ConditionalContainer):
                 once_hidden[0] = True
             return result
 
-        super(WelcomeMessageWindow, self).__init__(
+        super().__init__(
             Window(
                 FormattedTextControl(get_welcome_message_tokens),
                 align=WindowAlign.CENTER,
@@ -328,7 +328,7 @@ class BufferListOverlay(ConditionalContainer):
                     )
                 return result
 
-        super(BufferListOverlay, self).__init__(
+        super().__init__(
             Window(
                 FormattedTextControl(get_tokens),
                 style='class:bufferlist',
@@ -353,9 +353,7 @@ class MessageToolbarBar(ConditionalContainer):
             else:
                 return []
 
-        super(MessageToolbarBar, self).__init__(
-            FormattedTextToolbar(get_tokens), filter=Condition(has_message)
-        )
+        super().__init__(FormattedTextToolbar(get_tokens), filter=Condition(has_message))
 
 
 class ReportMessageToolbar(ConditionalContainer):
@@ -386,7 +384,7 @@ class ReportMessageToolbar(ConditionalContainer):
                 fragments.extend(error.formatted_text)
             return fragments
 
-        super(ReportMessageToolbar, self).__init__(
+        super().__init__(
             FormattedTextToolbar(get_formatted_text),
             filter=~has_focus(editor.command_buffer) & ~is_searching & ~has_focus('system'),
         )
@@ -449,7 +447,7 @@ class WindowStatusBar(FormattedTextToolbar):
                 ]
             )
 
-        super(WindowStatusBar, self).__init__(get_text, style='class:toolbar.status')
+        super().__init__(get_text, style='class:toolbar.status')
 
 
 class WindowStatusBarRuler(ConditionalContainer):
@@ -495,7 +493,7 @@ class WindowStatusBarRuler(ConditionalContainer):
                 ('', ' '),
             ]
 
-        super(WindowStatusBarRuler, self).__init__(
+        super().__init__(
             Window(
                 FormattedTextControl(get_tokens),
                 char=' ',
@@ -520,12 +518,12 @@ class SimpleArgToolbar(ConditionalContainer):
             else:
                 return []
 
-        super(SimpleArgToolbar, self).__init__(
+        super().__init__(
             Window(FormattedTextControl(get_tokens), align=WindowAlign.RIGHT), filter=has_arg
         )
 
 
-class EditorLayout(object):
+class EditorLayout:
     """
     The main layout class.
     """
@@ -536,6 +534,9 @@ class EditorLayout(object):
 
         def wildmenu_enabled():
             return editor.show_wildmenu
+
+        def _ignore_case_enabled():
+            return editor.ignore_case
 
         # Mapping from (`window_arrangement.Window`, `EditorBuffer`) to a frame
         # (Layout instance).
@@ -587,7 +588,7 @@ class EditorLayout(object):
         search_toolbar = SearchToolbar(
             vi_mode=True,
             search_buffer=editor.search_buffer,
-            ignore_case=Condition(lambda: editor.ignore_case),
+            ignore_case=Condition(_ignore_case_enabled),
         )
         self.search_control = search_toolbar.control
 

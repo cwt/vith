@@ -22,6 +22,7 @@ from prompt_toolkit.output import ColorDepth, DummyOutput
 from prompt_toolkit.styles import DummyStyle, DummyStyleTransformation
 
 import vith.thai as thai
+from vith import thai_words
 from vith.editor import Editor
 from vith.thai import (
     _SARA_AM_POISON,
@@ -524,7 +525,7 @@ def test_vi_append_escape_and_operators_on_thai() -> None:
 
 def test_two_tier_word_breaks_fallback(monkeypatch) -> None:
     # Tier 2 fallback (when libthai is unavailable or disabled):
-    monkeypatch.setattr(thai, "_get_libthai", lambda: None)
+    monkeypatch.setattr(thai_words, "_get_libthai", lambda: None)
     assert find_thai_word_breaks("ที่ดิน") == [0, 3, 5, 6]
     assert find_thai_word_breaks("ผู้ใหญ่") == [0, 3, 5, 7]
     assert find_thai_word_breaks("ທີ່ດິນ") == [0, 3, 5, 6]

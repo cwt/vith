@@ -55,7 +55,7 @@ def _terminal_title_extra_sequence(title_osc_body: str) -> str:
     return extra_seq
 
 
-class Editor(object):
+class Editor:
     """
     The main class. Containing the whole editor.
 
