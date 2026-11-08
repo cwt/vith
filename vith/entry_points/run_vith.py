@@ -12,6 +12,7 @@ Options:
 """
 
 import os
+import sys
 
 import docopt
 
@@ -31,6 +32,12 @@ def run():
     hsplit = a['-o']
     vsplit = a['-O']
     vithrc = a['-u']
+
+    # Fail with a friendly message instead of the bare AssertionError in
+    # `load_initial_files` (docs/bugs/070.md).
+    if sum(1 for flag in (in_tab_pages, hsplit, vsplit) if flag) > 1:
+        print("Error: -p, -o and -O are mutually exclusive.", file=sys.stderr)
+        sys.exit(2)
 
     # Create new editor instance.
     editor = Editor()

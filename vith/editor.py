@@ -82,7 +82,9 @@ class Editor(object):
                 target_dir = legacy_dir
         self.config_directory = target_dir
         if not os.path.exists(self.config_directory):
-            os.mkdir(self.config_directory)
+            # makedirs for nested config paths; exist_ok guards the race
+            # between check and create (docs/bugs/070.md).
+            os.makedirs(self.config_directory, exist_ok=True)
 
         self.window_arrangement = WindowArrangement(self)
         self.message = None

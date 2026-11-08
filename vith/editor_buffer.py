@@ -37,8 +37,16 @@ class EditorBuffer(object):
         self.isdir = False
 
         # Read text.
+        unreadable = False
         if location:
             text = self._read(location)
+            if text is None:
+                # Not a new file: an unknown backend or a read failure.
+                # Show a fallback-empty buffer, but keep it read-only so the
+                # user cannot "save" over something they never saw
+                # (docs/bugs/070.md).
+                text = ''
+                unreadable = True
         else:
             text = text or ''
 
@@ -60,7 +68,7 @@ class EditorBuffer(object):
             completer=DocumentCompleter(editor, self),
             document=Document(text, 0),
             on_text_changed=self._on_text_changed,
-            read_only=self.isdir,
+            read_only=self.isdir or unreadable,
             cold_compressor=compressor,
             cold_compression_name=compression_name,
             cold_compression_level=compression_level,
@@ -109,6 +117,10 @@ class EditorBuffer(object):
     def _read(self, location):
         """
         Read file I/O backend.
+
+        Returns the decoded text, `''` for a new file, or `None` when the
+        location cannot be read at all (unknown backend or read failure) —
+        callers must not silently treat `None` as a new empty file.
         """
         for io in self.editor.io_backends:
             if io.can_open_location(location):
@@ -131,7 +143,7 @@ class EditorBuffer(object):
                             text = text[:-1]
                     except Exception as e:
                         self.editor.show_message('Cannot read %r: %r' % (location, e))
-                        return ''
+                        return None
                     else:
                         return text
                 else:
@@ -140,13 +152,17 @@ class EditorBuffer(object):
                     return ''
 
         self.editor.show_message('Cannot read: %r' % location)
-        return ''
+        return None
 
     def reload(self):
         """
         Reload file again from storage.
         """
         text = self._read(self.location)
+        if text is None:
+            # Not readable (backend dropped/unknown scheme): keep current
+            # contents instead of wiping the buffer with '' (docs/bugs/070.md).
+            return
         cursor_position = min(self.buffer.cursor_position, len(text))
 
         self.buffer.document = Document(text, cursor_position)
@@ -176,7 +192,20 @@ class EditorBuffer(object):
 
         # Write it.
         try:
-            io.write(target_location, self.buffer.text + '\n', self.encoding)
+            try:
+                io.write(target_location, self.buffer.text + '\n', self.encoding)
+            except UnicodeEncodeError:
+                # The buffer was decoded with a lossy fallback encoding
+                # (typically latin-1, which never fails to decode) and now
+                # contains characters it cannot encode (e.g. Thai typed into
+                # such a file). Save as utf-8 instead of refusing the save
+                # (docs/bugs/070.md).
+                old_encoding = self.encoding
+                self.encoding = 'utf-8'
+                io.write(target_location, self.buffer.text + '\n', self.encoding)
+                self.editor.show_message(
+                    'Content not representable in %r; saved as %r' % (old_encoding, 'utf-8')
+                )
             self.is_new = False
         except Exception as e:
             # E.g. "No such file or directory."
