@@ -128,6 +128,8 @@ Upstream `pyvim` has been idle for several years. Vith was created to bring mode
 - **Performance & latency**: streamed Pygments syntax lexing, deferred colorscheme compilation, singleton word-completion caches, and an O(1) pyflakes error index.
 - **Modern Python stability**: clean startup on Python 3.14+/3.15 asyncio event loops, PEP 621 packaging, and complete type annotations.
 
+The Thai/Lao design is adapted from [`szn`](https://github.com/cwt/szn), a Zig terminal multiplexer with first-class Thai/Lao handling. szn separates terminal **cell clusters** (a base character plus its combining marks) from Thai **syllables/words**; vith follows the same split, so `h`/`l` step one visual cell while `w`/`b`/`e` step one Thai syllable or dictionary word. vith also carries over szn's SARA AM rule for differential rendering: when `ำ`/`ຳ` or its preceding consonant changes, both shaped cells are repainted. For the broader cell/grapheme and line-breaking rationale, see [Text Reflow in szn](https://cwt.github.io/szn/text_reflow.html).
+
 ## Alternatives
 
 Certainly have a look at the alternatives:
