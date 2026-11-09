@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 109 machine-verified findings — 92 closed (001–092, Rounds 1–4, hg rev 164–270+) and 17 open (093–109, Round 5, hg rev 256 / v0.11.1). Round 5 re-audits the fully-fixed tree and records two documented-fix regressions (091 previewer, 090 lazy-import hoist) plus new defects, test/tooling gaps, and cleanup inventories."
+description: "OKF v0.2 findings bundle for the vith bug audit: 109 machine-verified findings — all 109 closed (001–109, Rounds 1–5, hg rev 164–275+). Round 5 fixed two documented-fix regressions (091 previewer, 090 lazy-import hoist) plus new defects, test/tooling gaps, and cleanup inventories."
 status: stable
 sources:
   - docs/bugs/
@@ -27,18 +27,19 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 3 (2026-11-08, hg rev 87de3a3 — [063](063.md)–[075](075.md), `fix_status: fixed`)**: 9 defects ([063](063.md)–[071](071.md)) and 4 improvements ([072](072.md)–[075](075.md)). All fixed in hg rev 253–265 (fix arc of 2026-11-08, one commit per finding or tightly-bound pairing, 179 tests passing, `mypy` 32 files clean, `ruff` clean). Originally filed as 18 findings (063–080) at hg rev 251 and re-validated/merged/renumbered on 2026-11-08 — see the [renumbering note](#renumbering-note-2026-11-08).
 * **Round 3 addendum (2026-11-08, user-reported field bugs after the fix arc — [076](076.md)–[079](079.md))**: [076](076.md) — visual highlight + `j` crash (absolute/line-relative mix in the `selection_range_at_line` wrapper, fixed rev 267); [077](077.md) — visual block rectangle counts combining marks (cluster-ordinal rect, fixed rev 268); [078](078.md) + [079](079.md) — extrapolation audit of the same selection/cursor stack (fixed rev 269): `j`/`k` visual-column drift over Thai rows (ordinal-based `preferred_column` in `ColdTextBuffer`) and visual-block `I`/`A` anchors splitting clusters (block rectangle in `selection_ranges`).
 * **Round 4 addendum — stem-scan audit (2026-11-08–2026-11-09, hg rev 269 → fixed rev 270+)**: 13 machine-confirmed findings from re-scanning the whole project against all prior report classes ([080](080.md)–[092](092.md)). User-visible: 080 `:b <pattern>` crash with untitled buffers (HIGH); 084 block-`d` cut vs highlight corner skew; 086 mixed-script cluster slicing in word spans; 088 `:e` on a vanished file wiping the saved buffer; 091 previewer abort leaking every uncovered `:set` option; 092 visual-block overshoots on lines with SARA AM / fewer combining marks; 083/087 command-grammar/pager nits. Correctness: 081 gate-latch holes on mass edits (substitute), 082 gate-decay non-text coverage (Thai names/banners), 085 charwise highlight-cluster parity. Perf/hygiene: 090 (`cell_starts` LRU, big-line span-cache bypass, `_cursor_vertical` lazy-import hoist, docstring/update chain) and 089 test-cwd pollution.
-* **Round 5 (2026-11-09, hg rev 256 / `v0.11.1` — [093](093.md)–[109](109.md), `fix_status: open`)**: 17 machine-confirmed findings from a fresh full-project re-audit of the *fully-fixed* tree (4 parallel auditors + dynamic probes: 6 000 random command strings, 4 000 random window/tab ops, end-to-end preview/substitute/paste/undo flows). Two documented fixes are **regressed** — [093](093.md) (091 previewer still leaks `ignore_case`) and [102](102.md) (090's lazy-import hoist was never applied) — plus new Vim-semantics defects ([094](094.md)–[096](096.md)), an incomplete [081](081.md) gate fix ([097](097.md)), a renderer state leak ([098](098.md)), tooling/test-quality gaps ([099](099.md)–[101](101.md)), and cleanup inventories ([103](103.md)–[109](109.md)). Gates at audit time: 198 passed / 1 skipped, `mypy .` 56 files clean, ruff clean, Python 3.10 floor intact.
+* **Round 5 (2026-11-09, hg rev 256 / `v0.11.1` — [093](093.md)–[109](109.md), `fix_status: fixed`)**: 17 machine-confirmed findings from a fresh full-project re-audit of the *fully-fixed* tree (4 parallel auditors + dynamic probes: 6 000 random command strings, 4 000 random window/tab ops, end-to-end preview/substitute/paste/undo flows). Two documented fixes are **regressed** — [093](093.md) (091 previewer still leaks `ignore_case`) and [102](102.md) (090's lazy-import hoist was never applied) — plus new Vim-semantics defects ([094](094.md)–[096](096.md)), an incomplete [081](081.md) gate fix ([097](097.md)), a renderer state leak ([098](098.md)), tooling/test-quality gaps ([099](099.md)–[101](101.md)), and cleanup inventories ([103](103.md)–[109](109.md)). All 17 findings fixed finding-by-finding across hg rev 258–275 (217 passed / 1 skipped, `mypy .` 56 files clean, ruff clean, Python 3.10 floor intact).
 
-## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: open`)
+## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
-**Audit note (2026-11-09):** the tree is clean at `v0.11.1` and every earlier finding is stamped
-`fixed`, so this round looks for *new* issues and *regressions*. All 92 earlier docs were
-re-verified against the source: only [091](091.md) and [090](090.md) item 3 are absent in code
-(see [093](093.md) and [102](102.md)); no dropped guard, inverted condition or missing catalog
-item was found in the other 90. The 17 findings below are **open** — no code was changed during
-this audit.
+**Resolution note (2026-11-09):** all 17 open Round 5 findings are resolved with one commit per finding
+(or tightly related group): 093 (:set ic preview leak), 094 (:s flags i/I/E488), 095 (:q window-scoping),
+096 (:e unsaved changes guard), 097 (paste/undo Thai gate latch), 098 (re-entrant escape restore),
+099 (cold-text bench against vith.cold_text), 100 (speed plan benchmark refresh), 101 (test assertions/inspect),
+102 (cold-text thai import hoist), 103 (misc low defects), 104 (docs/config drift), 105 (build/dist cleanup),
+106 (dead code sweep), 107 (duplicate logic dedup), 108 (readability/type annotations), 109 (hot-path perf residuals).
+Gates: **217 passed, 1 skipped**, `mypy .` 56 files clean, ruff clean.
 
-### Defects (`type: bug`, `fix_status: open`)
+### Defects (`type: bug`, `fix_status: fixed`)
 
 | ID | Finding | Area | Priority |
 | :--- | :--- | :--- | :--- |
@@ -56,7 +57,7 @@ this audit.
 | [104](104.md) | Docs/config drift & dead references (`>=2.0.0` floor, `setup.py`, `requirements-dev.txt`, stale counts, `.gitignore`) | docs/config | low |
 | [105](105.md) | `build/lib/vith/` + `dist/` duplicate the full source tree despite the 074 deletion record | hygiene | low |
 
-### Improvements (`type: improvement`, `fix_status: open`)
+### Improvements (`type: improvement`, `fix_status: fixed`)
 
 | ID | Finding | Category | Priority |
 | :-- | :--- | :--- | :--- |
