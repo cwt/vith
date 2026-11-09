@@ -1,6 +1,28 @@
 CHANGELOG
 =========
 
+0.12.0: 2026-11-09
+-------------------
+
+Packaging, Thai package & modernization (since 0.11.2):
+
+- Reorganized flat ``thai*.py`` modules into the ``vith.thai`` package
+  (``classify.py``, ``clusters.py``, ``words.py``, ``patches.py``) with a lazy
+  ``vith.thai_*`` compat layer and full backward compatibility.
+- Adopted Python 3.10 idioms: PEP 585 built-in generics, ``str.removeprefix``,
+  ``itertools.pairwise`` / ``yield from``, and ``match``/``case`` dispatch.
+- Round 6 deep audit (findings 110–115, 76 items, all closed): wrong-logic fixes
+  (substitute identical match, ``:wqa!``, empty-command no-op, pyflakes syntax
+  errors, UTF-8 columns, cold-text undo/reset, ``HttpIO.exists``, encoding
+  restore, Thai renderer guards); ``None``/bounds hardening; dead-code and
+  duplication sweeps (unified splits, shared pager/lexer helpers); bounded
+  caches and fast paths (lexer LRU, cell-starts guard, SARA-AM single pass);
+  readability pass (nonlocal flag, explicit ``None``, PathLike/UTF-8 rc-file,
+  ``EOFError``/``KeyboardInterrupt`` pager guard, byte-slice process title).
+- Follow-up hardening: exotic-mapping escape fallback, desync-tolerant
+  ``close_buffer``, documented compat retention.
+- Full test suite passing: 250 passed, mypy clean on 57 source files, ruff clean.
+
 0.11.2: 2026-11-09
 -------------------
 
