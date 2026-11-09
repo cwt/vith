@@ -8,6 +8,10 @@ def handle_command(editor, input_string):
     """
     Handle commands entered on the Vi command line.
     """
+    # Treat empty/whitespace input as a no-op.
+    if not input_string or not input_string.strip():
+        return
+
     # Match with grammar and extract variables.
     m = COMMAND_GRAMMAR.match(input_string)
     if m is None:
