@@ -9,7 +9,7 @@ verified: machine-confirmed
 generated:
   by: "OpenCode (Crouton Alpha)"
   at: "2026-11-08T19:20:00Z"
-timestamp: "2026-11-09T16:26:05Z"
+timestamp: "2026-11-09T16:55:03Z"
 ---
 
 # Documentation Bundle Log
@@ -41,3 +41,4 @@ This file tracks all modifications, extensions, and updates to the `vith` OKF do
 | 2026-11-09T18:00:00Z | [bugs/index.md](bugs/index.md), [bugs/110.md](bugs/110.md)…[bugs/115.md](bugs/115.md), [bugs/log.md](bugs/log.md) | Appended (Round 6) | Appended 6 Round 6 deep-audit inventories ([110](bugs/110.md)–[115](bugs/115.md)): wrong-logic bugs, robustness/None-safety, dead code, duplicate logic, unoptimized algorithms/memory growth, and low readability. |
 | 2026-11-09T21:50:00Z | [bugs/index.md](bugs/index.md), [bugs/110.md](bugs/110.md)…[bugs/115.md](bugs/115.md), [bugs/log.md](bugs/log.md), [index.md](index.md) | Findings closed (Round 6) | Completed all items across Round 6 inventories ([110](bugs/110.md)–[115](bugs/115.md)) with 29 new regression tests across `tests/` (247 passed, `mypy .` 57 files clean, ruff clean). Marked [110](bugs/110.md)–[115](bugs/115.md) as `fix_status: fixed` and `verified: machine-confirmed`. All 115 bundle findings closed. |
 | 2026-11-09T16:26:05Z | [bugs/index.md](bugs/index.md), [bugs/116.md](bugs/116.md)…[bugs/123.md](bugs/123.md), [index.md](index.md) | Findings closed (Round 7) | Fixed all 8 Round 7 upstream-triage findings ([116](bugs/116.md)–[123](bugs/123.md)) one-by-one with regression tests: ZZ/ZQ (116), :w! force-write (117), >>/<< tabstop (118), Ctrl-[ + counted i/a (119+120), extensionless sniffing (121), */# history (122), :s ReDoS guard (123). Gates: **274 passed**, `mypy .` 57 files clean, ruff clean. All 123 bundle findings closed; synchronized `bugs/index.md`, `bugs/log.md`, and the root `index.md` count. |
+| 2026-11-09T16:55:03Z | [bugs/index.md](bugs/index.md), [bugs/124.md](bugs/124.md), [bugs/125.md](bugs/125.md), [index.md](index.md) | Findings closed (Round 7 addendum) | Fixed two user-reported field bugs ([124](bugs/124.md) `:next`/`:previous` cycling, [125](bugs/125.md) tab-click crash) one-by-one with regression tests. Gates: **277 passed**, `mypy .` 57 files clean, ruff clean. All 125 bundle findings closed; synchronized `bugs/index.md`, `bugs/log.md`, and the root `index.md` count. |
