@@ -143,7 +143,10 @@ class HttpIO(EditorIO):
         return location.startswith(('http://', 'https://'))
 
     def exists(self, location):
-        return NotImplemented  # We don't know.
+        # HTTP existence is not probed (no HEAD request); treat the
+        # location as potentially existing so the read path is attempted
+        # instead of silently blanking the buffer.
+        return True
 
     def read(self, location):
         # Do Http request.
