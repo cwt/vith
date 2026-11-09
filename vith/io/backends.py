@@ -140,7 +140,7 @@ class HttpIO(EditorIO):
 
     def can_open_location(self, location):
         # True when the location is an http:// or https:// URL.
-        return location.startswith('http://') or location.startswith('https://')
+        return location.startswith(('http://', 'https://'))
 
     def exists(self, location):
         return NotImplemented  # We don't know.

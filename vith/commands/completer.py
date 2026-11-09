@@ -58,4 +58,4 @@ class ColorSchemeCompleter(Completer):
 
         for style_name in self.editor.styles:
             if style_name.startswith(text):
-                yield Completion(style_name[len(text) :], display=style_name)
+                yield Completion(style_name.removeprefix(text), display=style_name)
