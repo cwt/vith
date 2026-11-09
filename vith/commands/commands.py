@@ -433,7 +433,7 @@ def write(editor, location, force=False):
     if eb is None or (location is None and eb.location is None):
         editor.show_message(_NO_FILE_NAME)
         return False
-    return eb.write(location)
+    return eb.write(location, force=force)
 
 
 @location_cmd('wq', accepts_force=True)
@@ -463,7 +463,7 @@ def write_and_quit_all(editor, force=False):
     write failed (docs/bugs/067.md).
     """
     for eb in editor.window_arrangement.editor_buffers:
-        if eb.has_unsaved_changes and not eb.write():
+        if eb.has_unsaved_changes and not eb.write(force=force):
             return
 
     editor.application.exit()

@@ -211,12 +211,62 @@ class EditorBuffer:
         # render after reload runs unsanitized until the next edit.
         note_document_text(text)
 
-    def write(self, location=None):
+    def _write_with_backend(self, io, target_location, payload):
+        """
+        Write `payload` via `io`, falling back from an unrepresentable
+        encoding to UTF-8 (docs/bugs/070.md, 110.md).
+        """
+        try:
+            io.write(target_location, payload, self.encoding)
+        except UnicodeEncodeError:
+            # The buffer was decoded with a lossy fallback encoding
+            # (typically latin-1, which never fails to decode) and now
+            # contains characters it cannot encode (e.g. Thai typed into
+            # such a file). Save as utf-8 instead of refusing the save.
+            # Mutate `self.encoding` only after the fallback write succeeds.
+            old_encoding = self.encoding
+            io.write(target_location, payload, 'utf-8')
+            self.encoding = 'utf-8'
+            self.editor.show_message(
+                'Content not representable in %r; saved as %r' % (old_encoding, 'utf-8')
+            )
+
+    def _write_forced(self, io, target_location, payload):
+        """
+        Force-write a read-only local file: grant owner-write, write once,
+        then restore the original mode. Returns whether the write succeeded
+        (a message has been shown otherwise).
+        """
+        try:
+            st_mode = os.stat(target_location).st_mode
+        except OSError as e:
+            self.editor.show_message('%s' % e)
+            return False
+        try:
+            os.chmod(target_location, st_mode | 0o200)
+        except OSError as e:
+            self.editor.show_message('%s' % e)
+            return False
+        try:
+            self._write_with_backend(io, target_location, payload)
+        except Exception as e:
+            self.editor.show_message('%s' % e)
+            return False
+        finally:
+            try:
+                os.chmod(target_location, st_mode)
+            except OSError:
+                pass
+        return True
+
+    def write(self, location=None, force=False):
         """
         Write file to I/O backend.
 
         Returns ``True`` when the file was written, ``False`` otherwise
-        (a message has been shown).
+        (a message has been shown). With ``force`` (``:w!``), a read-only
+        local file is temporarily made writable for one write and its mode
+        is restored afterwards (docs/bugs/117.md).
         """
         # Resolve the target location without mutating state up front.
         target_location = location if location is not None else self.location
@@ -236,21 +286,14 @@ class EditorBuffer:
         # Write it.
         try:
             eol = '\n' if self._had_trailing_newline else ''
+            payload = self.buffer.text + eol
             try:
-                io.write(target_location, self.buffer.text + eol, self.encoding)
-            except UnicodeEncodeError:
-                # The buffer was decoded with a lossy fallback encoding
-                # (typically latin-1, which never fails to decode) and now
-                # contains characters it cannot encode (e.g. Thai typed into
-                # such a file). Save as utf-8 instead of refusing the save
-                # (docs/bugs/070.md). Mutate `self.encoding` only after the
-                # fallback write succeeds (docs/bugs/110.md).
-                old_encoding = self.encoding
-                io.write(target_location, self.buffer.text + eol, 'utf-8')
-                self.encoding = 'utf-8'
-                self.editor.show_message(
-                    'Content not representable in %r; saved as %r' % (old_encoding, 'utf-8')
-                )
+                self._write_with_backend(io, target_location, payload)
+            except PermissionError:
+                if not force:
+                    raise
+                if not self._write_forced(io, target_location, payload):
+                    return False
             self.is_new = False
         except Exception as e:
             # E.g. "No such file or directory."

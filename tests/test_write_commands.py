@@ -91,6 +91,114 @@ def test_write_overwrite_check_expands_tilde(editor, editor_buffer, tmp_path, mo
     assert target.read_text() == 'old'
 
 
+def test_w_bang_force_writes_read_only_file(editor, editor_buffer, tmp_path):
+    # 117: `:w` on a read-only file fails; `:w!` writes once and restores
+    # the read-only mode.
+    import os
+    import stat
+
+    from vith.commands.handler import handle_command
+
+    target = tmp_path / 'readonly.txt'
+    target.write_text('original')
+    os.chmod(target, 0o444)
+
+    eb = _editor_with_text(editor, editor_buffer, 'forced')
+    eb.location = str(target)
+    assert eb.has_unsaved_changes
+
+    handle_command(editor, ':w')
+    assert 'denied' in editor.message.lower() or 'permission' in editor.message.lower()
+    assert target.read_text() == 'original'
+    assert eb.has_unsaved_changes
+
+    editor.message = None
+    handle_command(editor, ':w!')
+    assert editor.message is None
+    assert target.read_text() == 'forced\n'
+    assert stat.S_IMODE(os.stat(target).st_mode) == 0o444
+    assert not eb.has_unsaved_changes
+
+
+def test_write_forced_retries_after_chmod(editor, editor_buffer, tmp_path):
+    # 117: the force path grants owner-write, retries the backend write,
+    # and restores the original mode — pinned with a backend that fails
+    # once with PermissionError (uid-independent).
+    import os
+    import stat
+    from pathlib import Path
+
+    target = tmp_path / 'flaky.txt'
+    target.write_text('original')
+    os.chmod(target, 0o444)
+    calls = []
+
+    class FlakyBackend:
+        def can_open_location(self, location):
+            return location == str(target)
+
+        def write(self, location, text, encoding='utf-8'):
+            calls.append(1)
+            if len(calls) == 1:
+                raise PermissionError(13, 'Permission denied')
+            Path(location).write_text(text, encoding=encoding)
+
+    editor.io_backends.insert(0, FlakyBackend())
+    try:
+        eb = _editor_with_text(editor, editor_buffer, 'forced')
+        eb.location = str(target)
+
+        assert eb.write(force=False) is False
+        assert calls == [1]
+        assert target.read_text() == 'original'
+
+        assert eb.write(force=True) is True
+        assert len(calls) == 3  # initial attempt + chmod + single retry
+        assert target.read_text() == 'forced\n'
+        assert stat.S_IMODE(os.stat(target).st_mode) == 0o444
+    finally:
+        editor.io_backends.pop(0)
+
+
+def test_wqa_bang_passes_force_through(editor, editor_buffer, tmp_path, monkeypatch):
+    # 117 (with 110 item 2): `:wqa!` forwards force to each buffer write.
+    import os
+    from pathlib import Path
+
+    target = tmp_path / 'wqa_readonly.txt'
+    target.write_text('original')
+    os.chmod(target, 0o444)
+    calls = []
+
+    class FlakyBackend:
+        def can_open_location(self, location):
+            return location == str(target)
+
+        def write(self, location, text, encoding='utf-8'):
+            calls.append(1)
+            if len(calls) == 1:
+                raise PermissionError(13, 'Permission denied')
+            Path(location).write_text(text, encoding=encoding)
+
+    editor.io_backends.insert(0, FlakyBackend())
+    try:
+        eb = _editor_with_text(editor, editor_buffer, 'forced')
+        eb.location = str(target)
+
+        exits = []
+        monkeypatch.setattr(editor.application, 'exit', lambda *a, **kw: exits.append(1))
+
+        handle_command(editor, ':wqa')
+        assert exits == []
+        assert target.read_text() == 'original'
+
+        handle_command(editor, ':wqa!')
+        assert exits == [1]
+        assert target.read_text() == 'forced\n'
+    finally:
+        editor.io_backends.pop(0)
+
+
 def test_edit_blocked_by_unsaved_changes(editor, editor_buffer, tmp_path):
     # 096: :e <file> must be blocked by unsaved changes unless ! is given
     eb = _editor_with_text(editor, editor_buffer, 'unsaved changes')
