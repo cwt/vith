@@ -1,6 +1,67 @@
 CHANGELOG
 =========
 
+0.11.2: 2026-11-09
+-------------------
+
+Bug fixes & robustness (Round 5 audit arc, 17 findings 093–109):
+
+Vim semantics & commands:
+
+- Fixed ``:set ic`` / ``:set ignorecase`` preview leak where aborting preview (``Esc``)
+  silently kept case-insensitivity active for the remainder of the session (finding 093).
+- Added support for ``:s`` flags ``i`` (ignorecase) and ``I`` (noignorecase); rejected invalid
+  flags with Vim ``E488: Trailing characters`` (finding 094).
+- In multi-window/multi-tab layouts, ``:q`` now checks for unsaved changes only in the
+  active window's buffer instead of being blocked by dirty buffers in other windows (finding 095).
+- ``:e <location>`` now checks for unsaved changes and honors ``!`` (``force``) before
+  switching buffers (finding 096).
+- Canonicalized untitled buffer name across status bar, ``:ls``, and buffers overlay
+  to ``[New file]`` (``UNTITLED_LABEL``) (finding 107).
+- Command line mutual-exclusion flags (``-p``, ``-o``, ``-O``) raise ``ValueError`` defensively
+  inside ``load_initial_files`` instead of a bare assert (finding 107).
+
+Thai & Lao script support & renderer:
+
+- Sticky Thai renderer gate is now latched on multi-line paste, undo/redo, and full-text
+  assignments when Thai text is introduced on non-cursor rows (finding 097).
+- Re-entrant differential renderer calls now reliably restore ``screen.zero_width_escapes``
+  under an outer ``try/finally`` block (finding 098).
+- Hoisted Thai cluster calculation imports in ``ColdTextBuffer._cursor_vertical`` to module
+  level, eliminating per-keystroke import overhead on ``j``/``k`` (finding 102).
+- Added ``_cell_has_sara_am`` fast-path check in ``_sanitize_and_invalidate_sara_am`` to skip
+  key sorting and set allocations on rows without SARA AM (finding 109).
+
+Performance, storage & completion:
+
+- Rewrote ``BufferListOverlay.highlight_location`` to produce chunked token spans rather than
+  per-character fragments and loops (finding 109).
+- Expanded ``DocumentWordsCompleter`` cache key with ``line_start`` to detect text shifts on lines
+  prior to the cursor line (finding 109).
+- Preserved original trailing newline status across buffer save and reload (``EditorBuffer.write``),
+  ensuring files without an ending newline do not acquire one unconditionally (finding 103).
+- Fixed ``_LazyStylesDict`` containment: ``__getitem__`` raises ``KeyError`` on unknown styles so that
+  standard ``Mapping.__contains__`` (``'style' in editor.styles``) returns ``False`` instead of raising
+  ``ClassNotFound`` (finding 103).
+- Fixed example ``vithrc`` F9 execution callback to guard against ``None`` buffer and abort on write
+  failures (finding 103).
+
+Testing, tooling & packaging:
+
+- ``tools/bench_quez_cold_text.py`` benchmarks shipped ``vith.cold_text.ColdTextStack`` instead of a
+  private duplicate, with corrected ``measure_ms`` naming and fixture truncation (finding 099).
+- Refreshed reproducible benchmark figures in ``docs/speed_latency_plan.md`` (finding 100).
+- Repaired vacuous/flaky assertions in tests, replaced inspect-based tests with functional execution,
+  and cleaned up unused mock assignments (finding 101).
+- Updated packaging and documentation floors: prompt_toolkit ``>=3.0.0,<3.1.0``, cleaned dead
+  ``setup.py`` and ``requirements-dev.txt`` references, added tool cache directories to ``.gitignore``
+  (finding 104).
+- Cleaned up build/dist release artifacts from source tree (finding 105).
+- Dead code cleanup across decorators, previewers, classifier sets, and cold-text metadata (finding 106).
+- Type-annotated ``current_editor_buffer -> EditorBuffer | None`` with explicit ``return None`` and
+  corrected ``is_thai_base`` docstring (finding 108).
+- Full test suite passing: 217 passed, 1 skipped, mypy clean on 56 source files, ruff clean.
+
 0.11.1: 2026-11-09
 -------------------
 

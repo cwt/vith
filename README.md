@@ -21,7 +21,7 @@ This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds two large, ma
 - **Thai & Lao script support**: terminal cell-cluster navigation and editing (`h`, `l`, `j`, `k`, `x`, `X`, `s`, `r`, `~`, `$`, `e`...), two-tier Thai word segmentation (`libthai` with an always-available orthographic fallback) and SARA AM (`U+0E33`/`U+0EB3`) differential renderer fixes. See [`docs/thai_support_plan.md`](docs/thai_support_plan.md).
 - **Speed, latency & modern-Python stability**: streamed + cached Pygments highlighting, per-line word-span caches for Thai word motions, lazy colorscheme loading, cached word completion, an O(1) pyflakes error index, and the Python 3.14+/3.15 `asyncio` startup-crash fix. See [`docs/speed_latency_plan.md`](docs/speed_latency_plan.md).
 
-All changes are audited in [`docs/bugs/`](docs/bugs/) (findings, each reproduced and fixed); quality is enforced with pytest, mypy and ruff.
+All changes are audited in [`docs/bugs/`](docs/bugs/) (109 machine-verified findings, all reproduced and closed); quality is enforced with pytest, mypy and ruff.
 
 Issues, questions, wishes, comments, feedback, remarks? Please create a GitHub issue, I appreciate it.
 
@@ -60,7 +60,7 @@ We have already many nice things, for instance:
 - Thai/Lao input files: cell-cluster safe navigation and *syntax-aware* word segmentation, including dictionary segmentation when `libthai` is installed — with visual mode, visual-block editing (`C-v`, including `I`/`A` multi-cursor inserts) and `j`/`k` staying on the *visual* column, all cluster-aligned on Thai/Lao text.
 - Compressed undo/redo history: cold snapshots are stored with [quez](https://github.com/cwt/quez) (Zstandard level 1 by default), configurable via `editor.cold_text_compression` in `.vithrc` and inspectable with `:compression`.
 - Several `:set ...` commands have been implemented, like `incsearch`, `number`/`relativenumber`, `ignorecase`, `wildmenu`, `expandtab`, `hlsearch`, `ruler`, `paste`, `tabstop`, `cursorline`/`cursorcolumn`, `colorcolumn`, `scrolloff`, `wrap` and `mouse`.
-- Working Vim-style commands: `:vsplit`, `:tabe`, `:only`, `:badd`, `:ls`/`:b` buffer navigation (patterns or 1-based numbers), `:s` substitute (ranges, flags incl. `g`, search-history fallback) and `:q`/`:wq`/`:qa`/`:wqa` with Vim window-vs-exit semantics. Auto completion for Python source code uses the amazing Jedi library, and code checking is done (asynchronously) through Pyflakes.
+- Working Vim-style commands: `:vsplit`, `:tabe`, `:only`, `:badd`, `:ls`/`:b` buffer navigation (patterns or 1-based numbers), `:s` substitute (ranges, flags incl. `g`/`i`/`I`, search-history fallback) and `:q`/`:wq`/`:qa`/`:wqa` with Vim window-vs-exit semantics. Auto completion for Python source code uses the amazing Jedi library, and code checking is done (asynchronously) through Pyflakes.
 - Colorschemes can be changed at runtime.
 
 Further, when the project develops, it should also become possible to write extensions in Python, and use Python as a scripting language. (Instead of vimscript, for instance.)
@@ -84,7 +84,7 @@ Compared to Vi Improved, Vith is still less powerful in many aspects.
 
 Pull requests and issues are welcome. Feel free to create a GitHub issue to discuss ideas or report problems.
 
-Visual-block editing (`C-v`) is already available — 0.11.0 made its highlights, cuts and inserts cell-cluster safe on Thai/Lao text — and basic mouse support can be toggled with `:set mouse`. Maybe next: line folding, text-area registers UI, and a built-in Python debugger instead of the current `!python3 %`-style runs. We'll see. :)
+Visual-block editing (`C-v`) is available — highlights, cuts and inserts are cell-cluster safe on Thai/Lao text (including SARA AM and multi-line visual blocks) — and basic mouse support can be toggled with `:set mouse`. Maybe next: line folding, text-area registers UI, and a built-in Python debugger instead of the current `!python3 %`-style runs. We'll see. :)
 
 ## Testing
 

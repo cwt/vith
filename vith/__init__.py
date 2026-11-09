@@ -11,7 +11,7 @@ from pathlib import Path
 # In a development checkout (e.g. repo root), read directly from pyproject.toml
 # so editing the version requires touching only pyproject.toml. The fallback
 # is a single constant (docs/bugs/075.md); pyproject.toml remains primary.
-_FALLBACK_VERSION = "0.11.1"
+_FALLBACK_VERSION = "0.11.2"
 _pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
 if _pyproject.is_file():
     _m = re.search(
