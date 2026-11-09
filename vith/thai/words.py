@@ -10,6 +10,7 @@ import ctypes
 import re
 import threading
 from functools import lru_cache
+from itertools import pairwise
 from typing import Any, Callable, Pattern
 
 from prompt_toolkit.document import Document
@@ -242,11 +243,9 @@ def _word_spans_for_line_uncached(line: str, WORD: bool = False) -> tuple[tuple[
         chunk = match.group(0)
         if chunk and is_thai_or_lao(ord(chunk[0])):
             breaks = find_thai_word_breaks(chunk)
-            for i in range(len(breaks) - 1):
-                b0 = m_start + breaks[i]
-                b1 = m_start + breaks[i + 1]
-                if b0 < b1:
-                    spans.append((b0, b1))
+            for start_offset, end_offset in pairwise(breaks):
+                if start_offset < end_offset:
+                    spans.append((m_start + start_offset, m_start + end_offset))
         else:
             spans.append((m_start, m_end))
     spans = _cluster_aligned_spans(line, spans)
