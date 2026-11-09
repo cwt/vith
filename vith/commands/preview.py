@@ -65,6 +65,7 @@ class CommandPreviewer(object):
         self._show_wildmenu = e.show_wildmenu
         self._expand_tab = e.expand_tab
         self._incsearch = e.incsearch
+        self._ignore_case = e.ignore_case
         self._display_unprintable_characters = e.display_unprintable_characters
         self._enable_jedi = e.enable_jedi
         self._wrap_lines = e.wrap_lines
@@ -91,6 +92,7 @@ class CommandPreviewer(object):
         e.show_wildmenu = self._show_wildmenu
         e.expand_tab = self._expand_tab
         e.incsearch = self._incsearch
+        e.ignore_case = self._ignore_case
         e.display_unprintable_characters = self._display_unprintable_characters
         e.enable_jedi = self._enable_jedi
         e.wrap_lines = self._wrap_lines

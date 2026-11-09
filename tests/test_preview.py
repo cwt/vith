@@ -18,6 +18,7 @@ SAMPLE_STATE = {
     'colorcolumn': [],
     'tabstop': 4,
     'scroll_offset': 0,
+    'ignore_case': False,
 }
 
 
@@ -62,6 +63,11 @@ def test_toggle_options_preview(editor):
     assert editor.show_ruler is True
     previewer.preview(':set noru')
     assert editor.show_ruler is False
+
+    previewer.preview(':set ic')
+    assert editor.ignore_case is True
+    previewer.preview(':set noignorecase')
+    assert editor.ignore_case is False
 
 
 def test_int_value_options_preview(editor):
@@ -124,6 +130,11 @@ def test_previewer_restores_full_catalog_through_abort(editor):
     assert editor.enable_jedi is False
     previewer.restore()
     assert editor.enable_jedi is True
+
+    previewer.preview(':set ic')
+    assert editor.ignore_case is True
+    previewer.restore()
+    assert editor.ignore_case is False
 
 
 def test_preview_list_value_uses_catalog_attribute(editor):
