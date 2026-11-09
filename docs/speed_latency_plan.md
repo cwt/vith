@@ -70,15 +70,15 @@ This document catalogs the stability bugs, per-keystroke latency bottlenecks, an
   P3 DocumentWordsCompleter (4000 lines, typing on current line): fresh=3.12 ms -> singleton_cached=0.182 ms
 ```
 
-*After* implementation (rev 161+162, Python 3.15.2 / prompt_toolkit 3.0.53, macOS arm64): the “current” column now runs the new streaming/cached code, so both sides are fast, and the hot paths beat the original targets:
+*After* implementation (rev 161+162, updated rev 175/230, Python 3.15.2 / prompt_toolkit 3.0.53):
 
 ```text
   Verified P1 multiline docstring token parity (lines 75..140): PASS
-  P1a DocumentLexer (top 40 lines of 4000-line file): current=1.40 ms -> cached+streaming=1.36 ms   (was 128.92 ms pre-implementation)
-  P1b DocumentLexer (middle 40 lines @ 2000 of 4000-line file): current=3.07 ms -> cached+streaming=3.09 ms (was 68.56 ms pre-implementation)
-  P1c DocumentLexer (bottom 40 lines of 4000-line file): current=3.08 ms -> cached+streaming=3.06 ms
-  P2 Style init (50 styles): cold_eager=0.44 ms (get_all_styles deferred; measured warm in-process) -> deferred _LazyStylesDict startup=0.11-0.14 ms
-  P3 DocumentWordsCompleter (4000 lines, typing on current line): fresh=2.25 ms -> singleton_cached=0.038 ms
+    P1a DocumentLexer (top 40 of 4000-line file): 1.17 ms
+    P1b DocumentLexer (mid 40 lines @ 2000):      2.57 ms
+    P1c DocumentLexer (bottom 40 of 4000-line):   2.56 ms
+  P2 Style init (50 styles): cold_eager=15.61 ms (cold get_all_styles=0.56 ms) -> deferred startup=0.10 ms
+  P3 DocumentWordsCompleter (4000 lines, typing on current line): fresh=2.34 ms -> singleton_cached=0.026 ms
 ```
 
 ### 1.2b Benchmark fidelity note (hg rev 175)
