@@ -186,6 +186,7 @@ class ColdTextBuffer(Buffer):
         self.cold_compression_name = cold_compression_name
         self.cold_compression_level = cold_compression_level
         self._text_version = 0
+        self._vith_cell_column: tuple[int, int] | None = None
         super().__init__(*args, **kwargs)
 
     def reset(
@@ -195,6 +196,7 @@ class ColdTextBuffer(Buffer):
     ) -> None:
         super().reset(document=document, append_to_history=append_to_history)
         self._text_version = 0
+        self._vith_cell_column = None
         self._undo_stack = ColdTextStack(self._cold_compressor)  # type: ignore[assignment]
         self._redo_stack = ColdTextStack(self._cold_compressor)  # type: ignore[assignment]
 
@@ -274,10 +276,14 @@ class ColdTextBuffer(Buffer):
 
         while undo_stack:
             text, cursor_position, _text_version = undo_stack.pop()
-            if text != self.text:
-                redo_stack.push(self.text, self.cursor_position, self._text_version)
-                self.document = Document(text, cursor_position=cursor_position)
-                break
+            if text == self.text:
+                # Preserve skipped (no-text-delta) snapshots in redo instead
+                # of discarding them, so intermediate history is not lost.
+                redo_stack.push(text, cursor_position, _text_version)
+                continue
+            redo_stack.push(self.text, self.cursor_position, self._text_version)
+            self.document = Document(text, cursor_position=cursor_position)
+            break
 
     def redo(self) -> None:
         redo_stack = cast(ColdTextStack, self._redo_stack)
