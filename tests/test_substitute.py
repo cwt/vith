@@ -207,6 +207,39 @@ def test_substitute_row_zero_range(editor, editor_buffer):
     assert 'sea sea' in editor_buffer.buffer.text
 
 
+def test_substitute_flags_i_and_I(editor, editor_buffer):
+    # 094: `:s` flags `i` and `I` override editor.ignore_case
+    given_sample_text(editor_buffer, 'Foo foo FOO\n')
+    editor.ignore_case = False
+
+    # `i` matches case-insensitively
+    handle_command(editor, ':s/foo/X/i')
+    assert editor_buffer.buffer.text == 'X foo FOO\n'
+
+    # `I` forces case-sensitivity even if editor.ignore_case is True
+    editor_buffer.buffer.text = 'Foo foo FOO\n'
+    editor.ignore_case = True
+    handle_command(editor, ':s/foo/X/gI')
+    assert editor_buffer.buffer.text == 'Foo X FOO\n'
+
+
+def test_substitute_unknown_flag_shows_error(editor, editor_buffer):
+    # 094: invalid substitute flags show error and do not mutate
+    given_sample_text(editor_buffer, 'hello world\n')
+    handle_command(editor, ':s/hello/world/z')
+    assert editor.message is not None
+    assert 'E488: Trailing characters: z' in editor.message
+    assert editor_buffer.buffer.text == 'hello world\n'
+
+
+def test_substitute_active_buffer_none_guard(editor):
+    # 103: substitute with no active editor buffer does not raise AttributeError
+    from vith.commands.commands import substitute
+
+    substitute(editor, None, None, 'foo', 'bar', '')
+    # cleanly returned without exception
+
+
 def test_substitute_latches_thai_gate(editor, editor_buffer, monkeypatch):
     # 081: mass replacement introducing Thai must latch the renderer gate
     # (the cursor-line-only note used to miss it, leaving the 002/062-era

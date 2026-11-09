@@ -647,7 +647,10 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     """Substitute /search/ with /replace/ over a range of text"""
 
     search_state = editor.application.current_search_state
-    buffer = editor.current_editor_buffer.buffer
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    buffer = eb.buffer
     cursor_position_row = buffer.document.cursor_position_row
 
     # Resolve search pattern from history when omitted.
@@ -660,8 +663,24 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     if replace is None:
         replace = editor.last_substitute_text
 
+    # Parse and validate flags (docs/bugs/083.md, docs/bugs/094.md).
+    clean_flags = flags.replace('/', '')
+    ignore_case = bool(getattr(editor, 'ignore_case', False))
+    sub_count = 1
+
+    for ch in clean_flags:
+        if ch == 'g':
+            sub_count = 0
+        elif ch == 'i':
+            ignore_case = True
+        elif ch == 'I':
+            ignore_case = False
+        else:
+            editor.show_message(f'E488: Trailing characters: {ch}')
+            return
+
     # Compile the regex once; reject malformed patterns up front.
-    regex_flags = re.IGNORECASE if getattr(editor, 'ignore_case', False) else 0
+    regex_flags = re.IGNORECASE if ignore_case else 0
     try:
         pattern = re.compile(search, flags=regex_flags)
     except re.error as e:
@@ -681,8 +700,6 @@ def substitute(editor, range_start, range_end, search, replace, flags):
         editor.show_message('E19: No such line in current buffer')
         return
     line_numbers = list(range(range_start_row, range_end_row + 1))
-
-    sub_count = 0 if 'g' in flags else 1
 
     # Transform each line once, tracking the last substituted row and
     # rejecting invalid replacement escapes without mutating the buffer.
