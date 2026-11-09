@@ -80,3 +80,22 @@ def test_reload_keeps_contents_when_location_becomes_unreadable(editor, tmp_path
     buffer_.reload()  # Must not raise; must not wipe.
 
     assert buffer_.buffer.text == "precious"
+
+
+def test_load_initial_files_mutual_exclusion_raises_value_error(editor):
+    # 107: load_initial_files validates mutual exclusion with ValueError
+    import pytest
+
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        editor.load_initial_files(["a.txt"], in_tab_pages=True, hsplit=True)
+
+
+def test_gzip_file_io_inherits_exists(tmp_path):
+    # 107: GZipFileIO inherits exists from FileIO without duplication
+    from vith.io.backends import GZipFileIO
+
+    f = tmp_path / "test.txt.gz"
+    gz = GZipFileIO()
+    assert gz.exists(str(f)) is False
+    f.touch()
+    assert gz.exists(str(f)) is True

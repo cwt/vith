@@ -53,7 +53,7 @@ class FileIO(EditorIO):
             f.write(text)
 
 
-class GZipFileIO(EditorIO):
+class GZipFileIO(FileIO):
     """
     I/O backend for gzip files.
 
@@ -64,9 +64,6 @@ class GZipFileIO(EditorIO):
     def can_open_location(self, location):
         location = os.path.expanduser(location)
         return '://' not in location and not os.path.isdir(location) and location.endswith('.gz')
-
-    def exists(self, location):
-        return os.path.exists(os.path.expanduser(location))
 
     def read(self, location):
         location = os.path.expanduser(location)

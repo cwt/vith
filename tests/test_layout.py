@@ -314,3 +314,28 @@ def test_tabs_control_reuses_handler_per_index(editor):
     first = [fragment[2] for fragment in get_tokens() if len(fragment) >= 3]
     second = [fragment[2] for fragment in get_tokens() if len(fragment) >= 3]
     assert first and first == second  # same handler objects
+
+
+def test_create_layout_from_node_unknown_node_raises_value_error(editor):
+    # 107: create_layout_from_node raises ValueError for unknown node types
+    import pytest
+
+    editor.load_initial_files([None])
+    editor.window_arrangement.active_tab.root = object()  # unknown node
+
+    with pytest.raises(ValueError, match="Unknown window arrangement node"):
+        editor.editor_layout.update()
+
+
+def test_untitled_buffer_label_consistency(editor):
+    # 107: UNTITLED_LABEL is consistent across EditorBuffer and commands
+    from vith.commands.commands import buffer_list_lines
+    from vith.editor_buffer import UNTITLED_LABEL
+
+    assert UNTITLED_LABEL == '[New file]'
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    assert eb.get_display_name() == UNTITLED_LABEL
+
+    lines = buffer_list_lines(editor)
+    assert any(UNTITLED_LABEL in line for line in lines)

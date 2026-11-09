@@ -179,7 +179,8 @@ class Editor:
         """
         Load a list of files.
         """
-        assert in_tab_pages + hsplit + vsplit <= 1  # Max one of these options.
+        if sum(1 for flag in (in_tab_pages, hsplit, vsplit) if flag) > 1:
+            raise ValueError("in_tab_pages, hsplit and vsplit are mutually exclusive.")
 
         # When no files were given, open at least one empty buffer.
         locations2 = locations or [None]

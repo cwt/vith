@@ -10,7 +10,9 @@ from vith.completion import DocumentCompleter
 from vith.reporting import checks_python_file, report
 from vith.thai import note_document_text
 
-__all__ = ('EditorBuffer',)
+__all__ = ('EditorBuffer', 'UNTITLED_LABEL')
+
+UNTITLED_LABEL = '[New file]'
 
 
 class EditorBuffer(object):
@@ -266,7 +268,7 @@ class EditorBuffer(object):
         Return name as displayed.
         """
         if self.location is None:
-            return '[New file]'
+            return UNTITLED_LABEL
         elif short:
             return os.path.basename(self.location)
         else:

@@ -846,10 +846,8 @@ def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] |
             # the rectangle in VISUAL columns (cluster ordinals, like Vim):
             # map each row's span back to codepoints, whole cells only.
             from_, to_ = sorted((self.cursor_position, selection.original_cursor_position))
-            _, col_from = self.translate_index_to_position(from_)
-            _, col_to = self.translate_index_to_position(to_)
-            row_from, _ = self.translate_index_to_position(from_)
-            row_to, _ = self.translate_index_to_position(to_)
+            row_from, col_from = self.translate_index_to_position(from_)
+            row_to, col_to = self.translate_index_to_position(to_)
             line_from = self.lines[min(row_from, len(self.lines) - 1)]
             line_to = self.lines[min(row_to, len(self.lines) - 1)]
             v_low = min(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))

@@ -277,7 +277,7 @@ def buffer_list(editor):
 def buffer_list_lines(editor):
     """
     Build the `:ls`/`:buffers` pager rows: 1-based buffer numbers (matching
-    `:b <n>` and the overlay, docs/bugs/087.md) with `[No Name]` for
+    `:b <n>` and the overlay, docs/bugs/087.md) with `[New file]` for
     untitled buffers.
     """
     wa = editor.window_arrangement

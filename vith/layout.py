@@ -48,6 +48,7 @@ from prompt_toolkit.widgets.toolbars import (
 import vith.window_arrangement as window_arrangement
 
 from .commands.lexer import create_command_lexer
+from .editor_buffer import UNTITLED_LABEL
 from .lexer import DocumentLexer
 from .welcome_message import WELCOME_MESSAGE_HEIGHT, WELCOME_MESSAGE_TOKENS, WELCOME_MESSAGE_WIDTH
 
@@ -440,7 +441,7 @@ class WindowStatusBar(FormattedTextToolbar):
                     ' ',
                     recording(),
                     (editor_buffer.location or ''),
-                    (' [New File]' if editor_buffer.is_new else ''),
+                    (f' {UNTITLED_LABEL}' if editor_buffer.is_new else ''),
                     ('*' if editor_buffer.has_unsaved_changes else ''),
                     (' '),
                     mode(),
@@ -645,8 +646,11 @@ class EditorLayout:
                     padding_style='class:frameborder',
                 )
 
-            if isinstance(node, window_arrangement.HSplit):
+            elif isinstance(node, window_arrangement.HSplit):
                 return HSplit([create_layout_from_node(n) for n in node])
+
+            else:
+                raise ValueError(f"Unknown window arrangement node: {node!r}")
 
         layout = create_layout_from_node(self.window_arrangement.active_tab.root)
         self._fc.content = layout
