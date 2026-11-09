@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Any, Dict, Set
+from typing import Any
 
 from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.document import Document
@@ -14,10 +14,10 @@ __all__ = (
 )
 
 
-COMMANDS_TO_HANDLERS: Dict[str, Any] = {}  # Global mapping Vi commands to their handler.
-COMMANDS_TAKING_LOCATIONS: Set[str] = set()  # Name of commands that accept locations.
-SET_COMMANDS: Dict[str, Any] = {}  # Mapping ':set'-commands to their handler.
-SET_COMMANDS_TAKING_VALUE: Set[str] = set()
+COMMANDS_TO_HANDLERS: dict[str, Any] = {}  # Global mapping Vi commands to their handler.
+COMMANDS_TAKING_LOCATIONS: set[str] = set()  # Name of commands that accept locations.
+SET_COMMANDS: dict[str, Any] = {}  # Mapping ':set'-commands to their handler.
+SET_COMMANDS_TAKING_VALUE: set[str] = set()
 
 
 _NO_WRITE_SINCE_LAST_CHANGE_TEXT = 'No write since last change (add ! to override)'

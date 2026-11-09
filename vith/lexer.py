@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from prompt_toolkit.formatted_text.utils import split_lines
 from prompt_toolkit.lexers import Lexer, PygmentsLexer, SimpleLexer
@@ -19,7 +19,7 @@ __all__ = ('DocumentLexer',)
 # Cache from Pygments token type to prompt_toolkit style class name.
 # (`pygments_token_to_classname` does a chain of `isinstance` checks, which
 # adds up over hundreds of tokens per keystroke.)
-_STYLE_TOKEN_CACHE: Dict[Any, str] = {}
+_STYLE_TOKEN_CACHE: dict[Any, str] = {}
 
 
 def _style_classname(token):

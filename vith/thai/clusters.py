@@ -6,7 +6,6 @@ public names, so the import surface stays stable.
 """
 
 from functools import lru_cache
-from typing import List
 
 from .classify import is_combining_char
 
@@ -86,7 +85,7 @@ def cell_stops(line: str) -> list[int]:
 
 
 @lru_cache(maxsize=4096)
-def cell_starts(line: str) -> List[int]:
+def cell_starts(line: str) -> list[int]:
     """
     Return valid Normal-mode cell start offsets in `line`
     (e.g. `"ที่ดิน"` -> `[0, 3, 5]`).
