@@ -516,6 +516,85 @@ def test_shift_left_removes_tabstop(editor):
     assert eb.buffer.document.lines == ["  alpha", "beta", "plain"]
 
 
+def test_star_jumps_and_records_history(editor):
+    # 122: `*` moves to the next occurrence and records the pattern so
+    # `/<Up>` and bare `:s` can reuse it.
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "foo bar foo"
+    eb.buffer.cursor_position = 0
+
+    kb = create_key_bindings(editor)
+    handler = [b for b in kb.bindings if b.keys == ("*",)][0].handler
+    event = MagicMock()
+    event.app = editor.application
+    event.current_buffer = eb.buffer
+    event.arg = 1
+    handler(event)
+
+    assert eb.buffer.cursor_position == 8
+    assert editor.application.current_search_state.text == "foo"
+    assert "foo" in editor.search_buffer.history.get_strings()
+
+
+def test_hash_searches_backward_and_records_history(editor):
+    # 122: `#` moves to the previous occurrence with BACKWARD direction.
+    from unittest.mock import MagicMock
+
+    from prompt_toolkit.search import SearchDirection
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "foo bar foo"
+    eb.buffer.cursor_position = 10
+
+    kb = create_key_bindings(editor)
+    handler = [b for b in kb.bindings if b.keys == ("#",)][0].handler
+    event = MagicMock()
+    event.app = editor.application
+    event.current_buffer = eb.buffer
+    event.arg = 1
+    handler(event)
+
+    assert eb.buffer.cursor_position == 0
+    assert editor.application.current_search_state.text == "foo"
+    assert editor.application.current_search_state.direction == SearchDirection.BACKWARD
+    assert "foo" in editor.search_buffer.history.get_strings()
+
+
+def test_star_on_blank_leaves_history_empty(editor):
+    # 122: `*` with no word under the cursor is a no-op (never clobbers
+    # the search state with an empty pattern).
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "   "
+    eb.buffer.cursor_position = 1
+
+    kb = create_key_bindings(editor)
+    handler = [b for b in kb.bindings if b.keys == ("*",)][0].handler
+    event = MagicMock()
+    event.app = editor.application
+    event.current_buffer = eb.buffer
+    event.arg = 1
+    handler(event)
+
+    assert editor.application.current_search_state.text == ""
+    assert editor.search_buffer.history.get_strings() == []
+
+
 def test_negative_count_delegate_documented_as_upstream_parity():
     # 071 row 7 (documented upstream-parity dead branch): the Thai
     # find_previous_word_ending(-count) delegate must behave exactly like

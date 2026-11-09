@@ -159,6 +159,27 @@ def _leave_insert_with_repeat(event):
         buff.exit_selection()
 
 
+def _record_word_search(editor, event, direction):
+    """
+    Jump to the next/previous occurrence of the word under the cursor and
+    record it in the search state and history (`*`/`#`, docs/bugs/122.md).
+    Movement matches the `prompt_toolkit` default; the addition is the
+    history entry, so `/<Up>` and bare `:s` can reuse the pattern.
+    """
+    buff = event.current_buffer
+    word = buff.document.get_word_under_cursor()
+    if not word:
+        return
+    search_state = event.app.current_search_state
+    search_state.text = word
+    search_state.direction = direction
+    try:
+        editor.search_buffer.history.append_string(word)
+    except OSError:
+        pass
+    buff.apply_search(search_state, include_current_position=False, count=event.arg)
+
+
 def _shift_lines(editor, buff, count, indent):
     """
     Indent (`>>`) or unindent (`<<`) `count` lines from the cursor row,
@@ -521,5 +542,26 @@ def create_key_bindings(editor):
         Unindent `event.arg` lines from the cursor row by one tabstop.
         """
         _shift_lines(editor, event.current_buffer, event.arg, indent=False)
+
+    # Word-occurrence search with history (docs/bugs/122.md): like the
+    # prompt_toolkit `*` / `#` defaults, plus a search-history entry so
+    # `/<Up>` recalls the pattern and bare `:s` reuses it.
+    @kb.add('*', filter=in_navigation_mode)
+    def search_next_occurrence(event):
+        """
+        Jump to the next occurrence of the word under the cursor.
+        """
+        from prompt_toolkit.search import SearchDirection
+
+        _record_word_search(editor, event, SearchDirection.FORWARD)
+
+    @kb.add('#', filter=in_navigation_mode)
+    def search_previous_occurrence(event):
+        """
+        Jump to the previous occurrence of the word under the cursor.
+        """
+        from prompt_toolkit.search import SearchDirection
+
+        _record_word_search(editor, event, SearchDirection.BACKWARD)
 
     return kb
