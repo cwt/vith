@@ -134,7 +134,7 @@ Bug fixes (machine-verified findings bundle, ``docs/bugs/``):
 Tooling and packaging:
 
 - Added ruff (lint + format) and a mypy baseline checked against the
-  packaging floor; ``tox`` setup replaced by ``requirements-dev.txt``.
+  packaging floor; ``tox`` setup replaced by ``pyproject.toml [project.optional-dependencies] dev``.
 - Python floor is now ``python_requires='>=3.10'``; prompt_toolkit floor
   raised to 3.0; ``six`` and the python 2 directives removed.
 

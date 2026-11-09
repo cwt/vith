@@ -168,13 +168,13 @@ Notes:
 * **No `pyvim` console entry** — installing upstream pyvim side-by-side must not collide on a binary name.
 * `[tool.ruff.lint.isort] known-first-party` must change `["pyvim"]` →
   `["vith"]`; update the `pyproject.toml` header comment ("Packaging lives
-  in setup.py" is stale). `requirements-dev.txt` header ("for pyvim") → vith.
+  in setup.py" is stale). Dev dependencies live in `pyproject.toml [project.optional-dependencies] dev`.
 * `[tool.mypy]` move **optional** — recommendation: keep `mypy.ini` as-is
   (decision table §5); either way note the choice in `docs/log.md`.
 * Delete `setup.py` in the **same** commit as the W1 rename; `rm -rf`
   `pyvim.egg-info/` is untracked (`*.egg-info/` in `.hgignore`/`.gitignore`)
   — just regenerate, do not commit it.
-* Keep `requirements-dev.txt` (pytest/mypy/ruff pins) as the dev toolchain file.
+* Dev dependencies (pytest/mypy/ruff pins) live in `pyproject.toml [project.optional-dependencies] dev`.
 
 ### W3 — README: rst → markdown (with obvious fork banner)
 
@@ -196,7 +196,7 @@ Notes:
    lines get noticeably slower" is pre-P1 text (removed since `024e7f40f812`
    era); replace with the current bounded-cost paragraph (same-machine
    `tools/bench_plans.py` figure, e.g. P1a ~1.3 ms top-40 of 4000 lines).
-4. Testing section: point at `requirements-dev.txt`,
+4. Testing section: install dev dependencies via `pip install -e ".[dev]"`,
    `python -m pytest tests`, `mypy .`, `ruff check`,
    `ruff format --check .`, `python tools/bench_plans.py`.
 

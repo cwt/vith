@@ -23,7 +23,7 @@ timestamp: 2026-11-06T08:00:00Z
 
 # Thai & Lao Script Support Plan for `vith`
 
-This document specifies the root causes of broken Thai/Lao cursor navigation, editing, and terminal rendering in `vith`, and details how to adapt the cell-cluster and renderer architecture from `szn` (`src/thai.zig`, `src/grid.zig`, `src/mode_copy.zig`, `src/server/render.zig`) into `vith` with sub-microsecond (`< 1 µs`) per-keypress overhead[^src-thai][^src-key-bindings][^src-layout][^src-bench]. **Status: all of Phases 1–4 are implemented and machine-verified** (`vith/thai.py`, `vith/key_bindings.py`, `vith/editor.py`, and 18 unit tests in `tests/test_thai.py` and 6 in `tests/test_thai_motions.py`, 100+ total tests passing, Python 3.10+ AST and mypy clean).
+This document specifies the root causes of broken Thai/Lao cursor navigation, editing, and terminal rendering in `vith`, and details how to adapt the cell-cluster and renderer architecture from `szn` (`src/thai.zig`, `src/grid.zig`, `src/mode_copy.zig`, `src/server/render.zig`) into `vith` with sub-microsecond (`< 1 µs`) per-keypress overhead[^src-thai][^src-key-bindings][^src-layout][^src-bench]. **Status: all of Phases 1–4 are implemented and machine-verified** (`vith/thai.py`, `vith/key_bindings.py`, `vith/editor.py`, and 37 unit tests in `tests/test_thai.py` and 6 in `tests/test_thai_motions.py`, 200+ total tests passing, Python 3.10+ AST and mypy clean).
 
 ---
 
@@ -81,7 +81,7 @@ All cell starts (`cell_starts`), full stop lists including EOL (`stops`), revers
 
 ## 2. Root-Cause Audit: `prompt_toolkit` vs. `vith`
 
-`vith` delegates its text buffer (`Document`, `Buffer`), Vi keybindings (`load_vi_bindings`), screen layout (`BufferControl`, `Window`), and differential terminal output (`_output_screen_diff`) to `prompt_toolkit` (`3.0.53` in the target environment, constrained to `>=2.0.0,<3.1.0` in `pyproject.toml`)[^src-setup])[^src-editor].
+`vith` delegates its text buffer (`Document`, `Buffer`), Vi keybindings (`load_vi_bindings`), screen layout (`BufferControl`, `Window`), and differential terminal output (`_output_screen_diff`) to `prompt_toolkit` (`3.0.53` in the target environment, constrained to `>=3.0.0,<3.1.0` in `pyproject.toml`)[^src-setup])[^src-editor].
 
 | Layer | File & Line (`prompt_toolkit 3.0.53`) | Current Implementation | Exact Failure Mode on Thai/Lao |
 | :--- | :--- | :--- | :--- |
@@ -342,7 +342,7 @@ Running `python tools/bench_plans.py` confirms all cell stops, reverse `prev_cel
 
 ## 4. Detailed Implementation Plan & Version-Gated `prompt_toolkit` Integration
 
-### 4.1 Architectural Safeguard: Version Gating & Fallbacks (`prompt_toolkit >=2.0.0,<3.1.0`)
+### 4.1 Architectural Safeguard: Version Gating & Fallbacks (`prompt_toolkit >=3.0.0,<3.1.0`)
 
 Because `pyproject.toml` declares `prompt_toolkit>=3.0.0,<3.1.0`[^src-setup], `install_prompt_toolkit_thai_patches()` in `vith/thai.py` (called once from `Editor.__init__` in `vith/editor.py`[^src-editor]) guards every hook with:
 1. **Explicit attribute and `inspect.signature` checks** before wrapping `Document.get_cursor_left_position`, `Document.get_cursor_right_position`, `Document.get_cursor_up_position`, `Document.get_cursor_down_position`, and `prompt_toolkit.renderer._output_screen_diff`.

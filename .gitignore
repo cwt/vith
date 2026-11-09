@@ -41,6 +41,11 @@ htmlcov/
 nosetests.xml
 coverage.xml
 
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Translations
 *.mo
 *.pot
