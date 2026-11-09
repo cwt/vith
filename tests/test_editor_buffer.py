@@ -295,3 +295,23 @@ def test_reload_vanished_file_keeps_contents(editor, tmp_path):
     assert editor.message and "watchme.txt" in editor.message
     assert buffer_.buffer.text == "precious line"
     assert buffer_.is_new is False
+
+
+def test_thai_gate_latched_on_multiline_paste_and_undo(editor_buffer, monkeypatch):
+    # 097: multi-line paste or undo with Thai on non-cursor rows latches the Thai gate
+    from vith.thai import _THAI_GATE, reset_thai_text_gate
+
+    reset_thai_text_gate()
+    assert _THAI_GATE.value is False
+
+    # Multi-line paste where Thai is on the first line and ASCII on the second
+    editor_buffer.buffer.insert_text('สวัสดี Thai\nlast ascii line')
+    assert _THAI_GATE.value is True
+
+    # Undo restoring Thai
+    editor_buffer.buffer.save_to_undo_stack()
+    editor_buffer.buffer.text = 'all ascii\nsecond ascii'
+    reset_thai_text_gate()
+    assert _THAI_GATE.value is False
+    editor_buffer.buffer.undo()
+    assert _THAI_GATE.value is True

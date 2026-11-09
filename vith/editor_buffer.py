@@ -82,6 +82,8 @@ class EditorBuffer(object):
 
         # True when some changes are not yet written to file.
         self._has_unsaved_changes = False
+        self._last_text_len = len(text)
+        self._last_line_count = len(self.buffer.document.lines)
 
     @property
     def editor(self):
@@ -104,6 +106,17 @@ class EditorBuffer(object):
         # Keep the sticky Thai-text renderer gate up to date (O(1) for ASCII
         # content; one C-regex scan per edit while unlatched and non-ASCII).
         note_document_text(self.buffer.document.current_line)
+
+        # Multi-line edits (paste, undo/redo, full-buffer replacement) may
+        # introduce Thai on rows other than current_line (docs/bugs/097.md).
+        # When unlatched, note full text if line count changed or multiple chars changed.
+        old_len = getattr(self, '_last_text_len', len(self._file_content))
+        lines = self.buffer.document.lines
+        old_line_count = getattr(self, '_last_line_count', 1)
+        if len(lines) != old_line_count or abs(len(text) - old_len) > 1:
+            note_document_text(text)
+        self._last_text_len = len(text)
+        self._last_line_count = len(lines)
 
         self.run_reporter()
 
