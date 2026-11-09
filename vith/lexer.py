@@ -69,6 +69,32 @@ class DocumentLexer(Lexer):
             self._directory_lexer = PygmentsLexer(DirectoryListingLexer, sync_from_start=False)
         return self._directory_lexer
 
+    def _sniff_lexer_for_location(self, location: str) -> Any | None:
+        """
+        Guess a Pygments lexer from buffer content for files Pygments cannot
+        identify by name (extensionless scripts, docs/bugs/121.md).
+
+        Returns a lexer instance, or `None` when nothing can be guessed.
+        The result is cached per location by `_ensure_lexer`, so the
+        registry scan happens at most once per file.
+        """
+        buffer = getattr(self.editor_buffer, 'buffer', None)
+        text = getattr(buffer, 'text', '')
+        if not isinstance(text, str) or not text.strip():
+            return None
+        first_line = text.split('\n', 1)[0]
+        if first_line.startswith('#!') and 'python' in first_line:
+            from pygments.lexers.python import PythonLexer
+
+            return PythonLexer(stripnl=False, stripall=False, ensurenl=False)
+        try:
+            from pygments.lexers import guess_lexer
+
+            sample = text if len(text) <= 4096 else text[:4096]
+            return guess_lexer(sample)
+        except Exception:
+            return None
+
     def _ensure_lexer(self, location: str) -> bool:
         """Load/cache the Pygments lexer for this location."""
         if self._cached_location == location and (
@@ -82,6 +108,10 @@ class DocumentLexer(Lexer):
             # Legacy fallback for prompt_toolkit builds without `RegexSync`:
             # cache the `PygmentsLexer` per location (docs/bugs/030.md, 065.md).
             self._pygments_lexer = PygmentsLexer.from_filename(location, sync_from_start=False)
+            if self._pygments_lexer is None or isinstance(self._pygments_lexer, SimpleLexer):
+                sniffed = self._sniff_lexer_for_location(location)
+                if sniffed is not None:
+                    self._pygments_lexer = PygmentsLexer(sniffed.__class__, sync_from_start=False)
             self._cached_location = location
             self._syntax_sync = None
             return self._pygments_lexer is not None
@@ -94,10 +124,12 @@ class DocumentLexer(Lexer):
                 location, stripnl=False, stripall=False, ensurenl=False
             )
         except ClassNotFound:
-            self._cached_location = location
-            self._pygments_lexer = None
-            self._syntax_sync = None
-            return False
+            lexer_inst = self._sniff_lexer_for_location(location)
+            if lexer_inst is None:
+                self._cached_location = location
+                self._pygments_lexer = None
+                self._syntax_sync = None
+                return False
 
         self._cached_location = location
         self._pygments_lexer = lexer_inst

@@ -9,9 +9,11 @@ from vith.lexer import DocumentLexer
 
 
 class _StubEditorBuffer(object):
-    def __init__(self, location, in_file_explorer_mode=False):
+    def __init__(self, location, in_file_explorer_mode=False, text=None):
         self.location = location
         self.in_file_explorer_mode = in_file_explorer_mode
+        if text is not None:
+            self.buffer = Document(text, 0)
 
 
 def _make_python_doc(num_lines=120):
@@ -130,6 +132,61 @@ def test_directory_listing_lexer_is_cached():
     # Two `lex_document` calls (keystrokes) reuse it as well:
     lexer.lex_document(doc)
     assert lexer._get_directory_lexer() is first
+
+
+def test_extensionless_python_gets_highlighted():
+    # 121: files without a suffix fall back to content sniffing instead of
+    # plain text.
+    text = 'import os\n\n\ndef main():\n    print(os.getcwd())\n'
+    doc = Document(text, 0)
+    stub = _StubEditorBuffer('example', text=text)
+    lexer = DocumentLexer(stub)
+
+    get_line = lexer.lex_document(doc)
+    assert any(style for style, _fragment in get_line(0)), 'expected highlighting, got plain text'
+    # Sniffed lexer is cached per location (no registry re-scan per edit).
+    assert lexer._cached_location == 'example'
+    first = lexer._pygments_lexer
+    assert first is not None
+    lexer.lex_document(doc)
+    assert lexer._pygments_lexer is first
+
+
+def test_extensionless_shebang_python_gets_highlighted():
+    # 121: a python shebang pins the Python lexer without registry guessing.
+    text = '#!/usr/bin/env python\nprint("hi")\n'
+    doc = Document(text, 0)
+    stub = _StubEditorBuffer('runme', text=text)
+    get_line = DocumentLexer(stub).lex_document(doc)
+    assert any(style for style, _fragment in get_line(1)), 'expected highlighting, got plain text'
+
+
+def test_extensionless_blank_stays_plain():
+    # 121: empty/blank extensionless buffers keep the plain-text fallback.
+    for text in ('', '   \n  \n'):
+        doc = Document(text, 0)
+        stub = _StubEditorBuffer('example', text=text)
+        lexer = DocumentLexer(stub)
+        get_line = lexer.lex_document(doc)
+        for style, _fragment in get_line(0):
+            assert style == ''
+        assert lexer._pygments_lexer is None
+
+
+def test_legacy_fallback_sniffs_extensionless(monkeypatch) -> None:
+    # 121: the legacy branch sniffs content too instead of degrading to
+    # plain text for extensionless scripts.
+    import vith.lexer as lexer_mod
+
+    monkeypatch.setattr(lexer_mod, "_STREAMING_AVAILABLE", False)
+
+    text = 'import os\n\n\ndef main():\n    print(os.getcwd())\n'
+    doc = Document(text, 0)
+    stub = _StubEditorBuffer('example', text=text)
+    lexer = lexer_mod.DocumentLexer(stub)
+    get_line = lexer.lex_document(doc)
+    assert any(style for style, _fragment in get_line(0))
+    assert isinstance(lexer._pygments_lexer, PygmentsLexer)
 
 
 def test_legacy_fallback_caches_pygments_lexer_per_location(monkeypatch) -> None:
