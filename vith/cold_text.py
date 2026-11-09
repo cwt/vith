@@ -29,6 +29,8 @@ from prompt_toolkit.document import Document
 from quez import CompressedDeque, NullCompressor, ZlibCompressor
 from quez.compressors import Compressor
 
+from vith.thai import _cell_ordinal, _start_of_cell_ordinal
+
 try:
     from quez import LzoCompressor as _LzoCompressor
 except ImportError:  # pragma: no cover - optional dependency
@@ -214,8 +216,6 @@ class ColdTextBuffer(Buffer):
         was recorded on, so every landing row maps back to the same visual
         column (Vim parity).
         """
-        from vith.thai import _cell_ordinal, _start_of_cell_ordinal
-
         if count is None:
             count = 1
         count = max(1, int(count))
