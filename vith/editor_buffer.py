@@ -241,8 +241,14 @@ class EditorBuffer(object):
                 # such a file). Save as utf-8 instead of refusing the save
                 # (docs/bugs/070.md).
                 old_encoding = self.encoding
+                try:
+                    io.write(target_location, self.buffer.text + eol, 'utf-8')
+                except Exception:
+                    # Restore the previous encoding if the utf-8 write fails,
+                    # so a failed save does not leave mutated state.
+                    self.encoding = old_encoding
+                    raise
                 self.encoding = 'utf-8'
-                io.write(target_location, self.buffer.text + eol, self.encoding)
                 self.editor.show_message(
                     'Content not representable in %r; saved as %r' % (old_encoding, 'utf-8')
                 )
