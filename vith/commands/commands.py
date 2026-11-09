@@ -24,6 +24,20 @@ SET_COMMANDS_TAKING_VALUE: set[str] = set()
 _NO_WRITE_SINCE_LAST_CHANGE_TEXT = 'No write since last change (add ! to override)'
 _NO_FILE_NAME = 'No file name'
 
+# Heuristic guard against catastrophic backtracking (docs/bugs/123.md): a
+# group that contains a quantifier and is itself quantified, e.g. `(a+)+`,
+# `([a-z]+)*$` or `(\w+\s?)+`. Escaped characters and `[...]` classes are
+# stripped first, so `[a+]+` and `\(a+\)+` stay allowed.
+_UNSAFE_NESTED_QUANTIFIER = re.compile(r'\([^()]*[+*?][^()]*\)[+*]')
+
+
+def _strip_regex_literals(pattern_text):
+    """
+    Remove escaped characters and `[...]` classes from `pattern_text`, so
+    the nested-quantifier guard only sees regex structure.
+    """
+    return re.sub(r'\[[^\]]*\]', '', re.sub(r'\\.', '', pattern_text))
+
 
 def _confirm_unsaved_changes(editor, force):
     """
@@ -677,6 +691,13 @@ def substitute(editor, range_start, range_end, search, replace, flags):
 
     if replace is None:
         replace = editor.last_substitute_text
+
+    # Reject patterns prone to catastrophic backtracking before compiling:
+    # nested quantifiers freeze the whole editor on innocent input
+    # (docs/bugs/123.md). Escaped and class-wrapped quantifiers are exempt.
+    if _UNSAFE_NESTED_QUANTIFIER.search(_strip_regex_literals(search)):
+        editor.show_message('Unsafe pattern (nested quantifier): %s' % search)
+        return
 
     # Parse and validate flags (docs/bugs/083.md, docs/bugs/094.md).
     clean_flags = flags.replace('/', '')

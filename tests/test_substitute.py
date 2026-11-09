@@ -265,6 +265,43 @@ def test_substitute_identical_replacement_succeeds_and_moves_cursor(editor, edit
     assert editor_buffer.buffer.document.cursor_position_row == 2
 
 
+def test_substitute_rejects_nested_quantifier(editor, editor_buffer):
+    # 123: catastrophic patterns are rejected without touching the buffer.
+    before = 'a' * 30 + '\n'
+    given_sample_text(editor_buffer, before)
+    handle_command(editor, ':s/(a+)+$/x')
+    assert 'Unsafe pattern' in editor.message
+    assert editor_buffer.buffer.text == before
+
+
+def test_substitute_rejects_common_catastrophic_shapes(editor, editor_buffer):
+    # 123: other nested-quantifier shapes are rejected; the buffer and the
+    # search history stay untouched.
+    from vith.commands.commands import _strip_regex_literals
+
+    assert _strip_regex_literals(r'\(a+\)+') == 'a++'
+    given_sample_text(editor_buffer, 'aaa bbb\n')
+    for pattern in (r'([a-z]+)*$', r'(\w+\s?)+', '(a|a?)+'):
+        editor.message = None
+        handle_command(editor, ':s/%s/x' % pattern)
+        assert 'Unsafe pattern' in editor.message, pattern
+    assert editor_buffer.buffer.text == 'aaa bbb\n'
+
+
+def test_substitute_allows_safe_grouped_patterns(editor, editor_buffer):
+    # 123: the guard only fires on nested quantification — grouped
+    # alternation, quantified classes, and escaped parens still substitute.
+    given_sample_text(editor_buffer, 'foo bar\n')
+    handle_command(editor, ':s/(foo|bar)/baz/')
+    assert editor_buffer.buffer.text.startswith('baz bar')
+
+    editor_buffer.buffer.text = 'aaa\n'
+    editor.message = None
+    handle_command(editor, ':s/[a+]+/x/')
+    assert editor.message is None
+    assert editor_buffer.buffer.text.startswith('x')
+
+
 def test_empty_and_colon_only_commands_are_noops(editor, editor_buffer):
     # 110 item 3: pressing Enter on `:`, `:   `, or whitespace is a silent
     # no-op in Vim rather than "Unknown command".
