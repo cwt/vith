@@ -68,41 +68,43 @@ def make_cold_text_compressor(
     normalized = (name or DEFAULT_COLD_TEXT_COMPRESSION).strip().lower()
     requested_level = DEFAULT_COLD_TEXT_COMPRESSION_LEVEL if level is None else level
 
-    if normalized in ('zstd', 'zstandard'):
-        if _ZstdCompressor is not None:
-            zstd_level = max(1, min(22, requested_level))
-            return _ZstdCompressor(level=zstd_level), 'zstd', zstd_level
-        logger.warning(
-            'zstd compression is unavailable; falling back to zlib-fast '
-            '(install zstandard on Python < 3.14)'
-        )
-        return ZlibCompressor(level=1), 'zlib-fast', 1
+    match normalized:
+        case 'zstd' | 'zstandard':
+            if _ZstdCompressor is not None:
+                zstd_level = max(1, min(22, requested_level))
+                return _ZstdCompressor(level=zstd_level), 'zstd', zstd_level
+            logger.warning(
+                'zstd compression is unavailable; falling back to zlib-fast '
+                '(install zstandard on Python < 3.14)'
+            )
+            return ZlibCompressor(level=1), 'zlib-fast', 1
 
-    if normalized == 'zlib':
-        zlib_level = max(0, min(9, requested_level))
-        return ZlibCompressor(level=zlib_level), 'zlib', zlib_level
+        case 'zlib':
+            zlib_level = max(0, min(9, requested_level))
+            return ZlibCompressor(level=zlib_level), 'zlib', zlib_level
 
-    if normalized in ('zlib-fast', 'zlib-1'):
-        return ZlibCompressor(level=1), 'zlib-fast', 1
+        case 'zlib-fast' | 'zlib-1':
+            return ZlibCompressor(level=1), 'zlib-fast', 1
 
-    if normalized in ('zlib-best', 'zlib-9'):
-        return ZlibCompressor(level=9), 'zlib-best', 9
+        case 'zlib-best' | 'zlib-9':
+            return ZlibCompressor(level=9), 'zlib-best', 9
 
-    if normalized == 'lzo':
-        if _LzoCompressor is not None:
-            lzo_level = max(1, min(9, requested_level))
-            return _LzoCompressor(level=lzo_level), 'lzo', lzo_level
-        logger.warning('python-lzo is unavailable; falling back to zlib-fast')
-        return ZlibCompressor(level=1), 'zlib-fast', 1
+        case 'lzo':
+            if _LzoCompressor is not None:
+                lzo_level = max(1, min(9, requested_level))
+                return _LzoCompressor(level=lzo_level), 'lzo', lzo_level
+            logger.warning('python-lzo is unavailable; falling back to zlib-fast')
+            return ZlibCompressor(level=1), 'zlib-fast', 1
 
-    if normalized in ('none', 'null', 'off'):
-        return NullCompressor(), 'none', 0
+        case 'none' | 'null' | 'off':
+            return NullCompressor(), 'none', 0
 
-    logger.warning('Unknown cold-text compressor %r; using zstd', name)
-    if _ZstdCompressor is not None:
-        zstd_level = max(1, min(22, requested_level))
-        return _ZstdCompressor(level=zstd_level), 'zstd', zstd_level
-    return ZlibCompressor(level=1), 'zlib-fast', 1
+        case _:
+            logger.warning('Unknown cold-text compressor %r; using zstd', name)
+            if _ZstdCompressor is not None:
+                zstd_level = max(1, min(22, requested_level))
+                return _ZstdCompressor(level=zstd_level), 'zstd', zstd_level
+            return ZlibCompressor(level=1), 'zlib-fast', 1
 
 
 class ColdTextStack:

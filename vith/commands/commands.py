@@ -668,15 +668,16 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     sub_count = 1
 
     for ch in clean_flags:
-        if ch == 'g':
-            sub_count = 0
-        elif ch == 'i':
-            ignore_case = True
-        elif ch == 'I':
-            ignore_case = False
-        else:
-            editor.show_message(f'E488: Trailing characters: {ch}')
-            return
+        match ch:
+            case 'g':
+                sub_count = 0
+            case 'i':
+                ignore_case = True
+            case 'I':
+                ignore_case = False
+            case _:
+                editor.show_message(f'E488: Trailing characters: {ch}')
+                return
 
     # Compile the regex once; reject malformed patterns up front.
     regex_flags = re.IGNORECASE if ignore_case else 0

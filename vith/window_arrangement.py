@@ -71,10 +71,11 @@ class TabPage(object):
 
         def walk(split):
             for c in split:
-                if isinstance(c, (HSplit, VSplit)):
-                    yield from walk(c)
-                elif isinstance(c, Window):
-                    yield split, c
+                match c:
+                    case HSplit() | VSplit():
+                        yield from walk(c)
+                    case Window():
+                        yield split, c
 
         return walk(self.root)
 
@@ -85,9 +86,10 @@ class TabPage(object):
 
         def walk(split):
             for c in split:
-                if isinstance(c, (HSplit, VSplit)):
-                    yield split, c
-                    yield from walk(c)
+                match c:
+                    case HSplit() | VSplit():
+                        yield split, c
+                        yield from walk(c)
 
         return walk(self.root)
 

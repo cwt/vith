@@ -121,30 +121,31 @@ class CommandPreviewer(object):
         command = variables.get('command')
         set_option = variables.get('set_option')
 
-        # Preview colorschemes.
-        if command in ('colorscheme', 'colo'):
-            colorscheme = variables.get('colorscheme')
-            if colorscheme:
-                e.use_colorscheme(colorscheme)
+        match command:
+            # Preview colorschemes.
+            case 'colorscheme' | 'colo':
+                colorscheme = variables.get('colorscheme')
+                if colorscheme:
+                    e.use_colorscheme(colorscheme)
 
-        # Preview `:set` commands through the shared catalog above (the
-        # same table the `:set` handlers are generated from, docs/bugs/
-        # 073.md). Options that mutate vi_state (tildeop) are not
-        # preview-restorable and stay ignored, as before.
-        if command == 'set':
-            spec = _TOGGLE_PREVIEWS.get(set_option)
-            if spec is not None:
-                setattr(e, spec[0], spec[1])
-                return
+            # Preview `:set` commands through the shared catalog above (the
+            # same table the `:set` handlers are generated from, docs/bugs/
+            # 073.md). Options that mutate vi_state (tildeop) are not
+            # preview-restorable and stay ignored, as before.
+            case 'set':
+                spec = _TOGGLE_PREVIEWS.get(set_option)
+                if spec is not None:
+                    setattr(e, spec[0], spec[1])
+                    return
 
-            spec = _INT_VALUE_PREVIEWS.get(set_option)
-            if spec is not None:
-                self._preview_int_value(e, spec[0], spec[1], variables)
-                return
+                spec = _INT_VALUE_PREVIEWS.get(set_option)
+                if spec is not None:
+                    self._preview_int_value(e, spec[0], spec[1], variables)
+                    return
 
-            attribute = _LIST_VALUE_PREVIEWS.get(set_option)
-            if attribute is not None:
-                self._preview_list_value(e, attribute, variables)
+                attribute = _LIST_VALUE_PREVIEWS.get(set_option)
+                if attribute is not None:
+                    self._preview_list_value(e, attribute, variables)
 
     @staticmethod
     def _preview_int_value(e, attribute, minimum, variables):
