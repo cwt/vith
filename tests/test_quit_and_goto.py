@@ -177,6 +177,50 @@ def test_command_stacks_normalize_on_base(monkeypatch):
         commands_mod.COMMANDS_TO_HANDLERS.pop('fake-b', None)
 
 
+def test_next_and_previous_cycle_buffers(editor, tmp_path):
+    # 124: `:next` / `:n` step forward through files, `:previous` /
+    # `:prev` / `:N` step back, wrapping at the ends.
+    from vith.commands.handler import handle_command
+
+    editor.load_initial_files([str(tmp_path / 'a.txt'), str(tmp_path / 'b.txt')])
+    wa = editor.window_arrangement
+    first, second = wa.editor_buffers[0], wa.editor_buffers[1]
+    assert wa.active_editor_buffer is first
+
+    handle_command(editor, ':next')
+    assert wa.active_editor_buffer is second
+    handle_command(editor, ':next')
+    assert wa.active_editor_buffer is first
+
+    handle_command(editor, ':n')
+    assert wa.active_editor_buffer is second
+    handle_command(editor, ':previous')
+    assert wa.active_editor_buffer is first
+    handle_command(editor, ':N')
+    assert wa.active_editor_buffer is second
+    handle_command(editor, ':prev')
+    assert wa.active_editor_buffer is first
+
+
+def test_next_blocked_by_unsaved_changes(editor, tmp_path):
+    # 124: `:next` honors the unsaved-changes guard like `:bn`; `:next!`
+    # discards it.
+    from vith.commands.handler import handle_command
+
+    editor.load_initial_files([str(tmp_path / 'a.txt'), str(tmp_path / 'b.txt')])
+    wa = editor.window_arrangement
+    first = wa.editor_buffers[0]
+    first.buffer.text = 'dirty'
+    assert first.has_unsaved_changes
+
+    handle_command(editor, ':next')
+    assert wa.active_editor_buffer is first
+    assert editor.message == 'No write since last change (add ! to override)'
+
+    handle_command(editor, ':next!')
+    assert wa.active_editor_buffer is not first
+
+
 def test_goto_buffer_pattern_with_untitled_buffers_is_guarded(editor, monkeypatch):
     # 080: `:b <pattern>` used to crash with a TypeError whenever any buffer
     # had location=None (untitled/new buffers exist by default).

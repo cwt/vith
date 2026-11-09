@@ -232,6 +232,27 @@ def _bp(editor, force=False):
         editor.window_arrangement.go_to_previous_buffer()
 
 
+@cmd('next', accepts_force=True)
+@cmd('n', accepts_force=True)
+def _next(editor, force=False):
+    """
+    Go to next buffer (Vim `:next` arglist-style stepping).
+    """
+    if _confirm_unsaved_changes(editor, force):
+        editor.window_arrangement.go_to_next_buffer()
+
+
+@cmd('previous', accepts_force=True)
+@cmd('prev', accepts_force=True)
+@cmd('N', accepts_force=True)
+def _previous(editor, force=False):
+    """
+    Go to previous buffer (Vim `:previous` / `:N`).
+    """
+    if _confirm_unsaved_changes(editor, force):
+        editor.window_arrangement.go_to_previous_buffer()
+
+
 @cmd('only')
 def only(editor):
     """
