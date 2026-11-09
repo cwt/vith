@@ -87,16 +87,30 @@ def report_pyflakes(document):
     def message_to_reporter_error(message):
         """Turn pyflakes message into ReporterError."""
         row = message.lineno - 1
+        if row < 0:
+            row = 0
         if row < len(document.lines):
             line = document.lines[row]
         else:
             line = ''
-        # `message.col` is a UTF-8 byte offset (Python 3.8+ ast col_offset);
-        # convert it to a character column.
-        char_col = len(line.encode('utf-8')[: message.col].decode('utf-8', errors='replace'))
+        # `message.col` is a byte offset; clamp it to the encoded line length
+        # and decode the prefix without letting invalid bytes skew the count.
+        encoded_line = line.encode('utf-8')
+        col = message.col if message.col is not None else 0
+        if col < 0:
+            col = 0
+        if col > len(encoded_line):
+            col = len(encoded_line)
+        char_col = len(encoded_line[:col].decode('utf-8', errors='replace'))
+        if char_col > len(line):
+            char_col = len(line)
         start_index = document.translate_row_col_to_index(row, char_col)
         line_start = document.translate_row_col_to_index(row, 0)
         line_end = line_start + len(line)
+        if start_index < line_start:
+            start_index = line_start
+        if start_index > line_end:
+            start_index = line_end
         end_index = start_index
         while end_index < line_end:
             ch = document.text[end_index]
@@ -116,6 +130,17 @@ def report_pyflakes(document):
     return [message_to_reporter_error(m) for m in reporter.messages]
 
 
+class _FlakesMessage(object):
+    """Minimal pyflakes-message-like object for syntax/unexpected errors."""
+
+    def __init__(self, location, msg, lineno, col):
+        self.location = location
+        self.lineno = lineno if lineno and lineno > 0 else 1
+        self.col = col if col and col >= 0 else 0
+        self.message = '%s'
+        self.message_args = (msg,)
+
+
 class _FlakesReporter(object):
     """
     Reporter class to be passed to pyflakes.api.check.
@@ -125,10 +150,10 @@ class _FlakesReporter(object):
         self.messages = []
 
     def unexpectedError(self, location, msg):
-        pass
+        self.messages.append(_FlakesMessage(location, msg, 0, 0))
 
     def syntaxError(self, location, msg, lineno, offset, text):
-        pass
+        self.messages.append(_FlakesMessage(location, msg, lineno, offset or 0))
 
     def flake(self, message):
         self.messages.append(message)
