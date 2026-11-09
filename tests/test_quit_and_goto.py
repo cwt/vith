@@ -221,6 +221,50 @@ def test_next_blocked_by_unsaved_changes(editor, tmp_path):
     assert wa.active_editor_buffer is not first
 
 
+def test_next_switches_tabs_when_several_are_open(editor, tmp_path):
+    # 126: `vith -p file1 file2` + `:next` must move to the next tab page
+    # instead of cloning file2 into tab 0 (duplicate tab-bar captions).
+    from vith.commands.handler import handle_command
+    from vith.layout import TabsControl
+
+    editor.load_initial_files(
+        [str(tmp_path / 'file1.txt'), str(tmp_path / 'file2.txt')], in_tab_pages=True
+    )
+    wa = editor.window_arrangement
+    assert len(wa.tab_pages) == 2
+    assert wa.active_tab_index == 0
+
+    handle_command(editor, ':next')
+    assert wa.active_tab_index == 1
+    assert wa.active_editor_buffer.location.endswith('file2.txt')
+
+    captions = [
+        fragment[1].strip() for fragment in TabsControl(editor).text() if len(fragment) >= 3
+    ]
+    assert captions == ['file1.txt', 'file2.txt']
+
+    handle_command(editor, ':previous')
+    assert wa.active_tab_index == 0
+    assert wa.active_editor_buffer.location.endswith('file1.txt')
+
+
+def test_next_between_tabs_needs_no_force_on_dirty_buffer(editor, tmp_path):
+    # 126: switching tab pages discards nothing, so the unsaved-changes
+    # guard does not apply (single-tab buffer cycling keeps it).
+    from vith.commands.handler import handle_command
+
+    editor.load_initial_files(
+        [str(tmp_path / 'file1.txt'), str(tmp_path / 'file2.txt')], in_tab_pages=True
+    )
+    wa = editor.window_arrangement
+    wa.tab_pages[0].active_window.editor_buffer.buffer.text = 'dirty'
+    editor.message = None
+
+    handle_command(editor, ':next')
+    assert wa.active_tab_index == 1
+    assert editor.message != 'No write since last change (add ! to override)'
+
+
 def test_goto_buffer_pattern_with_untitled_buffers_is_guarded(editor, monkeypatch):
     # 080: `:b <pattern>` used to crash with a TypeError whenever any buffer
     # had location=None (untitled/new buffers exist by default).

@@ -236,10 +236,14 @@ def _bp(editor, force=False):
 @cmd('n', accepts_force=True)
 def _next(editor, force=False):
     """
-    Go to next buffer (Vim `:next` arglist-style stepping).
+    Go to next file: the next tab page when several are open (keeping the
+    tab bar in sync), else the next buffer (docs/bugs/126.md).
     """
-    if _confirm_unsaved_changes(editor, force):
-        editor.window_arrangement.go_to_next_buffer()
+    window_arrangement = editor.window_arrangement
+    if len(window_arrangement.tab_pages) > 1:
+        window_arrangement.go_to_next_tab()
+    elif _confirm_unsaved_changes(editor, force):
+        window_arrangement.go_to_next_buffer()
 
 
 @cmd('previous', accepts_force=True)
@@ -247,10 +251,14 @@ def _next(editor, force=False):
 @cmd('N', accepts_force=True)
 def _previous(editor, force=False):
     """
-    Go to previous buffer (Vim `:previous` / `:N`).
+    Go to previous file: the previous tab page when several are open,
+    else the previous buffer (docs/bugs/126.md).
     """
-    if _confirm_unsaved_changes(editor, force):
-        editor.window_arrangement.go_to_previous_buffer()
+    window_arrangement = editor.window_arrangement
+    if len(window_arrangement.tab_pages) > 1:
+        window_arrangement.go_to_previous_tab()
+    elif _confirm_unsaved_changes(editor, force):
+        window_arrangement.go_to_previous_buffer()
 
 
 @cmd('only')

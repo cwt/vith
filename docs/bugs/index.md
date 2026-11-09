@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 125 machine-verified findings across 7 audit rounds and 3 addenda (001–125, all 125 closed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 126 machine-verified findings across 7 audit rounds and 3 addenda (001–126, all 126 closed)."
 status: stable
 sources:
   - docs/bugs/
@@ -11,8 +11,8 @@ stale_after: 2027-01-01T00:00:00Z
 tags: [bugs, findings, audit, round-6, round-7]
 generated:
   by: "OpenCode"
-  at: "2026-11-09T16:55:03Z"
-timestamp: "2026-11-09T16:55:03Z"
+  at: "2026-11-10T00:00:00Z"
+timestamp: "2026-11-10T00:00:00Z"
 ---
 
 # vith Findings Bundle
@@ -29,7 +29,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 4 addendum — stem-scan audit (2026-11-08–2026-11-09, hg rev 269 → fixed rev 270+)**: 13 machine-confirmed findings from re-scanning the whole project against all prior report classes ([080](080.md)–[092](092.md)). User-visible: 080 `:b <pattern>` crash with untitled buffers (HIGH); 084 block-`d` cut vs highlight corner skew; 086 mixed-script cluster slicing in word spans; 088 `:e` on a vanished file wiping the saved buffer; 091 previewer abort leaking every uncovered `:set` option; 092 visual-block overshoots on lines with SARA AM / fewer combining marks; 083/087 command-grammar/pager nits. Correctness: 081 gate-latch holes on mass edits (substitute), 082 gate-decay non-text coverage (Thai names/banners), 085 charwise highlight-cluster parity. Perf/hygiene: 090 (`cell_starts` LRU, big-line span-cache bypass, `_cursor_vertical` lazy-import hoist, docstring/update chain) and 089 test-cwd pollution.
 * **Round 5 (2026-11-09, hg rev 256 / `v0.11.1` — [093](093.md)–[109](109.md), `fix_status: fixed`)**: 17 machine-confirmed findings from a fresh full-project re-audit of the *fully-fixed* tree (4 parallel auditors + dynamic probes: 6 000 random command strings, 4 000 random window/tab ops, end-to-end preview/substitute/paste/undo flows). Two documented fixes are **regressed** — [093](093.md) (091 previewer still leaks `ignore_case`) and [102](102.md) (090's lazy-import hoist was never applied) — plus new Vim-semantics defects ([094](094.md)–[096](096.md)), an incomplete [081](081.md) gate fix ([097](097.md)), a renderer state leak ([098](098.md)), tooling/test-quality gaps ([099](099.md)–[101](101.md)), and cleanup inventories ([103](103.md)–[109](109.md)). All 17 findings fixed finding-by-finding across hg rev 258–275 (217 passed / 1 skipped, `mypy .` 56 files clean, ruff clean, Python 3.10 floor intact).
 * **Round 6 (2026-11-09, hg rev 283+ — [110](110.md)–[115](115.md), `fix_status: fixed`)**: 6 deep-audit inventories covering wrong-logic bugs ([110](110.md)), robustness and `None`-safety ([111](111.md)), dead code ([112](112.md)), duplicate logic ([113](113.md)), unoptimized algorithms and memory growth ([114](114.md)), and low readability ([115](115.md)). All items across all 6 inventories resolved with regression tests (247 passed, `mypy .` 57 files clean, ruff clean).
-* **Round 7 addendum (2026-11-09, user field reports — [124](124.md)–[125](125.md), `fix_status: fixed`)**: missing `:next` / `:previous` file cycling ([124](124.md)) and a tab-bar click crash from a two-argument mouse handler ([125](125.md)). Both fixed one-by-one with regression tests (277 passed, `mypy .` 57 files clean, ruff clean).
+* **Round 7 addendum (2026-11-09–10, user field reports — [124](124.md)–[126](126.md), `fix_status: fixed`)**: missing `:next` / `:previous` file cycling ([124](124.md)), a tab-bar click crash from a two-argument mouse handler ([125](125.md)), and `:next` duplicating the tab-bar entry in multi-tab sessions ([126](126.md), 124 follow-up). Each fixed one-by-one with regression tests (279 passed, `mypy .` 57 files clean, ruff clean).
 * **Round 7 (2026-11-09, upstream triage — [116](116.md)–[123](123.md), `fix_status: fixed`)**: 8 worth-fixing upstream `prompt-toolkit/pyvim` issues that still reproduced in `vith`, filed as new findings and fixed one-by-one with regression tests (274 passed, `mypy .` 57 files clean, ruff clean): `ZZ`/`ZQ` ([116](116.md)), `:w!` read-only ([117](117.md)), `>>`/`<<` vs `tabstop` ([118](118.md)), `Ctrl-[` ([119](119.md)), counted `i`/`a` ([120](120.md)), extensionless highlight ([121](121.md)), `*` history ([122](122.md)), `:s` ReDoS guard ([123](123.md)).
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
@@ -289,9 +289,9 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [114](114.md) | Unoptimized algorithms/memory-growth inventory: unbounded style cache, unbounded `cell_starts`, Thai word-break rescan, SARA-AM loop, copy-body row scan, O(n) active buffer lookup, tab handler cache, split-tree rebuild | performance/memory | low |
 | [115](115.md) | Low-readability inventory: patches monolith, constant ordering, mutable-list flag, layout node fallback, implicit None, misleading encoding names, Liskov write mismatch, Path rejection, default encoding, EOFError, process-name slicing, legacy config comparison, TOCTOU, late init, backend lookup, missing annotations, style validation, tilde registration, condition placement, cache attachment | readability | low |
 
-## Round 7 Addendum Findings (2026-11-09 field reports → `fix_status: fixed`)
+## Round 7 Addendum Findings (2026-11-09–10 field reports → `fix_status: fixed`)
 
-**Resolution note (2026-11-09):** two user-reported field bugs fixed one-by-one with regression tests (one commit per bug). Gates: **277 passed**, `mypy .` 57 files clean, ruff clean. All 125 bundle findings are now closed.
+**Resolution note (2026-11-09–10):** three user-reported field bugs fixed one-by-one with regression tests (one commit per bug). Gates: **279 passed**, `mypy .` 57 files clean, ruff clean. All 126 bundle findings are now closed.
 
 ### Defects (`type: bug`, `fix_status: fixed`)
 
@@ -299,6 +299,7 @@ findings were merged and the open set renumbered into contiguous 063–075
 | :--- | :--- | :--- | :--- |
 | [124](124.md) | Missing `:next` / `:previous` file cycling (user field report) | commands/navigation | medium |
 | [125](125.md) | Mouse click on a document tab crashes the editor (two-argument handler) | layout/mouse | high |
+| [126](126.md) | `:next` duplicates the tab-bar entry instead of switching tabs (124 follow-up) | commands/tabs | medium |
 
 ## Round 7 Findings (2026-11-09 upstream triage → `fix_status: fixed`)
 
