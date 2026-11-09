@@ -125,6 +125,40 @@ def _insert_indentation(editor, buffer_):
         buffer_.insert_text('\t')
 
 
+def _begin_counted_insert(event, move_right):
+    """
+    Enter insert mode remembering `event.arg`, so that leaving insert mode
+    can replay the typed text (`5i...<Esc>`, docs/bugs/120.md).
+    """
+    buff = event.current_buffer
+    count = _positive_count(event.arg)
+    if move_right:
+        buff.cursor_position += buff.document.get_cursor_right_position(count=1)
+    buff._vith_insert_repeat = (buff.cursor_position, count)
+    event.app.vi_state.input_mode = InputMode.INSERT
+
+
+def _leave_insert_with_repeat(event):
+    """
+    Leave insert mode, replaying the typed region for counted `i`/`a`
+    entries and accepting `Ctrl-[` like `Esc` (docs/bugs/119.md, 120.md).
+    """
+    buff = event.current_buffer
+    state = getattr(buff, '_vith_insert_repeat', None)
+    buff._vith_insert_repeat = None
+    if state is not None:
+        start, count = state
+        if count > 1:
+            inserted = buff.text[start : buff.cursor_position]
+            if inserted:
+                buff.insert_text(inserted * (count - 1))
+    if event.app.vi_state.input_mode in (InputMode.INSERT, InputMode.REPLACE):
+        buff.cursor_position += buff.document.get_cursor_left_position()
+    event.app.vi_state.input_mode = InputMode.NAVIGATION
+    if bool(buff.selection_state):
+        buff.exit_selection()
+
+
 @Condition
 def whitespace_before_cursor_on_line():
     """
@@ -354,6 +388,33 @@ def create_key_bindings(editor):
         text = buff.delete(count=span) if span > 0 else ''
         event.app.clipboard.set_text(text)
         event.app.vi_state.input_mode = InputMode.INSERT
+
+    # Counted insert entry/exit (docs/bugs/119.md, 120.md): `i`/`a` remember
+    # the repeat count, `Esc`/`Ctrl-[` replay the typed text. The text-object
+    # exclusion keeps operator-pending `iw`/`aw` (e.g. `diw`) on the
+    # prompt_toolkit path.
+    @kb.add('i', filter=in_navigation_mode & ~vi_waiting_for_text_object_mode)
+    def insert_with_count(event):
+        """
+        Enter insert mode, replaying typed text `event.arg` times on exit.
+        """
+        _begin_counted_insert(event, move_right=False)
+
+    @kb.add('a', filter=in_navigation_mode & ~vi_waiting_for_text_object_mode)
+    def append_with_count(event):
+        """
+        Move one character right and enter insert mode (counted like `i`).
+        """
+        _begin_counted_insert(event, move_right=True)
+
+    @kb.add('escape', filter=in_insert_mode)
+    def leave_insert_with_repeat(event):
+        """
+        Leave insert mode (`Esc`; `Ctrl-[` arrives as the same byte and
+        prompt_toolkit exposes no separate `c-[` key), replaying counted
+        inserts.
+        """
+        _leave_insert_with_repeat(event)
 
     @kb.add(Keys.Any, filter=vi_replace_single_mode)
     def replace_single_cell(event):

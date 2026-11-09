@@ -288,6 +288,159 @@ def test_zz_without_filename_does_not_quit(editor, monkeypatch):
     assert editor.message == "No file name"
 
 
+def _insert_test_handlers(editor):
+    """Return `{keys: handler}` for the counted-insert bindings under test."""
+    from vith.key_bindings import create_key_bindings
+
+    kb = create_key_bindings(editor)
+    by_keys = {}
+    for b in kb.bindings:
+        if b.handler.__name__ in (
+            "insert_with_count",
+            "append_with_count",
+            "leave_insert_with_repeat",
+        ):
+            by_keys[b.keys] = b.handler
+    return by_keys
+
+
+def test_ctrl_bracket_leaves_insert_mode(editor):
+    # 119: `Ctrl-[` sends the same byte as `Esc` (`\x1b`); prompt_toolkit
+    # exposes no separate `c-[` key, so the `escape` binding is the fix —
+    # it must leave insert mode (verified here for the byte both keys emit).
+    from unittest.mock import MagicMock
+
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    editor.load_initial_files([None])
+    handler = _insert_test_handlers(editor)[("escape",)]
+
+    app = MagicMock()
+    app.vi_state.input_mode = InputMode.INSERT
+    buff = Buffer(document=Document("ab", 2))
+    event = MagicMock()
+    event.app = app
+    event.current_buffer = buff
+    event.arg = None
+    handler(event)
+    assert app.vi_state.input_mode == InputMode.NAVIGATION
+    assert getattr(buff, "_vith_insert_repeat", None) is None
+
+
+def test_counted_insert_replays_typed_text_on_esc(editor):
+    # 120: `5itest<Esc>` inserts five copies (upstream #133 repro).
+    from unittest.mock import MagicMock
+
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    editor.load_initial_files([None])
+    by_keys = _insert_test_handlers(editor)
+
+    app = MagicMock()
+    buff = Buffer(document=Document("abc", 0))
+
+    event = MagicMock()
+    event.app = app
+    event.current_buffer = buff
+    event.arg = 5
+    by_keys[("i",)](event)
+    assert app.vi_state.input_mode == InputMode.INSERT
+
+    buff.insert_text("test")
+    assert buff.text == "testabc"
+    event.arg = None
+    by_keys[("escape",)](event)
+
+    assert buff.text == "testtesttesttesttestabc"
+    assert app.vi_state.input_mode == InputMode.NAVIGATION
+
+
+def test_counted_append_moves_right_before_insert(editor):
+    # 120: `2aX<Esc>` on "abc" yields "aXXbc".
+    from unittest.mock import MagicMock
+
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    editor.load_initial_files([None])
+    by_keys = _insert_test_handlers(editor)
+
+    app = MagicMock()
+    buff = Buffer(document=Document("abc", 0))
+    event = MagicMock()
+    event.app = app
+    event.current_buffer = buff
+    event.arg = 2
+    by_keys[("a",)](event)
+
+    buff.insert_text("X")
+    assert buff.text == "aXbc"
+    event.arg = None
+    by_keys[("escape",)](event)
+
+    assert buff.text == "aXXbc"
+    assert app.vi_state.input_mode == InputMode.NAVIGATION
+
+
+def test_plain_insert_and_esc_match_default_behavior(editor):
+    # 120: uncounted `i<Esc>` inserts once and steps the cursor left (ptk parity).
+    from unittest.mock import MagicMock
+
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    editor.load_initial_files([None])
+    by_keys = _insert_test_handlers(editor)
+
+    app = MagicMock()
+    app.vi_state.input_mode = InputMode.INSERT
+    buff = Buffer(document=Document("abc", 0))
+    event = MagicMock()
+    event.app = app
+    event.current_buffer = buff
+    event.arg = None
+    by_keys[("i",)](event)
+
+    buff.insert_text("Z")
+    by_keys[("escape",)](event)
+
+    assert buff.text == "Zabc"
+    assert buff.cursor_position == 0
+    assert app.vi_state.input_mode == InputMode.NAVIGATION
+
+
+def test_insert_bindings_yield_to_text_objects(editor):
+    # 120: operator-pending `iw`/`aw` (e.g. `diw`) must stay on the
+    # prompt_toolkit path — our `i`/`a` overrides exclude text-object mode.
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    editor.application.vi_state.input_mode = InputMode.NAVIGATION
+    kb = create_key_bindings(editor)
+    i_binding = [b for b in kb.bindings if b.keys == ("i",)][0]
+    a_binding = [b for b in kb.bindings if b.keys == ("a",)][0]
+
+    with set_app(editor.application):
+        assert bool(i_binding.filter())
+        assert bool(a_binding.filter())
+        editor.application.vi_state.operator_func = lambda event, text_object: None
+        try:
+            assert not bool(i_binding.filter())
+            assert not bool(a_binding.filter())
+        finally:
+            editor.application.vi_state.operator_func = None
+
+
 def test_negative_count_delegate_documented_as_upstream_parity():
     # 071 row 7 (documented upstream-parity dead branch): the Thai
     # find_previous_word_ending(-count) delegate must behave exactly like
