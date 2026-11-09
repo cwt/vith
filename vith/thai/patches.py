@@ -305,7 +305,7 @@ def _sanitize_and_invalidate_sara_am(
         #    character. (Only values are replaced, so mutating while
         #    iterating the dict is safe and avoids a per-row list copy;
         #    docs/bugs/072.md.)
-        for x, cell in new_row.items():
+        for x, cell in list(new_row.items()):
             if cell.width == 0 and cell.char != "":
                 new_row[x] = Char(char=" ", style=cell.style)
 

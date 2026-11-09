@@ -118,7 +118,10 @@ class DocumentCompleter(Completer):
 
     def get_completions(self, document, complete_event):
         editor = self._editor_ref()
-        location = self._editor_buffer_ref().location or '.txt'
+        editor_buffer = self._editor_buffer_ref()
+        if editor is None or editor_buffer is None:
+            return
+        location = editor_buffer.location or '.txt'
 
         # Select completer. jedi is optional (not in install_requires): when
         # it is missing, fall back to the words completer instead of crashing

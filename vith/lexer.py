@@ -130,6 +130,8 @@ class DocumentLexer(Lexer):
 
             pygments_lexer = self._pygments_lexer
             syntax_sync = self._syntax_sync
+            if pygments_lexer is None or syntax_sync is None:
+                return SimpleLexer().lex_document(document)
 
             cache = {}
             line_generators = {}

@@ -89,9 +89,9 @@ def _delete_cell_clusters(event, backward):
     line = doc.current_line
     col = doc.cursor_position_col
     if backward:
-        span = col - prev_cell_offset(line, col, event.arg)
+        span = col - prev_cell_offset(line, col, event.arg or 1)
     else:
-        span = next_cell_offset(line, col, event.arg) - col
+        span = next_cell_offset(line, col, event.arg or 1) - col
     if span > 0:
         text = buff.delete_before_cursor(count=span) if backward else buff.delete(count=span)
         event.app.clipboard.set_text(text)
@@ -107,7 +107,7 @@ def _replace_cell_clusters(event):
     doc = buff.document
     line = doc.current_line
     col = doc.cursor_position_col
-    span = next_cell_offset(line, col, event.arg) - col
+    span = next_cell_offset(line, col, event.arg or 1) - col
     if span > 0:
         buff.delete(count=span)
     buff.insert_text(event.data, overwrite=False)
@@ -314,7 +314,7 @@ def create_key_bindings(editor):
         doc = buff.document
         line = doc.current_line
         col = doc.cursor_position_col
-        span = next_cell_offset(line, col, event.arg) - col
+        span = next_cell_offset(line, col, event.arg or 1) - col
         text = buff.delete(count=span) if span > 0 else ''
         event.app.clipboard.set_text(text)
         event.app.vi_state.input_mode = InputMode.INSERT
@@ -343,7 +343,7 @@ def create_key_bindings(editor):
         col = doc.cursor_position_col
         if col >= len(line):
             return
-        end_col = next_cell_offset(line, col, event.arg)
+        end_col = next_cell_offset(line, col, event.arg or 1)
         span = end_col - col
         if span > 0:
             cluster = line[col:end_col]
@@ -360,13 +360,13 @@ def create_key_bindings(editor):
         """
         buff = event.current_buffer
         doc = buff.document
-        buff.cursor_position = _end_of_line_cell_position(doc, event.arg)
+        buff.cursor_position = _end_of_line_cell_position(doc, event.arg or 1)
 
     def _move_to_end_of_word_cell(event, WORD):
         "Move cursor to the base character of the last cell cluster of the word."
         buff = event.current_buffer
         doc = buff.document
-        end = doc.find_next_word_ending(count=event.arg, WORD=WORD)
+        end = doc.find_next_word_ending(count=event.arg or 1, WORD=WORD)
         if end:
             buff.cursor_position = _snap_word_end_to_cell(doc, buff.cursor_position + end)
 

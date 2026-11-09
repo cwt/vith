@@ -61,4 +61,6 @@ def _go_to_line(editor, line):
     Move cursor to this line in the current buffer.
     """
     b = editor.application.current_buffer
+    if b is None:
+        return
     b.cursor_position = b.document.translate_row_col_to_index(max(0, int(line) - 1), 0)

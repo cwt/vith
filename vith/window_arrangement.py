@@ -236,8 +236,9 @@ class WindowArrangement(object):
     @property
     def active_tab(self):
         """The active TabPage or None."""
-        if self.active_tab_index is not None:
+        if self.active_tab_index is not None and 0 <= self.active_tab_index < len(self.tab_pages):
             return self.tab_pages[self.active_tab_index]
+        return None
 
     @property
     def active_editor_buffer(self):
@@ -266,6 +267,8 @@ class WindowArrangement(object):
         """
         Close active window of active tab.
         """
+        if self.active_tab is None:
+            return
         if self.active_tab.window_count() == 1:
             if len(self.tab_pages) > 1:
                 self.close_tab()
@@ -323,6 +326,8 @@ class WindowArrangement(object):
 
     def cycle_focus(self):
         """Focus next visible window."""
+        if self.active_tab is None:
+            return
         self.active_tab.cycle_focus()
 
     def show_editor_buffer(self, editor_buffer):
@@ -508,6 +513,9 @@ class WindowArrangement(object):
         eb = self.active_editor_buffer
         active_tab = self.active_tab
 
+        if eb is None or active_tab is None:
+            return
+
         # Remove this buffer.
         index = self.editor_buffers.index(eb)
         self.editor_buffers.remove(eb)
@@ -556,8 +564,11 @@ class WindowArrangement(object):
         """
         eb = self._get_or_create_editor_buffer(location)
 
-        self.tab_pages.insert(self.active_tab_index + 1, TabPage(Window(eb)))
-        self.active_tab_index += 1
+        insert_index = 0 if self.active_tab_index is None else self.active_tab_index + 1
+        self.tab_pages.insert(insert_index, TabPage(Window(eb)))
+        self.active_tab_index = (
+            insert_index if self.active_tab_index is None else self.active_tab_index + 1
+        )
 
     def list_open_buffers(self):
         """
@@ -565,7 +576,8 @@ class WindowArrangement(object):
         open buffers.
         """
         active_eb = self.active_editor_buffer
-        visible_ebs = self.active_tab.visible_editor_buffers()
+        active_tab = self.active_tab
+        visible_ebs = active_tab.visible_editor_buffers() if active_tab is not None else []
 
         def make_info(i, eb):
             return OpenBufferInfo(

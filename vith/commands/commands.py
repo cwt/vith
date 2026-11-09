@@ -32,6 +32,8 @@ def _confirm_unsaved_changes(editor, force):
     Returns `True` when the operation should proceed.
     """
     eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return True
     if not force and eb.has_unsaved_changes:
         editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
         return False
