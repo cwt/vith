@@ -1,6 +1,26 @@
 CHANGELOG
 =========
 
+0.11.1: 2026-11-09
+-------------------
+
+Bug fixes:
+
+Thai & Lao script support:
+
+- Visual-block selection (``<C-v>``) on lines containing SARA AM (``U+0E33``) or
+  fewer combining marks than corner rows no longer overshoots mid-line:
+  ``_thai_selection_range_at_line`` and ``_thai_selection_ranges`` clamp
+  selection bounds strictly to cell-cluster boundaries within line margins
+  instead of unconditionally bleeding ``prompt_toolkit`` codepoint columns
+  (finding 092).
+
+Documentation & audit:
+
+- OKF v0.2 documentation bundle synchronized to 92 machine-verified findings:
+  cataloged finding 092, resolved missing Round 3 Addendum table in
+  ``docs/bugs/index.md``, and synchronized update logs.
+
 0.11.0: 2026-11-08
 -------------------
 
