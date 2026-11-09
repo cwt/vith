@@ -201,7 +201,7 @@ def test_has_unsaved_changes_flag(editor_buffer):
 
 def test_has_unsaved_changes_after_write_and_reload(editor, tmp_path):
     p = tmp_path / 'c.txt'
-    p.write_text('initial')
+    p.write_text('initial\n')
     eb = EditorBuffer(editor, location=str(p))
     assert eb.has_unsaved_changes is False
 
@@ -210,11 +210,10 @@ def test_has_unsaved_changes_after_write_and_reload(editor, tmp_path):
 
     assert eb.write() is True
     assert eb.has_unsaved_changes is False
-    # `EditorBuffer.write` always stores a trailing newline.
     assert p.read_text() == 'modified\n'
 
     # External change + reload:
-    p.write_text('externally edited')
+    p.write_text('externally edited\n')
     eb.reload()
     assert eb.has_unsaved_changes is False
     assert eb.buffer.text == 'externally edited'
@@ -315,3 +314,32 @@ def test_thai_gate_latched_on_multiline_paste_and_undo(editor_buffer, monkeypatc
     assert _THAI_GATE.value is False
     editor_buffer.buffer.undo()
     assert _THAI_GATE.value is True
+
+
+def test_editor_buffer_preserves_trailing_newline_presence(editor, tmp_path):
+    # 103: files with a trailing newline preserve it on write
+    f = tmp_path / "with_eol.txt"
+    f.write_text("line 1\nline 2\n")
+    eb = EditorBuffer(editor, str(f))
+    eb.buffer.text = "line 1 modified\nline 2"
+    assert eb.write() is True
+    assert f.read_text() == "line 1 modified\nline 2\n"
+
+
+def test_editor_buffer_preserves_trailing_newline_absence(editor, tmp_path):
+    # 103: files without a trailing newline preserve absence on write
+    f = tmp_path / "no_eol.txt"
+    f.write_text("line 1\nline 2")
+    eb = EditorBuffer(editor, str(f))
+    eb.buffer.text = "line 1 modified\nline 2"
+    assert eb.write() is True
+    assert f.read_text() == "line 1 modified\nline 2"
+
+
+def test_editor_buffer_new_file_defaults_to_trailing_newline(editor, tmp_path):
+    # 103: brand new buffers default to trailing newline on write
+    f = tmp_path / "new_file.txt"
+    eb = EditorBuffer(editor)
+    eb.buffer.text = "brand new content"
+    assert eb.write(str(f)) is True
+    assert f.read_text() == "brand new content\n"

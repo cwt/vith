@@ -35,6 +35,7 @@ class EditorBuffer(object):
 
         # Empty if not in file explorer mode, directory path otherwise.
         self.isdir = False
+        self._had_trailing_newline = True
 
         # Read text.
         unreadable = False
@@ -160,7 +161,10 @@ class EditorBuffer(object):
                         # Drop trailing newline while editing.
                         # (prompt-toolkit doesn't enforce the trailing newline.)
                         if text.endswith('\n'):
+                            self._had_trailing_newline = True
                             text = text[:-1]
+                        else:
+                            self._had_trailing_newline = False
                     except Exception as e:
                         self.editor.show_message('Cannot read %r: %r' % (location, e))
                         return None
@@ -169,6 +173,7 @@ class EditorBuffer(object):
                 else:
                     # File doesn't exist.
                     self.is_new = True
+                    self._had_trailing_newline = True
                     return ''
 
         self.editor.show_message('Cannot read: %r' % location)
@@ -224,8 +229,9 @@ class EditorBuffer(object):
 
         # Write it.
         try:
+            eol = '\n' if getattr(self, '_had_trailing_newline', True) else ''
             try:
-                io.write(target_location, self.buffer.text + '\n', self.encoding)
+                io.write(target_location, self.buffer.text + eol, self.encoding)
             except UnicodeEncodeError:
                 # The buffer was decoded with a lossy fallback encoding
                 # (typically latin-1, which never fails to decode) and now
@@ -234,7 +240,7 @@ class EditorBuffer(object):
                 # (docs/bugs/070.md).
                 old_encoding = self.encoding
                 self.encoding = 'utf-8'
-                io.write(target_location, self.buffer.text + '\n', self.encoding)
+                io.write(target_location, self.buffer.text + eol, self.encoding)
                 self.editor.show_message(
                     'Content not representable in %r; saved as %r' % (old_encoding, 'utf-8')
                 )

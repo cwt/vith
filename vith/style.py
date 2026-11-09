@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
 from pygments.styles import get_all_styles, get_style_by_name
+from pygments.util import ClassNotFound
 
 __all__ = (
     'generate_built_in_styles',
@@ -41,7 +42,10 @@ class _LazyStylesDict(Mapping):
 
     def __getitem__(self, name):
         if name not in self._loaded:
-            self._loaded[name] = get_editor_style_by_name(name)
+            try:
+                self._loaded[name] = get_editor_style_by_name(name)
+            except ClassNotFound as exc:
+                raise KeyError(name) from exc
         return self._loaded[name]
 
 

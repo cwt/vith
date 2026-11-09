@@ -68,13 +68,15 @@ def configure(editor):
         """
         # Save buffer first.
         editor_buffer = editor.current_editor_buffer
+        if editor_buffer is None:
+            return
 
-        if editor_buffer is not None:
-            if editor_buffer.location is None:
-                editor.show_message("File doesn't have a filename. Please save first.")
-                return
-            else:
-                editor_buffer.write()
+        if editor_buffer.location is None:
+            editor.show_message("File doesn't have a filename. Please save first.")
+            return
+
+        if not editor_buffer.write():
+            return
 
         # Now run the Python interpreter. But use
         # `prompt_toolkit.application.run_in_terminal` to go to the

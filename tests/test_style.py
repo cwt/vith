@@ -47,10 +47,21 @@ def test_lazy_styles_vim_scheme():
     assert first is second
 
 
-def test_unknown_style_raises_class_not_found():
+def test_unknown_style_raises_key_error_and_membership():
     styles = generate_built_in_styles()
     try:
         styles['no-such-style-name']
+    except KeyError:
+        pass
+    else:
+        raise AssertionError('Expected KeyError')
+
+    assert 'no-such-style-name' not in styles
+
+
+def test_get_editor_style_by_name_unknown_raises_class_not_found():
+    try:
+        get_editor_style_by_name('no-such-style-name')
     except ClassNotFound:
         pass
     else:
