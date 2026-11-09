@@ -44,8 +44,6 @@ COMMAND_GRAMMAR = compile(
         (?P<command>[^\s!]+)(?P<force>!?)                         |
 
         # Accept the empty input as well. (Ignores everything.)
-
-        #(?P<command>colorscheme.+)    (?P<colorscheme>[^\s]+)  |
     )
 
     # Allow trailing space.

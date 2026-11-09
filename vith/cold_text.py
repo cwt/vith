@@ -220,8 +220,6 @@ class ColdTextBuffer(Buffer):
         was recorded on, so every landing row maps back to the same visual
         column (Vim parity).
         """
-        if count is None:
-            count = 1
         count = max(1, int(count))
 
         doc = self.document

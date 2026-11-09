@@ -15,7 +15,7 @@ __all__ = ('EditorBuffer', 'UNTITLED_LABEL')
 UNTITLED_LABEL = '[New file]'
 
 
-class EditorBuffer(object):
+class EditorBuffer:
     """
     Wrapper around a `prompt-toolkit` buffer.
 

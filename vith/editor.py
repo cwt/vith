@@ -331,9 +331,6 @@ class Editor:
         """
         Send ANSI escape sequences to update terminal / tmux / szn window title.
         """
-        if not hasattr(self, 'application') or not self.application:
-            return
-
         title = self.get_title()
         self._write_terminal_title(title)
 
