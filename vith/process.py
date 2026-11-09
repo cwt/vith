@@ -48,7 +48,9 @@ def set_process_name(name: str = 'vith') -> None:
             libc = ctypes.CDLL(None)
             if hasattr(libc, 'prctl'):
                 # PR_SET_NAME = 15 (max 16 bytes including null terminator)
-                name_bytes = name[:15].encode('utf-8') + b'\0'
+                # PR_SET_NAME limit is 16 bytes including NUL; truncate by bytes,
+                # not code points, so multibyte names do not overflow it.
+                name_bytes = name.encode('utf-8')[:15] + b'\0'
                 libc.prctl.argtypes = [
                     ctypes.c_int,
                     ctypes.c_char_p,

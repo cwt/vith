@@ -133,8 +133,8 @@ class DocumentLexer(Lexer):
             if pygments_lexer is None or syntax_sync is None:
                 return SimpleLexer().lex_document(document)
 
-            cache = {}
-            line_generators = {}
+            cache: dict[int, list[Any]] = {}
+            line_generators: dict[Any, int] = {}
 
             def create_line_generator(start_lineno, column=0):
                 def get_text_fragments():

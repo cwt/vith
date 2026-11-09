@@ -103,15 +103,16 @@ class Editor:
 
         # Ensure config directory exists (with legacy fallback).
         target_dir = os.path.abspath(os.path.expanduser(config_directory))
-        if config_directory == '~/.vith' and not os.path.exists(target_dir):
+        if os.path.expanduser(config_directory) == os.path.expanduser(
+            '~/.vith'
+        ) and not os.path.exists(target_dir):
             legacy_dir = os.path.abspath(os.path.expanduser('~/.pyvim'))
             if os.path.exists(legacy_dir):
                 target_dir = legacy_dir
         self.config_directory = target_dir
-        if not os.path.exists(self.config_directory):
-            # makedirs for nested config paths; exist_ok guards the race
-            # between check and create (docs/bugs/070.md).
-            os.makedirs(self.config_directory, exist_ok=True)
+        # makedirs for nested config paths; exist_ok guards the race
+        # between check and create (docs/bugs/070.md).
+        os.makedirs(self.config_directory, exist_ok=True)
 
         self.window_arrangement = WindowArrangement(self)
         self.message = None

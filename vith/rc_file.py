@@ -16,7 +16,10 @@ __all__ = ('run_rc_file',)
 
 def _press_enter_to_continue():
     """Wait for the user to press enter (startup path, no terminal pager)."""
-    input('\nPress ENTER to continue...')
+    try:
+        input('\nPress ENTER to continue...')
+    except EOFError:
+        pass
 
 
 def run_rc_file(editor, rc_file):
@@ -24,10 +27,10 @@ def run_rc_file(editor, rc_file):
     Run rc file.
     """
     assert isinstance(editor, Editor)
-    assert isinstance(rc_file, str)
+    assert isinstance(rc_file, (str, os.PathLike))
 
     # Expand tildes.
-    rc_file = os.path.expanduser(rc_file)
+    rc_file = os.path.expanduser(os.fspath(rc_file))
 
     # Check whether this file exists.
     if not os.path.exists(rc_file):
@@ -39,7 +42,7 @@ def run_rc_file(editor, rc_file):
     try:
         namespace = {}
 
-        with open(rc_file, 'r') as f:
+        with open(rc_file, 'r', encoding='utf-8') as f:
             code = compile(f.read(), rc_file, 'exec')
             exec(code, namespace, namespace)
 

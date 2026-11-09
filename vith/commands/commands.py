@@ -48,7 +48,10 @@ def _run_pager(print_handler):
 
     def pager_handler():
         print_handler()
-        input('\nPress ENTER to continue...')
+        try:
+            input('\nPress ENTER to continue...')
+        except EOFError:
+            pass
 
     run_in_terminal(pager_handler)
 

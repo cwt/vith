@@ -43,7 +43,7 @@ class FileIO(EditorIO):
             data = f.read()
         return _auto_decode(data)
 
-    def write(self, location, text, encoding):
+    def write(self, location, text, encoding='utf-8'):
         """
         Write file to disk.
         """
@@ -72,7 +72,7 @@ class GZipFileIO(FileIO):
             data = f.read()
         return _auto_decode(data)
 
-    def write(self, location, text, encoding):
+    def write(self, location, text, encoding='utf-8'):
         """
         Write file to disk.
         """
@@ -126,7 +126,7 @@ class DirectoryIO(EditorIO):
 
         return ''.join(result), 'utf-8'
 
-    def write(self, location, text, encoding):
+    def write(self, location, text, encoding='utf-8'):
         raise NotImplementedError('Cannot write to directory.')
 
     def isdir(self, location):
@@ -156,7 +156,7 @@ class HttpIO(EditorIO):
         # Return decoded.
         return _auto_decode(data)
 
-    def write(self, location, text, encoding):
+    def write(self, location, text, encoding='utf-8'):
         raise NotImplementedError('Cannot write to HTTP.')
 
 
