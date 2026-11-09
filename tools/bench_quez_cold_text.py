@@ -34,9 +34,11 @@ import time
 from collections import deque
 from typing import Any, Callable
 
+from vith.cold_text import ColdTextStack
+
 try:
     import quez
-    from quez import CompressedDeque, NullCompressor, ZlibCompressor
+    from quez import NullCompressor, ZlibCompressor
     from quez.compressors import Compressor
 except ImportError:
     print("quez is not installed. Install it with: python -m pip install quez")
@@ -128,25 +130,27 @@ _THAI_WORDS = (
 
 class ColdTextStore:
     """
-    Bounded LIFO store for cold text snapshots.
+    Benchmark adapter driving shipped `vith.cold_text.ColdTextStack`.
 
-    This is the shape a future vith integration would use for undo/redo or
-    inactive buffers. It deliberately exposes only `push`/`pop`; it is not a
-    text buffer.
+    Exercises the production `(text, cursor_position, text_version)`
+    tuples and compressed storage shipped in vith 0.10.0+ (docs/bugs/099.md).
     """
 
     def __init__(self, max_snapshots: int, compressor: Compressor) -> None:
-        self._snapshots = CompressedDeque(maxsize=max_snapshots, compressor=compressor)
+        self._stack = ColdTextStack(compressor=compressor)
+        self._version = 0
 
     def push(self, text: str) -> None:
-        self._snapshots.append(text)
+        self._version += 1
+        self._stack.push(text, cursor_position=0, text_version=self._version)
 
     def pop(self) -> str:
-        return self._snapshots.pop()
+        text, _cursor, _version = self._stack.pop()
+        return text
 
     @property
     def stats(self) -> dict[str, Any]:
-        return self._snapshots.stats
+        return self._stack.stats
 
 
 def build_source_text(target_bytes: int, seed: int = 42) -> str:
@@ -185,7 +189,8 @@ def build_thai_text(target_bytes: int, seed: int = 42) -> str:
         parts.append(line)
         total += len(line.encode("utf-8"))
         index += 1
-    return "".join(parts)
+    encoded = "".join(parts).encode("utf-8")[:target_bytes]
+    return encoded.decode("utf-8", errors="ignore")
 
 
 def build_text(kind: str, size_mb: float, seed: int = 42) -> str:
@@ -221,7 +226,7 @@ def make_compressor(name: str) -> Compressor:
     raise ValueError(f"unknown compressor: {name!r}")
 
 
-def measure_ns(repeats: int, operation: Callable[[], int]) -> float:
+def measure_ms(repeats: int, operation: Callable[[], int]) -> float:
     """Return the median of `operation()` results in milliseconds."""
     samples: list[int] = []
     for _ in range(repeats):
@@ -270,7 +275,7 @@ def bench_snapshot_roundtrip(
                 stores.append(store)
                 return elapsed
 
-            push_ms = measure_ns(repeats, push_once)
+            push_ms = measure_ms(repeats, push_once)
             stats = stores[0].stats
 
             def pop_once() -> int:
@@ -282,7 +287,7 @@ def bench_snapshot_roundtrip(
                 assert popped == text
                 return elapsed
 
-            pop_ms = measure_ns(repeats, pop_once)
+            pop_ms = measure_ms(repeats, pop_once)
             comp_mb = compressed_mb(stats)
             str_mb = mb(sys.getsizeof(text))
             ratio = comp_mb / str_mb if str_mb else 0.0
@@ -309,7 +314,7 @@ def bench_pickle_baseline(
         stores.append(store)
         return elapsed
 
-    push_ms = measure_ns(repeats, push_once)
+    push_ms = measure_ms(repeats, push_once)
     stats = stores[0].stats
 
     def pop_once() -> int:
@@ -321,7 +326,7 @@ def bench_pickle_baseline(
         assert popped == text
         return elapsed
 
-    pop_ms = measure_ns(repeats, pop_once)
+    pop_ms = measure_ms(repeats, pop_once)
     print(
         f"{compressor_name} | {size_mb:.1f} MB source | "
         f"push {push_ms:.2f} ms | pop {pop_ms:.2f} ms | "
