@@ -478,8 +478,13 @@ def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | Non
         for (lineno, col), (sy, sx) in list(rowcol_to_yx.items()):
             if sy not in candidate_rows:
                 continue
+            cell = (
+                data_buffer.get(sy, {}).get(sx) if isinstance(data_buffer.get(sy), dict) else None
+            )
+            if cell is None:
+                continue
             if sx != right_x and not (
-                width >= 2 and sx == right_x - 1 and data_buffer[sy][sx].width == 2
+                width >= 2 and sx == right_x - 1 and getattr(cell, 'width', 0) == 2
             ):
                 continue
             chars = line_chars_cache.get(lineno)
@@ -499,7 +504,7 @@ def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | Non
             if j > col + 1:
                 comb = chars[col + 1 : j]
                 _THAI_GATE.note(comb)
-                prev_char = data_buffer[sy][sx]
+                prev_char = cell
                 if not prev_char.char.endswith(comb):
                     if _PtkCharCache is not None:
                         data_buffer[sy][sx] = _PtkCharCache[prev_char.char + comb, prev_char.style]
@@ -618,7 +623,11 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
                         if cell2 is not None and cell2.width == 2 and len(cell2.char) > 1:
                             target_col = width - 2
                     if target_col >= 0:
-                        zw_row = screen.zero_width_escapes[y]
+                        zw_row = (
+                            screen.zero_width_escapes.setdefault(y, {})
+                            if hasattr(screen.zero_width_escapes, 'setdefault')
+                            else screen.zero_width_escapes[y]
+                        )
                         old_esc = zw_row.get(target_col, "")
                         saved_escapes.append((y, target_col, old_esc))
                         zw_row[target_col] = old_esc + _AUTOWRAP_ARM_TAG
