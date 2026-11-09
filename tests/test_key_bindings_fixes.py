@@ -37,14 +37,28 @@ def test_delete_cell_clusters_no_crash_at_col0_or_empty_line():
     clipboard.set_text.assert_called()
 
 
-def test_indent_line_uses_event_current_buffer():
-    # Smoke: indent_line must reference event.current_buffer, not event.application.
-    import inspect
+def test_indent_line_uses_event_current_buffer(editor):
+    # 039/101: indent_line must reference event.current_buffer and insert indentation
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
     from vith.key_bindings import create_key_bindings
 
-    src = inspect.getsource(create_key_bindings)
-    assert "event.application.current_buffer" not in src
+    editor.tabstop = 4
+    editor.expand_tab = True
+    kb = create_key_bindings(editor)
+    binding = [
+        b for b in kb.bindings if b.keys == ("c-t",) and b.handler.__name__ == "indent_line"
+    ][0]
+
+    buf = Buffer(document=Document("hello", 5))
+    event = MagicMock(spec=KeyPressEvent)
+    event.current_buffer = buf
+    event.app = editor.application
+
+    binding.handler(event)
+    assert buf.text == "    hello"
 
 
 def test_end_of_line_cell_position_respects_count():
@@ -166,11 +180,14 @@ def test_replace_single_cell_count_semantics():
 
     assert buff.document.text == "Xcdef"
     assert buff.cursor_position == 0
-    event.app.vi_state.input_mode = event.app.vi_state.input_mode  # noqa (mock used)
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    assert event.app.vi_state.input_mode == InputMode.NAVIGATION
 
 
 def test_replace_single_cell_single_count():
     from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding.vi_state import InputMode
 
     from vith.key_bindings import _replace_cell_clusters
 
@@ -187,6 +204,7 @@ def test_replace_single_cell_single_count():
     _replace_cell_clusters(event)
 
     assert buff.document.text == "xbcdef"
+    assert event.app.vi_state.input_mode == InputMode.NAVIGATION
 
 
 def test_name_under_cursor_selections():

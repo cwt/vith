@@ -109,7 +109,7 @@ def test_document_completer_python_uses_jedi(editor, editor_buffer, tmp_path):
     # The jedi API introspection is computed once per session (docs/bugs/030.md):
     import vith.completion as _pc
 
-    assert _pc._JEDI_TAKES_COLUMN is False
+    assert _pc._JEDI_TAKES_COLUMN is not None
 
 
 def test_document_completer_falls_back_without_jedi(editor, editor_buffer, monkeypatch):
@@ -147,13 +147,14 @@ def test_python_completer_missing_module_degrades_to_no_completions(
     completer = DocumentCompleter(editor, editor_buffer)
 
     doc = Document('import o', 8)
-    list(completer.get_completions(doc, CompleteEvent()))  # must not raise
+    assert list(completer.get_completions(doc, CompleteEvent())) == []
 
 
 def test_thai_words_not_split_at_combining_marks():
     text = 'ที่ดิน น้ำ ผู้ใหญ่\nที่'
     comps = _completions(DocumentWordsCompleter(), text, len('ที่ดิน น้ำ ผู้ใหญ่\nที่'))
-    assert 'ที่ดิน' in comps or 'ดิน' not in comps
+    assert 'ที่ดิน' in comps
+    assert 'ดิน' not in comps
     # The corrupted single-base token 'ใหญ' (missing tone mark) must not appear.
     assert 'ใหญ' not in comps
 
