@@ -8,7 +8,10 @@ Usage::
     e.run()  # Runs the event loop, starts interaction.
 """
 
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING
 
 import pygments
 from prompt_toolkit.application import Application
@@ -34,6 +37,9 @@ from .thai import (
     reset_thai_text_gate_if_all_buffers_ascii,
 )
 from .window_arrangement import WindowArrangement
+
+if TYPE_CHECKING:
+    from .editor_buffer import EditorBuffer
 
 __all__ = ('Editor',)
 
@@ -246,9 +252,10 @@ class Editor:
         return application
 
     @property
-    def current_editor_buffer(self):
+    def current_editor_buffer(self) -> EditorBuffer | None:
         """
-        Return the `EditorBuffer` that is currently active.
+        Return the `EditorBuffer` that is currently active, or `None` when
+        no editor buffer matches `application.current_buffer`.
         """
         current_buffer = self.application.current_buffer
 
@@ -261,6 +268,8 @@ class Editor:
         for b in self.window_arrangement.editor_buffers:
             if b.buffer == current_buffer:
                 return b
+
+        return None
 
     @property
     def add_key_binding(self):

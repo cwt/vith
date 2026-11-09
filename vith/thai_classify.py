@@ -158,9 +158,10 @@ _THAI_SYMBOL_CPS = {0x0E3F, 0x0E4F, 0x0E5A, 0x0E5B}
 
 def is_thai_base(cp: int) -> bool:
     """
-    Port of `szn/src/thai.zig:126-133` (`isThaiBase`):
     True if `cp` is a width-1 Thai/Lao codepoint that is not a combining mark,
-    leading vowel, following vowel, or right-attaching mark.
+    leading vowel, following vowel, right-attaching mark, digit, or symbol
+    (adapted from `szn/src/thai.zig:126-133` `isThaiBase` with digits/symbols excluded;
+    docs/bugs/054.md).
 
     The result is folded into a precomputed table at import (the predicate
     used to evaluate `get_cwidth(chr(cp))` per call from the word-motion

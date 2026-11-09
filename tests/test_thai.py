@@ -8,6 +8,7 @@ from __future__ import annotations
 import prompt_toolkit.renderer as ptk_renderer
 import pytest
 from prompt_toolkit.application.current import set_app
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.data_structures import Point, Size
 from prompt_toolkit.document import Document
 from prompt_toolkit.input import DummyInput
@@ -59,12 +60,18 @@ def _feed_keys(editor: Editor, *keys: str | Keys) -> None:
         kp.process_keys()
 
 
+def _active_buffer(editor: Editor) -> Buffer:
+    eb = editor.current_editor_buffer
+    assert eb is not None
+    return eb.buffer
+
+
 def _make_editor_with_text(text: str, cursor_position: int = 0) -> Editor:
     editor = Editor(output=DummyOutput(), input=DummyInput())
     editor.load_initial_files([None])
     editor.sync_with_prompt_toolkit()
     editor.application.vi_state.input_mode = InputMode.NAVIGATION
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     buff.document = Document(text, cursor_position=cursor_position)
     return editor
 
@@ -371,7 +378,7 @@ def test_document_jk_vertical_snap() -> None:
 def test_vi_x_X_s_r_tilde_dollar_via_key_processor() -> None:
     # 1. 'x' at col=0 on "ที่ดิน" deletes entire cell cluster "ที่" -> "ดิน"
     editor = _make_editor_with_text("ที่ดิน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "x")
     assert buff.text == "ดิน"
     assert buff.cursor_position == 0
@@ -379,7 +386,7 @@ def test_vi_x_X_s_r_tilde_dollar_via_key_processor() -> None:
 
     # 2. 'X' at col=3 on "ที่ดิน" deletes cell cluster "ที่" before cursor -> "ดิน"
     editor = _make_editor_with_text("ที่ดิน", cursor_position=3)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "X")
     assert buff.text == "ดิน"
     assert buff.cursor_position == 0
@@ -387,7 +394,7 @@ def test_vi_x_X_s_r_tilde_dollar_via_key_processor() -> None:
 
     # 3. 's' at col=0 on "ที่ดิน" deletes "ที่" and switches to INSERT mode
     editor = _make_editor_with_text("ที่ดิน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "s")
     assert buff.text == "ดิน"
     assert editor.application.vi_state.input_mode == InputMode.INSERT
@@ -395,7 +402,7 @@ def test_vi_x_X_s_r_tilde_dollar_via_key_processor() -> None:
 
     # 4. 'r' + 'ข' at col=0 on "ที่ดิน" replaces "ที่" with "ข" -> "ขดิน"
     editor = _make_editor_with_text("ที่ดิน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "r", "ข")
     assert buff.text == "ขดิน"
     assert buff.cursor_position == 0
@@ -403,30 +410,30 @@ def test_vi_x_X_s_r_tilde_dollar_via_key_processor() -> None:
 
     # 5. '~' at col=0 on "ที่ดิน" advances 1 cell cluster (0 -> 3), never parking on ◌ี
     editor = _make_editor_with_text("ที่ดิน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "~")
     assert buff.text == "ที่ดิน"
     assert buff.cursor_position == 3
 
     # 6. '$' lands on start of last cell cluster (col=5 on "ที่ดิน", col=5 on "ผู้ใหญ่", col=0 on "ที่")
     editor = _make_editor_with_text("ที่ดิน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "$")
     assert buff.cursor_position == 5
 
     editor = _make_editor_with_text("ผู้ใหญ่", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "$")
     assert buff.cursor_position == 5
 
     editor = _make_editor_with_text("ที่", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "$")
     assert buff.cursor_position == 0
 
     # Operator-pending 'd$' from col=0 on "ผู้ใหญ่" still deletes all 7 codepoints including ◌่:
     editor = _make_editor_with_text("ผู้ใหญ่", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "d", "$")
     assert buff.text == ""
 
@@ -456,7 +463,7 @@ def test_formatted_text_stray_combining_cleanup() -> None:
 def test_vi_hl_wbe_text_objects_on_thai() -> None:
     # 'l' and 'h' step by cell clusters across "ที่ดิน" (stops: 0 -> 3 -> 5):
     editor = _make_editor_with_text("ที่ดิน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "l")
     assert buff.cursor_position == 3
     _feed_keys(editor, "l")
@@ -468,7 +475,7 @@ def test_vi_hl_wbe_text_objects_on_thai() -> None:
 
     # 'w', 'b', 'e', 'diw' on "เกาะ น้ำ":
     editor = _make_editor_with_text("เกาะ น้ำ", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "w")
     assert buff.cursor_position == 5  # Start of "น้ำ"
     _feed_keys(editor, "b")
@@ -483,7 +490,7 @@ def test_vi_append_escape_and_operators_on_thai() -> None:
     # 'a' at col=0 on "ที่ดิน" moves past "ที่" (to col=3) and enters INSERT mode;
     # '<Esc>' steps back 1 cell cluster to col=0 (never landing on ◌่ at col=2):
     editor = _make_editor_with_text("ที่ดิน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "a")
     assert editor.application.vi_state.input_mode == InputMode.INSERT
     assert buff.cursor_position == 3
@@ -493,32 +500,32 @@ def test_vi_append_escape_and_operators_on_thai() -> None:
 
     # 'dl' at col=0 on "ที่ดิน" deletes 1 cell cluster ("ที่"):
     editor = _make_editor_with_text("ที่ดิน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "d", "l")
     assert buff.text == "ดิน"
     assert buff.cursor_position == 0
 
     # 'dh' at col=3 on "ที่ดิน" deletes 1 cell cluster before cursor ("ที่"):
     editor = _make_editor_with_text("ที่ดิน", cursor_position=3)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "d", "h")
     assert buff.text == "ดิน"
     assert buff.cursor_position == 0
 
     # 'e' vs 'de' on "ผู้ใหญ่ บ้าน" (where "ผู้ใหญ่" ends with combining mark ◌่ at idx 6):
     editor = _make_editor_with_text("ผู้ใหญ่ บ้าน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "e")
     assert buff.cursor_position == 5  # Base consonant 'ญ' of last cell "ญ่"
 
     editor = _make_editor_with_text("ผู้ใหญ่ บ้าน", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     _feed_keys(editor, "d", "e")
     assert buff.text == " บ้าน"
 
     # '*' and '#' word search on Thai words:
     editor = _make_editor_with_text("เกาะ น้ำ เกาะ", cursor_position=0)
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     assert buff.document.get_word_under_cursor() == "เกาะ"
     _feed_keys(editor, "*")
     assert buff.cursor_position == 9
@@ -646,7 +653,7 @@ def test_buffer_text_latches_gate_and_sanitizer_resumes(sticky_gate) -> None:
     )
     has_style_cache = ptk_renderer._StyleStringHasStyleCache(attrs_cache)
 
-    buff = editor.current_editor_buffer.buffer
+    buff = _active_buffer(editor)
     buff.text = "กำ"
     assert sticky_gate.value is True, "Thai buffer text must latch the gate"
 
@@ -1171,7 +1178,7 @@ def test_block_d_aligned_with_highlight():
     _feed_keys(editor, "l", Keys.ControlV, "j", "d")
     # cut exactly the highlighted cells [ดิ] / [ส]:
     assert editor.application.clipboard.get_data().text == "ดิ\nส"
-    assert editor.current_editor_buffer.buffer.text == "ที่น\nสี\nxyz\n"
+    assert _active_buffer(editor).text == "ที่น\nสี\nxyz\n"
 
 
 def test_gate_decay_respects_thai_statusbar_and_names(editor):
