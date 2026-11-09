@@ -169,9 +169,10 @@ class WelcomeMessageWindow(ConditionalContainer):
     """
 
     def __init__(self, editor):
-        once_hidden = [False]  # Nonlocal
+        once_hidden = False  # Nonlocal
 
         def condition():
+            nonlocal once_hidden
             # Get editor buffers
             buffers = editor.window_arrangement.editor_buffers
 
@@ -181,10 +182,10 @@ class WelcomeMessageWindow(ConditionalContainer):
                 len(buffers) == 1
                 and buffers[0].buffer.text == ''
                 and buffers[0].location is None
-                and not once_hidden[0]
+                and not once_hidden
             )
             if not result:
-                once_hidden[0] = True
+                once_hidden = True
             return result
 
         super().__init__(
