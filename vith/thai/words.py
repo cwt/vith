@@ -16,14 +16,14 @@ from typing import Any, Callable, Pattern
 from prompt_toolkit.document import Document
 
 from .classify import (
+    _THAI_BASE_CPS,
     is_combining_char,
-    is_thai,
     is_thai_base,
     is_thai_following_vowel,
     is_thai_leading_vowel,
     is_thai_or_lao,
     is_thai_right_attaching,
-)  # noqa: F401 (classification reuse)
+)
 from .clusters import next_cell_offset, prev_cell_offset, snap_to_cell_start  # noqa: F401
 
 # Shared by the Document/KeyProcessor patch wrappers in `vith/thai.py` and
@@ -197,6 +197,12 @@ def _cluster_breaks_for_span(text: str, start: int, end: int) -> list[int]:
     return breaks
 
 
+_NON_THAI_RE = re.compile(r"[^\u0e00-\u0e7f]")
+_THAI_BASE_RE = re.compile(
+    "[" + "".join(chr(cp) for cp in sorted(_THAI_BASE_CPS) if 0x0E00 <= cp <= 0x0E7F) + "]"
+)
+
+
 def find_thai_word_breaks(text: str, use_libthai: bool = True) -> list[int]:
     """
     Return the sorted boundary offsets `[0, ..., len(text)]` segmenting `text`
@@ -208,19 +214,13 @@ def find_thai_word_breaks(text: str, use_libthai: bool = True) -> list[int]:
         return [0]
 
     libthai = _get_libthai() if use_libthai else None
-    if libthai is not None:
-        all_thai = True
-        has_thai_base = False
-        for ch in text:
-            cp = ord(ch)
-            if not is_thai(cp):
-                all_thai = False
-                break
-            if not has_thai_base and is_thai_base(cp):
-                has_thai_base = True
-        if all_thai and has_thai_base:
-            internal = libthai.find_breaks(text)
-            return [0, *internal, n]
+    if (
+        libthai is not None
+        and _NON_THAI_RE.search(text) is None
+        and _THAI_BASE_RE.search(text) is not None
+    ):
+        internal = libthai.find_breaks(text)
+        return [0, *internal, n]
 
     return [0, *_cluster_breaks_for_span(text, 0, n)]
 
@@ -293,10 +293,16 @@ def _cluster_aligned_spans(line: str, spans: list[tuple[int, int]]) -> list[tupl
 # gigabytes (docs/bugs/090.md).
 _WORD_SPAN_CACHE_MAX_LINE = 65536
 
-_word_spans_for_line_cache = lru_cache(maxsize=2048)(_word_spans_for_line_uncached)
+
+@lru_cache(maxsize=2048)
+def _word_spans_for_line_cache(line: str, WORD: bool = False) -> tuple[tuple[int, int], ...]:
+    return _word_spans_for_line_uncached(line, WORD)
 
 
-def _word_spans_for_line(line: str, WORD: bool = False) -> tuple:
+def _word_spans_for_line(line: str, WORD: bool = False) -> tuple[tuple[int, int], ...]:
+    # `@lru_cache` cannot wrap `_word_spans_for_line` directly because lines
+    # exceeding `_WORD_SPAN_CACHE_MAX_LINE` must bypass cache storage before
+    # `functools.lru_cache` inserts the key.
     if len(line) > _WORD_SPAN_CACHE_MAX_LINE:
         return _word_spans_for_line_uncached(line, WORD)
     return _word_spans_for_line_cache(line, WORD)
@@ -469,9 +475,8 @@ def find_previous_word_ending(doc: Document, count: int = 1, WORD: bool = False)
     """
     if count < 0:
         # Delegate symmetrically like upstream prompt_toolkit
-        # (document.py:637-638). No Vi handler can generate a negative count
-        # here — `ge`/`gE` pass a positive digit arg — so this is
-        # upstream-parity dead code kept for API parity (docs/bugs/071.md).
+        # (document.py:637-638) for full Document API parity (docs/bugs/071.md,
+        # docs/bugs/112.md).
         return find_next_word_ending(doc, count=-count, WORD=WORD)
     if doc.text.isascii():
         orig = _ORIGINAL_DOCUMENT_METHODS.get("find_previous_word_ending")

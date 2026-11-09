@@ -199,3 +199,115 @@ def test_ls_pager_one_based_and_no_name(editor):
     lines = buffer_list_lines(editor)
     assert lines and lines[0].lstrip().startswith("1 % ")  # was "0 %"
     assert "None" not in lines[0]
+
+
+def test_goto_buffer_zero_and_negative_show_e94(editor):
+    # 110 item 2: `:b 0` and `:b -1` must report E94 instead of wrapping via
+    # negative Python list indexing to the last buffer.
+    from vith.commands.handler import handle_command
+    from vith.editor_buffer import EditorBuffer
+
+    wa = editor.window_arrangement
+    eb1 = EditorBuffer(editor, "first.txt")
+    eb2 = EditorBuffer(editor, "second.txt")
+    wa._add_editor_buffer(eb1)
+    wa._add_editor_buffer(eb2)
+    wa.go_to_buffer("1")
+    assert wa.active_editor_buffer is eb1
+
+    for invalid in ("0", "-1"):
+        editor.message = None
+        handle_command(editor, f":b {invalid}")
+        assert editor.message == f"E94: No matching buffer for {invalid}"
+        assert wa.active_editor_buffer is eb1
+
+
+def test_edit_without_location_reloads_active_buffer_from_command_line(editor, tmp_path):
+    # 110 item 11: `:e` with no argument uses `window_arrangement.active_editor_buffer`
+    # even when the command buffer currently has focus (`current_editor_buffer is None`).
+    from vith.commands.handler import handle_command
+
+    p = tmp_path / "reload_me.txt"
+    p.write_text("original\n")
+    editor.load_initial_files([str(p)])
+    eb = editor.window_arrangement.active_editor_buffer
+    assert eb.buffer.text == "original"
+
+    p.write_text("updated on disk\n")
+    handle_command(editor, ":e")
+    assert eb.buffer.text == "updated on disk"
+
+
+def test_split_commands_focus_new_window(editor, monkeypatch):
+    # 110 item 9: `:sp` and `:vsp` update the layout and focus the new split window.
+    from vith.commands.handler import handle_command
+
+    focused = []
+
+    def fake_focus(target):
+        focused.append(target)
+
+    monkeypatch.setattr(editor.application.layout, "focus", fake_focus)
+    editor.load_initial_files([None])
+    handle_command(editor, ":sp")
+    assert len(editor.window_arrangement.active_tab.windows()) == 2
+    assert focused and focused[-1] is editor.window_arrangement.active_pt_window
+
+    handle_command(editor, ":vsp")
+    assert len(editor.window_arrangement.active_tab.windows()) == 3
+    assert focused[-1] is editor.window_arrangement.active_pt_window
+
+
+def test_wqa_force_and_empty_arrangement_command_guards(editor, tmp_path, monkeypatch):
+    # 110 item 2: `:wqa!` is registered with `accepts_force=True`.
+    # 111 items 6 & 7: commands and `_go_to_line` guard against `None` active/current buffers.
+    from vith.commands.commands import _confirm_unsaved_changes
+    from vith.commands.handler import handle_command
+
+    exited = []
+
+    def fake_exit():
+        exited.append(True)
+
+    monkeypatch.setattr(editor.application, "exit", fake_exit)
+
+    # Empty arrangement guards (`active_editor_buffer is None`):
+    assert _confirm_unsaved_changes(editor, force=False) is True
+    handle_command(editor, ":e")
+    handle_command(editor, ":w")
+    handle_command(editor, ":q")
+    assert exited == [True]
+    exited.clear()
+
+    # `:wqa!` writes dirty buffers and exits without "No ! allowed":
+    f = tmp_path / "dirty.txt"
+    f.write_text("initial\n")
+    editor.load_initial_files([str(f)])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "updated"
+
+    editor.message = None
+    handle_command(editor, ":wqa!")
+    assert editor.message is None
+    assert exited == [True]
+    assert f.read_text() == "updated\n"
+
+
+def test_press_enter_to_continue_shared_helper(monkeypatch):
+    # 113 item 5 / 115 item 10: `rc_file` reuses `press_enter_to_continue` from `commands`.
+    import builtins
+
+    from vith import rc_file
+    from vith.commands import commands as commands_mod
+
+    assert rc_file.press_enter_to_continue is commands_mod.press_enter_to_continue
+
+    prompts = []
+
+    def fake_input(prompt=""):
+        prompts.append(prompt)
+        return ""
+
+    monkeypatch.setattr(builtins, "input", fake_input)
+    commands_mod.press_enter_to_continue()
+    assert prompts == ["\nPress ENTER to continue..."]

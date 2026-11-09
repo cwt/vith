@@ -240,3 +240,37 @@ def test_negative_count_delegate_documented_as_upstream_parity():
     doc = Document("alpha beta gamma", 10)
     result = find_previous_word_ending(doc, count=-1, WORD=False)
     assert result == orig_next(doc, count=1, WORD=False)
+
+
+def test_positive_count_clamps_non_positive_event_args():
+    # 111 item 10: `_positive_count` clamps 0 or negative `event.arg` to 1
+    # so cell-cluster delete/change/replace/toggle-case handlers never no-op.
+    from prompt_toolkit.document import Document
+
+    from vith.key_bindings import (
+        _delete_cell_clusters,
+        _positive_count,
+        _replace_cell_clusters,
+    )
+
+    assert _positive_count(None) == 1
+    assert _positive_count(0) == 1
+    assert _positive_count(-5) == 1
+    assert _positive_count(3) == 3
+
+    class Event:
+        pass
+
+    event = Event()
+    event.app = MagicMock()
+    event.arg = 0
+    event.data = "Z"
+    buff = Buffer(document=Document("abcdef", 0))
+    event.current_buffer = buff
+
+    _replace_cell_clusters(event)
+    assert buff.document.text == "Zbcdef"
+
+    event.arg = -2
+    _delete_cell_clusters(event, backward=False)
+    assert buff.document.text == "bcdef"

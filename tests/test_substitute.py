@@ -253,3 +253,22 @@ def test_substitute_latches_thai_gate(editor, editor_buffer, monkeypatch):
         assert thai._THAI_GATE.value is True
     finally:
         thai._THAI_GATE.value = False
+
+
+def test_substitute_identical_replacement_succeeds_and_moves_cursor(editor, editor_buffer):
+    # 110 item 1: `:s/foo/foo/` where replacement equals matched text must
+    # succeed (not report "Pattern not found") and move cursor to the matched row.
+    given_sample_text(editor_buffer, 'first\nsecond\ntarget\n')
+    editor.message = None
+    handle_command(editor, ':1,3s/target/target/')
+    assert editor.message is None
+    assert editor_buffer.buffer.document.cursor_position_row == 2
+
+
+def test_empty_and_colon_only_commands_are_noops(editor, editor_buffer):
+    # 110 item 3: pressing Enter on `:`, `:   `, or whitespace is a silent
+    # no-op in Vim rather than "Unknown command".
+    editor.message = None
+    for empty_cmd in ('', ':', ':   ', '   '):
+        handle_command(editor, empty_cmd)
+        assert editor.message is None

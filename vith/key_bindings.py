@@ -31,12 +31,17 @@ def _keep_keysync_disabled(event):
     return False
 
 
+def _positive_count(arg: int | None) -> int:
+    """Normalize a Vi repeat argument (`None`, `0`, or negative) to `>= 1`."""
+    return max(1, int(arg or 1))
+
+
 def _end_of_line_cell_position(doc, count):
     """
     Absolute cursor position of the start of the last cell cluster on the
     line `count` rows below the current one (Vim's counted `$`).
     """
-    count = max(1, int(count or 1))
+    count = _positive_count(count)
     target_row = min(len(doc.lines) - 1, doc.cursor_position_row + count - 1)
     line = doc.lines[target_row]
     col = prev_cell_offset(line, len(line), 1)
@@ -57,27 +62,19 @@ def _snap_word_end_to_cell(doc, position):
 
 def _name_under_cursor(doc):
     """
-    Return the whitespace-delimited token under the cursor of `doc` (``''
-    when the line has no tokens). For the file explorer this is the
-    file/directory name under the cursor, not the whole line — lines may
+    Return the whitespace-delimited token under (or nearest to) the cursor of
+    `doc` (``''`` when the line has no tokens). For the file explorer this is
+    the file/directory name under the cursor, not the whole line — lines may
     list several entries (docs/bugs/071.md).
     """
     line = doc.current_line
     col = doc.cursor_position_col
-    tokens = [(m.start(), m.end()) for m in re.finditer(r'\S+', line)]
-    if not tokens:
-        return ''
-    for start, end in tokens:
-        if start <= col <= end:
-            return line[start:end]
-    if col < tokens[0][0]:
-        return line[tokens[0][0] : tokens[0][1]]
-    if col > tokens[-1][1]:
-        return line[tokens[-1][0] : tokens[-1][1]]
-    for start, end in tokens:
-        if start > col:
-            return line[start:end]
-    return ''
+    last_token = ''
+    for match in re.finditer(r'\S+', line):
+        last_token = match.group(0)
+        if col <= match.end():
+            return last_token
+    return last_token
 
 
 def _delete_cell_clusters(event, backward):
@@ -88,10 +85,11 @@ def _delete_cell_clusters(event, backward):
     doc = buff.document
     line = doc.current_line
     col = doc.cursor_position_col
+    count = _positive_count(event.arg)
     if backward:
-        span = col - prev_cell_offset(line, col, event.arg or 1)
+        span = col - prev_cell_offset(line, col, count)
     else:
-        span = next_cell_offset(line, col, event.arg or 1) - col
+        span = next_cell_offset(line, col, count) - col
     if span > 0:
         text = buff.delete_before_cursor(count=span) if backward else buff.delete(count=span)
         event.app.clipboard.set_text(text)
@@ -107,7 +105,7 @@ def _replace_cell_clusters(event):
     doc = buff.document
     line = doc.current_line
     col = doc.cursor_position_col
-    span = next_cell_offset(line, col, event.arg or 1) - col
+    span = next_cell_offset(line, col, _positive_count(event.arg)) - col
     if span > 0:
         buff.delete(count=span)
     buff.insert_text(event.data, overwrite=False)
@@ -125,6 +123,24 @@ def _insert_indentation(editor, buffer_):
         buffer_.insert_text(' ' * editor.tabstop)
     else:
         buffer_.insert_text('\t')
+
+
+@Condition
+def whitespace_before_cursor_on_line():
+    """
+    Filter which evaluates to True when the characters before the cursor are
+    whitespace, or we are at the start of the line.
+    """
+    b = get_app().current_buffer
+    before_cursor = b.document.current_line_before_cursor
+
+    return bool(not before_cursor or before_cursor[-1].isspace())
+
+
+@Condition
+def tilde_operator_enabled():
+    "True while `:set tildeop` is active."
+    return bool(get_app().vi_state.tilde_operator)
 
 
 def create_key_bindings(editor):
@@ -146,15 +162,24 @@ def create_key_bindings(editor):
             return False
         return True
 
+    @Condition
+    def command_buffer_is_empty():
+        return editor.command_buffer.text == ''
+
+    @Condition
+    def in_file_explorer_mode():
+        return bool(
+            editor.current_editor_buffer and editor.current_editor_buffer.in_file_explorer_mode
+        )
+
     in_insert_mode = vi_insert_mode & vi_buffer_focussed
     in_navigation_mode = vi_navigation_mode & vi_buffer_focussed
 
-    @kb.add('c-t')
-    def _(event):
+    @kb.add('c-t', filter=~in_insert_mode)
+    def disable_default_transpose_chars(event):
         """
-        Override default behaviour of prompt-toolkit.
-        (Control-T will swap the last two characters before the cursor, because
-        that's what readline does.)
+        Suppress prompt_toolkit's default Control-T (`transpose-chars`) outside
+        document insert mode, while `indent_line` below handles `in_insert_mode`.
         """
         pass
 
@@ -204,14 +229,11 @@ def create_key_bindings(editor):
         """
         _insert_indentation(editor, event.app.current_buffer)
 
-    def command_buffer_is_empty():
-        return editor.command_buffer.text == ''
-
     @kb.add('escape', filter=has_focus(editor.command_buffer))
     @kb.add('c-c', filter=has_focus(editor.command_buffer))
     @kb.add(
         'backspace',
-        filter=has_focus(editor.command_buffer) & Condition(command_buffer_is_empty),
+        filter=has_focus(editor.command_buffer) & command_buffer_is_empty,
     )
     def leave_command_mode(event):
         """
@@ -253,12 +275,6 @@ def create_key_bindings(editor):
     @kb.add('f1')
     def show_help(event):
         editor.show_help()
-
-    @Condition
-    def in_file_explorer_mode():
-        return bool(
-            editor.current_editor_buffer and editor.current_editor_buffer.in_file_explorer_mode
-        )
 
     @kb.add('enter', filter=in_file_explorer_mode)
     def open_path(event):
@@ -314,7 +330,7 @@ def create_key_bindings(editor):
         doc = buff.document
         line = doc.current_line
         col = doc.cursor_position_col
-        span = next_cell_offset(line, col, event.arg or 1) - col
+        span = next_cell_offset(line, col, _positive_count(event.arg)) - col
         text = buff.delete(count=span) if span > 0 else ''
         event.app.clipboard.set_text(text)
         event.app.vi_state.input_mode = InputMode.INSERT
@@ -327,11 +343,6 @@ def create_key_bindings(editor):
         """
         _replace_cell_clusters(event)
 
-    @Condition
-    def tilde_operator_enabled():
-        "True while `:set tildeop` is active."
-        return bool(get_app().vi_state.tilde_operator)
-
     @kb.add('~', filter=vi_navigation_mode & ~tilde_operator_enabled)
     def reverse_case_cell(event):
         """
@@ -343,7 +354,7 @@ def create_key_bindings(editor):
         col = doc.cursor_position_col
         if col >= len(line):
             return
-        end_col = next_cell_offset(line, col, event.arg or 1)
+        end_col = next_cell_offset(line, col, _positive_count(event.arg))
         span = end_col - col
         if span > 0:
             cluster = line[col:end_col]
@@ -360,13 +371,13 @@ def create_key_bindings(editor):
         """
         buff = event.current_buffer
         doc = buff.document
-        buff.cursor_position = _end_of_line_cell_position(doc, event.arg or 1)
+        buff.cursor_position = _end_of_line_cell_position(doc, _positive_count(event.arg))
 
     def _move_to_end_of_word_cell(event, WORD):
         "Move cursor to the base character of the last cell cluster of the word."
         buff = event.current_buffer
         doc = buff.document
-        end = doc.find_next_word_ending(count=event.arg or 1, WORD=WORD)
+        end = doc.find_next_word_ending(count=_positive_count(event.arg), WORD=WORD)
         if end:
             buff.cursor_position = _snap_word_end_to_cell(doc, buff.cursor_position + end)
 
@@ -385,15 +396,3 @@ def create_key_bindings(editor):
         _move_to_end_of_word_cell(event, WORD=True)
 
     return kb
-
-
-@Condition
-def whitespace_before_cursor_on_line():
-    """
-    Filter which evaluates to True when the characters before the cursor are
-    whitespace, or we are at the start of the line.
-    """
-    b = get_app().current_buffer
-    before_cursor = b.document.current_line_before_cursor
-
-    return bool(not before_cursor or before_cursor[-1].isspace())

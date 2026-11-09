@@ -60,6 +60,19 @@ class EditorBuffer:
         note_document_text(self.location)
         note_document_text(self._file_content)
 
+        # List of reporting errors, and index of those errors by line.
+        # Initialized before `ColdTextBuffer` so `_on_text_changed` can never
+        # observe uninitialized attributes during construction.
+        self.report_errors = []
+        self.report_errors_by_line = {}
+        self._reporter_is_running = False
+        self._run_reporter_again = False
+
+        # True when some changes are not yet written to file.
+        self._has_unsaved_changes = False
+        self._last_text_len = len(text)
+        self._last_line_count = text.count('\n') + 1
+
         # Create Buffer. Undo/redo snapshots are cold text: store them
         # compressed, while the active buffer text remains a plain string.
         compressor, compression_name, compression_level = make_cold_text_compressor(
@@ -76,17 +89,7 @@ class EditorBuffer:
             cold_compression_name=compression_name,
             cold_compression_level=compression_level,
         )
-
-        # List of reporting errors, and index of those errors by line.
-        self.report_errors = []
-        self.report_errors_by_line = {}
-        self._reporter_is_running = False
-        self._run_reporter_again = False
-
-        # True when some changes are not yet written to file.
-        self._has_unsaved_changes = False
-        self._last_text_len = len(text)
-        self._last_line_count = len(self.buffer.document.lines)
+        self.buffer._vith_editor_buffer_ref = weakref.ref(self)
 
     @property
     def editor(self):
@@ -113,10 +116,8 @@ class EditorBuffer:
         # Multi-line edits (paste, undo/redo, full-buffer replacement) may
         # introduce Thai on rows other than current_line (docs/bugs/097.md).
         # When unlatched, note full text if line count changed or multiple chars changed.
-        old_len = getattr(self, '_last_text_len', len(self._file_content))
         lines = self.buffer.document.lines
-        old_line_count = getattr(self, '_last_line_count', 1)
-        if len(lines) != old_line_count or abs(len(text) - old_len) > 1:
+        if len(lines) != self._last_line_count or abs(len(text) - self._last_text_len) > 1:
             note_document_text(text)
         self._last_text_len = len(text)
         self._last_line_count = len(lines)
@@ -145,41 +146,43 @@ class EditorBuffer:
         location cannot be read at all (unknown backend or read failure) —
         callers must not silently treat `None` as a new empty file.
         """
-        for io in self.editor.io_backends:
-            if io.can_open_location(location):
-                # Found an I/O backend.
-                exists = io.exists(location)
-                self.isdir = io.isdir(location)
+        io = next(
+            (b for b in self.editor.io_backends if b.can_open_location(location)),
+            None,
+        )
+        if io is None:
+            self.editor.show_message('Cannot read: %r' % location)
+            return None
 
-                if exists in (True, NotImplemented):
-                    # File could exist. Read it.
-                    self.is_new = False
-                    try:
-                        text, self.encoding = io.read(location)
+        exists = io.exists(location)
+        self.isdir = io.isdir(location)
 
-                        # Replace \r\n by \n.
-                        text = text.replace('\r\n', '\n')
+        if exists in (True, NotImplemented):
+            # File could exist. Read it.
+            self.is_new = False
+            try:
+                text, self.encoding = io.read(location)
 
-                        # Drop trailing newline while editing.
-                        # (prompt-toolkit doesn't enforce the trailing newline.)
-                        if text.endswith('\n'):
-                            self._had_trailing_newline = True
-                            text = text[:-1]
-                        else:
-                            self._had_trailing_newline = False
-                    except Exception as e:
-                        self.editor.show_message('Cannot read %r: %r' % (location, e))
-                        return None
-                    else:
-                        return text
-                else:
-                    # File doesn't exist.
-                    self.is_new = True
+                # Replace \r\n by \n.
+                text = text.replace('\r\n', '\n')
+
+                # Drop trailing newline while editing.
+                # (prompt-toolkit doesn't enforce the trailing newline.)
+                if text.endswith('\n'):
                     self._had_trailing_newline = True
-                    return ''
-
-        self.editor.show_message('Cannot read: %r' % location)
-        return None
+                    text = text[:-1]
+                else:
+                    self._had_trailing_newline = False
+            except Exception as e:
+                self.editor.show_message('Cannot read %r: %r' % (location, e))
+                return None
+            else:
+                return text
+        else:
+            # File doesn't exist.
+            self.is_new = True
+            self._had_trailing_newline = True
+            return ''
 
     def reload(self):
         """
@@ -222,16 +225,17 @@ class EditorBuffer:
             return False
 
         # Find I/O backend that handles this location.
-        for io in self.editor.io_backends:
-            if io.can_open_location(target_location):
-                break
-        else:
+        io = next(
+            (b for b in self.editor.io_backends if b.can_open_location(target_location)),
+            None,
+        )
+        if io is None:
             self.editor.show_message('Unknown location: %r' % target_location)
             return False
 
         # Write it.
         try:
-            eol = '\n' if getattr(self, '_had_trailing_newline', True) else ''
+            eol = '\n' if self._had_trailing_newline else ''
             try:
                 io.write(target_location, self.buffer.text + eol, self.encoding)
             except UnicodeEncodeError:
@@ -239,15 +243,10 @@ class EditorBuffer:
                 # (typically latin-1, which never fails to decode) and now
                 # contains characters it cannot encode (e.g. Thai typed into
                 # such a file). Save as utf-8 instead of refusing the save
-                # (docs/bugs/070.md).
+                # (docs/bugs/070.md). Mutate `self.encoding` only after the
+                # fallback write succeeds (docs/bugs/110.md).
                 old_encoding = self.encoding
-                try:
-                    io.write(target_location, self.buffer.text + eol, 'utf-8')
-                except Exception:
-                    # Restore the previous encoding if the utf-8 write fails,
-                    # so a failed save does not leave mutated state.
-                    self.encoding = old_encoding
-                    raise
+                io.write(target_location, self.buffer.text + eol, 'utf-8')
                 self.encoding = 'utf-8'
                 self.editor.show_message(
                     'Content not representable in %r; saved as %r' % (old_encoding, 'utf-8')

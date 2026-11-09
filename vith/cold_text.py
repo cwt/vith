@@ -152,6 +152,8 @@ class ColdTextStack:
 
     def update_top_cursor(self, cursor_position: int) -> None:
         """Update the cursor of the top snapshot without recompressing it."""
+        if not self._meta:
+            return
         text_version, _old_cursor = self._meta[-1]
         self._meta[-1] = (text_version, cursor_position)
 
@@ -186,7 +188,7 @@ class ColdTextBuffer(Buffer):
         self.cold_compression_name = cold_compression_name
         self.cold_compression_level = cold_compression_level
         self._text_version = 0
-        self._vith_cell_column: tuple[int, int] | None = None
+        self._vith_cell_column: tuple[int, int] | tuple[int, int, int] | None = None
         super().__init__(*args, **kwargs)
 
     def reset(
@@ -230,32 +232,39 @@ class ColdTextBuffer(Buffer):
             # Fresh recording (first vertical move, or prompt_toolkit reset
             # the sticky): recorded on the *current* row.
             src_col = sticky if sticky is not None else doc.cursor_position_col
-            src_row = doc.cursor_position_row
+            src_row = min(doc.cursor_position_row, len(lines) - 1)
+            src_line = lines[src_row]
+            ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)))
+        elif len(remembered) == 3:
+            # Unchanged sticky: reuse cached visual ordinal without rescanning
+            # `src_line` on every repeated `j`/`k` motion (docs/bugs/113.md).
+            src_col, src_row, ordinal = remembered
+            src_row = min(src_row, len(lines) - 1)
         else:
-            # Unchanged sticky: it belongs to the previously remembered row.
             src_col, src_row = remembered
-        src_row = min(src_row, len(lines) - 1)
+            src_row = min(src_row, len(lines) - 1)
+            src_line = lines[src_row]
+            ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)))
 
         if up:
             target_row = max(0, doc.cursor_position_row - count)
         else:
             target_row = min(len(lines) - 1, doc.cursor_position_row + count)
 
-        src_line = lines[src_row]
-        ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)))
         target_col = _start_of_cell_ordinal(lines[target_row], ordinal)
 
         self.cursor_position = doc.translate_row_col_to_index(target_row, target_col)
 
         # Keep prompt_toolkit's sticky compatible for other readers, and
-        # remember it for the next vertical move on the target row.
+        # remember it (with the resolved ordinal) for the next vertical move.
         self.preferred_column = src_col
-        self._vith_cell_column = (src_col, src_row)
+        self._vith_cell_column = (src_col, src_row, ordinal)
 
     def _text_changed(self) -> None:
         # Covers text assignment, Document replacement and history-index
         # changes, so the undo stack can detect "cursor moved only" in O(1).
         self._text_version += 1
+        self._vith_cell_column = None
         super()._text_changed()
 
     def save_to_undo_stack(self, clear_redo_stack: bool = True) -> None:
@@ -273,22 +282,24 @@ class ColdTextBuffer(Buffer):
         redo_stack = cast(ColdTextStack, self._redo_stack)
 
         while undo_stack:
-            text, cursor_position, _text_version = undo_stack.pop()
+            text, cursor_position, text_version = undo_stack.pop()
             if text == self.text:
                 # Preserve skipped (no-text-delta) snapshots in redo instead
                 # of discarding them, so intermediate history is not lost.
-                redo_stack.push(text, cursor_position, _text_version)
+                redo_stack.push(text, cursor_position, text_version)
                 continue
             redo_stack.push(self.text, self.cursor_position, self._text_version)
             self.document = Document(text, cursor_position=cursor_position)
+            self._text_version = text_version
             break
 
     def redo(self) -> None:
         redo_stack = cast(ColdTextStack, self._redo_stack)
         if redo_stack:
             self.save_to_undo_stack(clear_redo_stack=False)
-            text, cursor_position, _text_version = redo_stack.pop()
+            text, cursor_position, text_version = redo_stack.pop()
             self.document = Document(text, cursor_position=cursor_position)
+            self._text_version = text_version
 
     def cold_text_stats(self) -> dict[str, Any]:
         """Return undo, redo and total compressed-history statistics."""

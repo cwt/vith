@@ -42,12 +42,12 @@ class DocumentLexer(Lexer):
     MIN_LINES_BACKWARDS = 50
     REUSE_GENERATOR_MAX_DISTANCE = 100
 
-    def __init__(self, editor_buffer):
+    def __init__(self, editor_buffer: Any) -> None:
         self.editor_buffer = editor_buffer
-        self._cached_location = None
+        self._cached_location: str | None = None
         self._pygments_lexer: Any = None
-        self._syntax_sync = None
-        self._directory_lexer = None
+        self._syntax_sync: Any = None
+        self._directory_lexer: Any = None
 
     def invalidation_hash(self):
         # Invalidate the fragment cache when the buffer location (or file
@@ -69,11 +69,21 @@ class DocumentLexer(Lexer):
             self._directory_lexer = PygmentsLexer(DirectoryListingLexer, sync_from_start=False)
         return self._directory_lexer
 
-    def _ensure_lexer(self, location):
+    def _ensure_lexer(self, location: str) -> bool:
         """Load/cache the Pygments lexer for this location."""
-        if self._cached_location == location:
+        if self._cached_location == location and (
+            _STREAMING_AVAILABLE or self._pygments_lexer is not None
+        ):
             # Already looked up: reuse the result (including a cached miss,
             # so we don't re-scan the Pygments registry on every edit).
+            return self._pygments_lexer is not None
+
+        if not _STREAMING_AVAILABLE:
+            # Legacy fallback for prompt_toolkit builds without `RegexSync`:
+            # cache the `PygmentsLexer` per location (docs/bugs/030.md, 065.md).
+            self._pygments_lexer = PygmentsLexer.from_filename(location, sync_from_start=False)
+            self._cached_location = location
+            self._syntax_sync = None
             return self._pygments_lexer is not None
 
         from pygments.lexers import get_lexer_for_filename
@@ -94,7 +104,7 @@ class DocumentLexer(Lexer):
         self._syntax_sync = RegexSync.from_pygments_lexer_cls(lexer_inst.__class__)
         return True
 
-    def lex_document(self, document):
+    def lex_document(self, document: Any) -> Any:
         """
         Call the lexer and return a get_tokens_for_line function.
         """
@@ -104,26 +114,13 @@ class DocumentLexer(Lexer):
             if getattr(self.editor_buffer, 'in_file_explorer_mode', False):
                 return self._get_directory_lexer().lex_document(document)
 
-            if not _STREAMING_AVAILABLE:
-                # Legacy fallback for prompt_toolkit builds without
-                # `RegexSync`: cache the `PygmentsLexer` per location the same
-                # way the streaming branch caches its lexer (the registry scan
-                # costs ~0.6 ms/frame otherwise; docs/bugs/030.md and
-                # docs/bugs/065.md). `PygmentsLexer.from_filename` degrades to
-                # `SimpleLexer` itself when Pygments cannot guess a lexer
-                # (unknown extension), so no crash escapes to the renderer.
-                if self._cached_location != location or self._pygments_lexer is None:
-                    self._pygments_lexer = PygmentsLexer.from_filename(
-                        location, sync_from_start=False
-                    )
-                    self._cached_location = location
-                return self._pygments_lexer.lex_document(document)
+            if not self._ensure_lexer(location):
+                # No Pygments lexer found for this location (or Pygments
+                # could not guess one): fall back to no highlighting.
+                return SimpleLexer().lex_document(document)
 
-            if self._cached_location != location or self._pygments_lexer is None:
-                if not self._ensure_lexer(location):
-                    # No Pygments lexer found for this location (or Pygments
-                    # could not guess one): fall back to no highlighting.
-                    return SimpleLexer().lex_document(document)
+            if not _STREAMING_AVAILABLE:
+                return self._pygments_lexer.lex_document(document)
 
             pygments_lexer = self._pygments_lexer
             syntax_sync = self._syntax_sync

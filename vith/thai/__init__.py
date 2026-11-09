@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from . import classify, clusters, patches, words
 from .classify import (  # noqa: F401
-    _THAI_COMBINING_CPS,
+    _THAI_COMBINING_CPS,  # internal/test re-export (not in __all__)
     is_combining_char,
     is_lao,
     is_sara_am,
@@ -36,6 +36,9 @@ from .classify import (  # noqa: F401
     is_thai_right_attaching,
 )
 from .clusters import (  # noqa: F401
+    _cell_ordinal,  # internal/test re-export (not in __all__)
+    _map_column_across_lines,  # internal/test re-export (not in __all__)
+    _start_of_cell_ordinal,  # internal/test re-export (not in __all__)
     cell_starts,
     cell_stops,
     next_cell_offset,
@@ -43,28 +46,26 @@ from .clusters import (  # noqa: F401
     snap_to_cell_start,
 )
 from .patches import (  # noqa: F401
-    _SARA_AM_POISON,
-    _THAI_GATE,
-    _cell_ordinal,
-    _install_renderer_patch,
-    _install_window_copy_body_patch,
-    _PtkTextObject,
-    _PtkZeroWidthEscape,
-    _sanitize_and_invalidate_sara_am,
-    _start_of_cell_ordinal,
-    _thai_install_selftest,
-    _ThaiTextGate,
+    _SARA_AM_POISON,  # internal/test re-export (not in __all__)
+    _THAI_GATE,  # internal/test re-export (not in __all__)
+    _install_renderer_patch,  # internal/test re-export (not in __all__)
+    _install_window_copy_body_patch,  # internal/test re-export (not in __all__)
+    _PtkTextObject,  # internal/test re-export (not in __all__)
+    _PtkZeroWidthEscape,  # internal/test re-export (not in __all__)
+    _sanitize_and_invalidate_sara_am,  # internal/test re-export (not in __all__)
+    _thai_install_selftest,  # internal/test re-export (not in __all__)
+    _ThaiTextGate,  # internal/test re-export (not in __all__)
     install_prompt_toolkit_thai_patches,
     note_document_text,
-    ptk_renderer,
+    ptk_renderer,  # internal/test re-export (not in __all__)
     reset_thai_text_gate,
     reset_thai_text_gate_if_all_buffers_ascii,
 )
 from .words import (  # noqa: F401
-    _ORIGINAL_DOCUMENT_METHODS,
-    _ORIGINAL_KEY_PROCESSOR_METHODS,
-    _iter_word_spans,
-    _word_spans_for_line,
+    _ORIGINAL_DOCUMENT_METHODS,  # internal/test re-export (not in __all__)
+    _ORIGINAL_KEY_PROCESSOR_METHODS,  # internal/test re-export (not in __all__)
+    _iter_word_spans,  # internal/test re-export (not in __all__)
+    _word_spans_for_line,  # internal/test re-export (not in __all__)
     find_boundaries_of_current_word,
     find_next_word_beginning,
     find_next_word_ending,
@@ -74,12 +75,6 @@ from .words import (  # noqa: F401
     find_thai_cluster_end,
     find_thai_word_breaks,
 )
-
-# Backward-compatibility aliases for former flat module names
-thai_classify = classify
-thai_clusters = clusters
-thai_words = words
-thai_patches = patches
 
 __all__ = (
     # Submodules

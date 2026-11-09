@@ -27,8 +27,8 @@ def create_command_completer(editor):
 class BufferNameCompleter(Completer):
     """
     Complete on buffer names.
-    It is sufficient when the input appears anywhere in the buffer name, to
-    trigger a completion.
+    Prefix matches are yielded first, followed by substring matches when a
+    non-empty query is typed.
     """
 
     def __init__(self, editor):
@@ -36,12 +36,20 @@ class BufferNameCompleter(Completer):
 
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
+        start_pos = -len(text)
+        substring_matches = []
 
         for eb in self.editor.window_arrangement.editor_buffers:
             location = eb.location
+            if location is None:
+                continue
+            if location.startswith(text):
+                yield Completion(location, start_position=start_pos, display=location)
+            elif text and text in location:
+                substring_matches.append(location)
 
-            if location is not None and text in location:
-                yield Completion(location, start_position=-len(text), display=location)
+        for location in substring_matches:
+            yield Completion(location, start_position=start_pos, display=location)
 
 
 class ColorSchemeCompleter(Completer):
@@ -55,7 +63,8 @@ class ColorSchemeCompleter(Completer):
 
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
+        start_pos = -len(text)
 
         for style_name in self.editor.styles:
             if style_name.startswith(text):
-                yield Completion(style_name.removeprefix(text), display=style_name)
+                yield Completion(style_name, start_position=start_pos, display=style_name)

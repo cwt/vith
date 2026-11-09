@@ -242,3 +242,59 @@ def test_vertical_cursor_ascii_parity(editor_buffer):
     assert buffer.cursor_position == buffer.document.translate_row_col_to_index(1, 3)
     buffer.cursor_down()
     assert buffer.cursor_position == buffer.document.translate_row_col_to_index(2, 3)
+
+
+def test_redo_does_not_push_duplicate_snapshot_to_undo_stack(editor_buffer):
+    # 110 item 7: `undo()` and `redo()` restore `self._text_version` to the
+    # snapshot's recorded version so a subsequent cursor-only `save_to_undo_stack`
+    # or `redo()` updates in-place instead of pushing a duplicate snapshot.
+    buffer = editor_buffer.buffer
+    buffer.text = "step 1"
+    v1 = buffer._text_version
+    buffer.save_to_undo_stack()
+    buffer.text = "step 2"
+    v2 = buffer._text_version
+    buffer.save_to_undo_stack()
+    buffer.text = "step 3"
+
+    buffer.undo()
+    assert buffer.text == "step 2"
+    assert buffer._text_version == v2
+
+    # Saving cursor position before redo and then redoing must not push two
+    # copies of "step 2" onto `_undo_stack`:
+    buffer.save_to_undo_stack(clear_redo_stack=False)
+    count_after_save = len(buffer._undo_stack)
+    buffer.redo()
+    assert buffer.text == "step 3"
+    assert len(buffer._undo_stack) == count_after_save
+
+    buffer.undo()
+    assert buffer.text == "step 2"
+    assert buffer._text_version == v2
+    buffer.undo()
+    assert buffer.text == "step 1"
+    assert buffer._text_version == v1
+
+
+def test_update_top_cursor_on_empty_stack_is_noop():
+    # 111 item 11: calling `update_top_cursor` on an empty `ColdTextStack`
+    # returns cleanly instead of raising `IndexError`.
+    stack = _make_stack()
+    stack.update_top_cursor(42)
+    assert len(stack) == 0
+
+
+def test_vertical_cursor_caches_ordinal_and_invalidates_on_text_change(editor_buffer):
+    # 113 item 4: `_cursor_vertical` stores `(src_col, src_row, ordinal)` on
+    # `_vith_cell_column` and invalidates it when `_text_changed` fires.
+    buffer = editor_buffer.buffer
+    buffer.text = "ที่ดิน\nกำแพง\nสหัส\n"
+    buffer.cursor_position = 5  # row 0, col 5, ordinal 2
+    buffer.cursor_down()
+    assert buffer._vith_cell_column == (5, 0, 2)
+    buffer.cursor_down()
+    assert buffer._vith_cell_column == (5, 0, 2)
+
+    buffer.text = "เปลี่ยน\nบรรทัด\n"
+    assert buffer._vith_cell_column is None

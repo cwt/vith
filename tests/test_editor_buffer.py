@@ -343,3 +343,44 @@ def test_editor_buffer_new_file_defaults_to_trailing_newline(editor, tmp_path):
     eb.buffer.text = "brand new content"
     assert eb.write(str(f)) is True
     assert f.read_text() == "brand new content\n"
+
+
+def test_write_latin1_buffer_with_non_latin1_chars_falls_back_to_utf8(editor, tmp_path):
+    # 110 item 10: when a latin-1 buffer is edited to contain non-latin-1
+    # characters (e.g. Thai), `write()` falls back to UTF-8 and updates
+    # `self.encoding` only after `io.write` succeeds.
+    f = tmp_path / "latin1_to_utf8.txt"
+    f.write_bytes(b"caf\xe9\n")
+    eb = EditorBuffer(editor, str(f))
+    assert eb.encoding == "latin-1"
+
+    eb.buffer.text = "café ที่ดิน"
+    assert eb.write() is True
+    assert eb.encoding == "utf-8"
+    assert f.read_text(encoding="utf-8") == "café ที่ดิน\n"
+
+
+def test_current_editor_buffer_o1_lookup_and_command_buffer_fast_reject(editor, monkeypatch):
+    # 114 item 6: `Editor.current_editor_buffer` resolves the active `EditorBuffer`
+    # via `_vith_editor_buffer_ref` in O(1) and immediately returns `None` when
+    # `command_buffer` or `search_buffer` has focus.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    assert hasattr(eb.buffer, "_vith_editor_buffer_ref")
+    assert eb.buffer._vith_editor_buffer_ref() is eb
+
+    active_buf = [eb.buffer]
+
+    def get_current_buffer(_self):
+        return active_buf[0]
+
+    monkeypatch.setattr(
+        type(editor.application),
+        "current_buffer",
+        property(get_current_buffer),
+    )
+    assert editor.current_editor_buffer is eb
+
+    for non_editor_buf in (editor.command_buffer, editor.search_buffer):
+        active_buf[0] = non_editor_buf
+        assert editor.current_editor_buffer is None

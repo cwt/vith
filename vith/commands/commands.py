@@ -11,6 +11,7 @@ from vith.thai import note_document_text
 __all__ = (
     'has_command_handler',
     'call_command_handler',
+    'press_enter_to_continue',
 )
 
 
@@ -40,6 +41,17 @@ def _confirm_unsaved_changes(editor, force):
     return True
 
 
+def press_enter_to_continue():
+    """
+    Wait for the user to press Enter, degrading gracefully on EOF (non-TTY
+    stdin; shared by `_run_pager` and `vith.rc_file`, docs/bugs/113.md).
+    """
+    try:
+        input('\nPress ENTER to continue...')
+    except EOFError:
+        pass
+
+
 def _run_pager(print_handler):
     """
     Run `print_handler` in a terminal pager and wait for Enter afterwards
@@ -48,10 +60,7 @@ def _run_pager(print_handler):
 
     def pager_handler():
         print_handler()
-        try:
-            input('\nPress ENTER to continue...')
-        except EOFError:
-            pass
+        press_enter_to_continue()
 
     run_in_terminal(pager_handler)
 
@@ -360,7 +369,7 @@ def buffer_edit(editor, location, force=False):
         # Edit/open without a location will reload the current file, if there are
         # no changes.
         eb = editor.window_arrangement.active_editor_buffer
-        if eb.location is None:
+        if eb is None or eb.location is None:
             editor.show_message(_NO_FILE_NAME)
         elif _confirm_unsaved_changes(editor, force):
             eb.reload()
@@ -377,8 +386,9 @@ def quit(editor, all_=False, force=False):
     """
     window_arrangement = editor.window_arrangement
     ebs = window_arrangement.editor_buffers
-    has_multiple_windows = (
-        len(window_arrangement.tab_pages) > 1 or window_arrangement.active_tab.window_count() > 1
+    active_tab = window_arrangement.active_tab
+    has_multiple_windows = len(window_arrangement.tab_pages) > 1 or (
+        active_tab is not None and active_tab.window_count() > 1
     )
 
     # ":q" closes the current window (or the whole tab when it has a single
@@ -419,7 +429,7 @@ def write(editor, location, force=False):
         editor.show_message('File exists (add ! to override)')
         return False
     eb = editor.window_arrangement.active_editor_buffer
-    if location is None and eb.location is None:
+    if eb is None or (location is None and eb.location is None):
         editor.show_message(_NO_FILE_NAME)
         return False
     return eb.write(location)

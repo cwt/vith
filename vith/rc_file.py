@@ -9,17 +9,13 @@ editor instance as an argument.
 import os
 import traceback
 
+from .commands.commands import press_enter_to_continue
 from .editor import Editor
 
 __all__ = ('run_rc_file',)
 
-
-def _press_enter_to_continue():
-    """Wait for the user to press enter (startup path, no terminal pager)."""
-    try:
-        input('\nPress ENTER to continue...')
-    except EOFError:
-        pass
+# Alias preserved for callers/tests referencing the module-private name.
+_press_enter_to_continue = press_enter_to_continue
 
 
 def run_rc_file(editor, rc_file):

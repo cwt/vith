@@ -120,7 +120,7 @@ class DocumentCompleter(Completer):
         editor = self._editor_ref()
         editor_buffer = self._editor_buffer_ref()
         if editor is None or editor_buffer is None:
-            return
+            return iter(())
         location = editor_buffer.location or '.txt'
 
         # Select completer. jedi is optional (not in install_requires): when

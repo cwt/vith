@@ -341,6 +341,31 @@ def test_untitled_buffer_label_consistency(editor):
     assert any(UNTITLED_LABEL in line for line in lines)
 
 
+def test_tabs_control_prunes_stale_tab_handlers_on_tab_close(editor):
+    # 114 item 7: `TabsControl.tab_handlers` removes handler closures for
+    # tab indices >= len(tab_pages) when tabs are closed.
+    from vith.layout import TabsControl
+
+    editor.load_initial_files([None])
+    editor.window_arrangement.create_tab()
+    editor.window_arrangement.create_tab()
+
+    control = TabsControl(editor)
+    get_tokens = control.text
+    get_tokens()
+    assert set(control.tab_handlers.keys()) == {0, 1, 2}
+
+    editor.window_arrangement.close_tab()
+    get_tokens()
+    assert set(control.tab_handlers.keys()) == {0, 1}
+
+
+def test_editor_layout_update_noop_when_active_tab_is_none(editor):
+    # 115 item 4: `EditorLayout.update()` returns cleanly when `active_tab` is None.
+    assert editor.window_arrangement.active_tab is None
+    editor.editor_layout.update()
+
+
 def test_highlight_location_uses_spans_instead_of_per_char_tokens(editor):
     # 109: highlight_location builds span fragments rather than per-character tokens
     from vith.layout import BufferListOverlay

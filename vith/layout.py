@@ -99,6 +99,7 @@ class TabsControl(FormattedTextControl):
         # and building a fresh closure per tab per frame churned allocations
         # (docs/bugs/072.md). Tab handlers are stateless w.r.t. the index.
         tab_handlers = {}
+        self.tab_handlers = tab_handlers
 
         def get_tab_handler(index):
             try:
@@ -109,12 +110,17 @@ class TabsControl(FormattedTextControl):
                 return handler
 
         def get_tokens():
+            tab_pages = editor.window_arrangement.tab_pages
             selected_tab_index = editor.window_arrangement.active_tab_index
+
+            if len(tab_handlers) > len(tab_pages):
+                for stale_idx in [idx for idx in tab_handlers if idx >= len(tab_pages)]:
+                    del tab_handlers[stale_idx]
 
             result = []
             append = result.append
 
-            for i, tab in enumerate(editor.window_arrangement.tab_pages):
+            for i, tab in enumerate(tab_pages):
                 caption = location_for_tab(tab)
                 if tab.has_unsaved_changes:
                     caption = ' + ' + caption
@@ -286,6 +292,7 @@ class BufferListOverlay(ConditionalContainer):
 
                     if b.complete_state and any(
                         info.editor_buffer.location in c.display_text
+                        and input_params[1] in c.display_text
                         for c in b.complete_state.completions
                         if info.editor_buffer.location is not None
                     ):
@@ -666,7 +673,10 @@ class EditorLayout:
                 case _:
                     raise ValueError(f"Unknown window arrangement node: {node!r}")
 
-        layout = create_layout_from_node(self.window_arrangement.active_tab.root)
+        active_tab = self.window_arrangement.active_tab
+        if active_tab is None:
+            return
+        layout = create_layout_from_node(active_tab.root)
         self._fc.content = layout
 
     def _create_window_frame(self, editor_buffer):

@@ -40,8 +40,19 @@ class _LazyStylesDict(Mapping):
     def __len__(self):
         return len(self._ensure_names())
 
+    def __contains__(self, name):
+        if not isinstance(name, str):
+            return False
+        if name in self._loaded:
+            return True
+        return name == 'vim' or name in self._ensure_names()
+
     def __getitem__(self, name):
+        if not isinstance(name, str):
+            raise KeyError(name)
         if name not in self._loaded:
+            if self._names is not None and name != 'vim' and name not in self._names:
+                raise KeyError(name)
             try:
                 self._loaded[name] = get_editor_style_by_name(name)
             except ClassNotFound as exc:
@@ -56,6 +67,10 @@ def get_editor_style_by_name(name):
     name.
     """
     if name == 'vim':
+        # Pygments' built-in 'vim' style uses 24-bit RGB hex colors (`#cd0000`,
+        # etc.); `default_vim_style` overrides it with 16-color ANSI names
+        # (`ansired`, `ansiblue`, ...) so the default theme adapts cleanly to
+        # the user's terminal palette.
         vim_style = Style.from_dict(default_vim_style)
     else:
         vim_style = style_from_pygments_cls(get_style_by_name(name))

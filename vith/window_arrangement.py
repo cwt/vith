@@ -22,7 +22,7 @@ class VSplit(list):
     """Vertical split."""
 
 
-class Window(object):
+class Window:
     """
     Editor window: a window can show any open buffer.
     """
@@ -38,31 +38,40 @@ class Window(object):
         return '%s(editor_buffer=%r)' % (self.__class__.__name__, self.editor_buffer)
 
 
-class TabPage(object):
+class TabPage:
     """
     Tab page. Container for windows.
     """
 
-    def __init__(self, window):
+    def __init__(self, window: Window) -> None:
         assert isinstance(window, Window)
-        self.root = VSplit([window])
+        self.root: Window | VSplit | HSplit = VSplit([window])
 
         # Keep track of which window is focusesd in this tab.
-        self.active_window = window
+        self.active_window: Window = window
+        self._windows_cache: list[Window] | None = [window]
+
+    def _invalidate_windows_cache(self):
+        self._windows_cache = None
+
+    def _get_windows(self) -> list[Window]:
+        if self._windows_cache is None:
+            self._windows_cache = [window for _, window in self._walk_through_windows()]
+        return self._windows_cache
 
     def windows(self):
         """Return a list of all windows in this tab page."""
-        return [window for _, window in self._walk_through_windows()]
+        return list(self._get_windows())
 
     def window_count(self):
         """The amount of windows in this tab."""
-        return len(self.windows())
+        return len(self._get_windows())
 
     def visible_editor_buffers(self):
         """
         Return a list of visible `EditorBuffer` instances.
         """
-        return [w.editor_buffer for w in self.windows()]
+        return [w.editor_buffer for w in self._get_windows()]
 
     def _walk_through_windows(self):
         """
@@ -103,6 +112,7 @@ class TabPage(object):
         for parent, child in self._walk_through_splits():
             if child == split:
                 return parent
+        return None
 
     def _split(self, split_cls, editor_buffer=None):
         """
@@ -125,6 +135,7 @@ class TabPage(object):
 
         # Focus new window.
         self.active_window = new_window
+        self._invalidate_windows_cache()
 
     def hsplit(self, editor_buffer=None):
         """
@@ -193,10 +204,12 @@ class TabPage(object):
         # for the root.)
         if len(active_split) == 1 and active_split != self.root:
             parent = self._get_split_parent(active_split)
-            index = parent.index(active_split)
-            parent[index] = active_split[0]
+            if parent is not None:
+                index = parent.index(active_split)
+                parent[index] = active_split[0]
 
-        return len(self.windows()) == 0
+        self._invalidate_windows_cache()
+        return self.window_count() == 0
 
     def cycle_focus(self):
         """
@@ -205,7 +218,7 @@ class TabPage(object):
         if self.active_window is None:
             # Empty tab page (docs/bugs/066.md): nothing to cycle.
             return
-        windows = self.windows()
+        windows = self._get_windows()
         new_index = (windows.index(self.active_window) + 1) % len(windows)
         self.active_window = windows[new_index]
 
@@ -214,13 +227,13 @@ class TabPage(object):
         """
         True when any of the visible buffers in this tab has unsaved changes.
         """
-        for w in self.windows():
+        for w in self._get_windows():
             if w.editor_buffer.has_unsaved_changes:
                 return True
         return False
 
 
-class WindowArrangement(object):
+class WindowArrangement:
     def __init__(self, editor):
         self._editor_ref = weakref.ref(editor)
 
@@ -245,6 +258,7 @@ class WindowArrangement(object):
         """The active EditorBuffer or None."""
         if self.active_tab and self.active_tab.active_window:
             return self.active_tab.active_window.editor_buffer
+        return None
 
     @property
     def active_pt_window(self):
@@ -253,6 +267,7 @@ class WindowArrangement(object):
             w = self.active_tab.active_window
             if w:
                 return w.pt_window
+        return None
 
     def get_editor_buffer_for_location(self, location):
         """
@@ -262,6 +277,7 @@ class WindowArrangement(object):
         for eb in self.editor_buffers:
             if eb.location == location:
                 return eb
+        return None
 
     def close_window(self):
         """
@@ -286,7 +302,7 @@ class WindowArrangement(object):
         """
         Close active tab.
         """
-        if len(self.tab_pages) > 1:  # Cannot close last tab.
+        if len(self.tab_pages) > 1 and self.active_tab_index is not None:  # Cannot close last tab.
             del self.tab_pages[self.active_tab_index]
             self.active_tab_index = max(0, self.active_tab_index - 1)
 
@@ -298,6 +314,9 @@ class WindowArrangement(object):
         assert (location is not None) + (text is not None) + bool(
             new
         ) <= 1  # Don't pass two of them.
+
+        if self.active_tab is None:
+            return
 
         if location or text or new:
             editor_buffer = self._get_or_create_editor_buffer(location=location, text=text)
@@ -317,6 +336,8 @@ class WindowArrangement(object):
         """
         Close all other windows, except the current one.
         """
+        if self.active_tab is None or self.active_tab.active_window is None:
+            return
         self.tab_pages = [TabPage(self.active_tab.active_window)]
         self.active_tab_index = 0
 
@@ -330,6 +351,8 @@ class WindowArrangement(object):
         """
         Show this EditorBuffer in the current window.
         """
+        if self.active_tab is None:
+            return
         self.active_tab.show_editor_buffer(editor_buffer)
 
         # Clean up buffers.
@@ -339,15 +362,15 @@ class WindowArrangement(object):
         """
         Open next buffer in active window.
         """
-        if self.active_editor_buffer:
-            # Find the active opened buffer.
-            index = self.editor_buffers.index(self.active_editor_buffer)
-
-            # Get index of new buffer.
-            if _previous:
-                new_index = (len(self.editor_buffers) + index - 1) % len(self.editor_buffers)
-            else:
-                new_index = (index + 1) % len(self.editor_buffers)
+        active_eb = self.active_editor_buffer
+        if (
+            active_eb is not None
+            and self.active_tab is not None
+            and active_eb in self.editor_buffers
+        ):
+            index = self.editor_buffers.index(active_eb)
+            step = -1 if _previous else 1
+            new_index = (index + step) % len(self.editor_buffers)
 
             # Open new buffer in active tab.
             self.active_tab.show_editor_buffer(self.editor_buffers[new_index])
@@ -361,19 +384,21 @@ class WindowArrangement(object):
         """
         self.go_to_next_buffer(_previous=True)
 
+    def _cycle_tab(self, step: int) -> None:
+        if self.tab_pages and self.active_tab_index is not None:
+            self.active_tab_index = (self.active_tab_index + step) % len(self.tab_pages)
+
     def go_to_next_tab(self):
         """
         Focus the next tab.
         """
-        self.active_tab_index = (self.active_tab_index + 1) % len(self.tab_pages)
+        self._cycle_tab(1)
 
     def go_to_previous_tab(self):
         """
         Focus the previous tab.
         """
-        self.active_tab_index = (self.active_tab_index - 1 + len(self.tab_pages)) % len(
-            self.tab_pages
-        )
+        self._cycle_tab(-1)
 
     def go_to_buffer(self, buffer_name):
         """
@@ -417,15 +442,12 @@ class WindowArrangement(object):
 
         # Add to list of EditorBuffers
         eb = self.active_editor_buffer
-        if eb is None:
+        if eb is None or eb not in self.editor_buffers:
             self.editor_buffers.append(editor_buffer)
         else:
             # Insert right after the currently active one, matching the
             # docstring (and vim's `:buffers` ordering).
-            try:
-                index = self.editor_buffers.index(self.active_editor_buffer)
-            except ValueError:
-                index = 0
+            index = self.editor_buffers.index(eb)
             self.editor_buffers.insert(index + 1, editor_buffer)
 
         # When there are no tabs/windows yet, create one for this buffer.
@@ -586,7 +608,7 @@ class WindowArrangement(object):
         return [make_info(i, eb) for i, eb in enumerate(self.editor_buffers)]
 
 
-class OpenBufferInfo(object):
+class OpenBufferInfo:
     """
     Information about an open buffer, returned by
     `WindowArrangement.list_open_buffers`.

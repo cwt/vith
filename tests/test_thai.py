@@ -1236,3 +1236,70 @@ def test_word_spans_never_slice_clusters():
             if 0 <= start < len(line):
                 assert not is_combining_char(line[start]), (line, start)
             assert end == len(line) or not is_combining_char(line[end]), (line, end)
+
+
+def test_snap_to_cell_start_preserves_eol_and_snaps_combining_marks():
+    # 111 item 12: `snap_to_cell_start` preserves `col == len(line)` (the EOL
+    # insert position) even when the line ends with a combining mark, while
+    # snapping any in-line combining mark index back to its base character.
+    line = "ที่"  # 'ท' (0), 'ี' (1), '่' (2), len == 3
+    assert snap_to_cell_start(line, 0) == 0
+    assert snap_to_cell_start(line, 1) == 0
+    assert snap_to_cell_start(line, 2) == 0
+    assert snap_to_cell_start(line, 3) == 3
+    assert snap_to_cell_start(line, 99) == 3
+
+
+def test_cell_starts_size_guarded_cache_bypasses_megabyte_lines():
+    # 114 item 2: `cell_starts` caches normal lines in `_cell_starts_cached`
+    # and bypasses the LRU cache for lines exceeding `_CELL_STARTS_CACHE_MAX_LINE`.
+    from vith.thai.clusters import _CELL_STARTS_CACHE_MAX_LINE, cell_starts
+
+    cell_starts.cache_clear()
+    short_line = "ที่ดิน"
+    assert cell_starts(short_line) == [0, 3, 5]
+    assert cell_starts.cache_info().currsize == 1
+
+    huge_line = "ก" * (_CELL_STARTS_CACHE_MAX_LINE + 10)
+    result = cell_starts(huge_line)
+    assert len(result) == _CELL_STARTS_CACHE_MAX_LINE + 10
+    # Cache size did not grow for the oversized line:
+    assert cell_starts.cache_info().currsize == 1
+
+
+def test_window_and_renderer_patches_tolerate_inserted_parameters(monkeypatch):
+    # 111 item 13 & 113 item 3: `_install_window_copy_body_patch` and
+    # `_install_renderer_patch` succeed even when upstream inserts an extra
+    # parameter before `has_focus` or `size`, resolving inspected arguments by name.
+    from prompt_toolkit.layout.containers import Window
+
+    def copy_body_with_inserted_param(
+        self,
+        ui_content,
+        new_screen,
+        write_position,
+        move_x,
+        width,
+        extra_upstream_flag=False,
+        has_focus=False,
+    ):
+        return {}, {}
+
+    monkeypatch.setattr(Window, "_copy_body", copy_body_with_inserted_param)
+    assert thai._install_window_copy_body_patch() is True
+    assert getattr(Window._copy_body, "_vith_thai_patched", False) is True
+
+    def diff_with_inserted_param(
+        app,
+        output,
+        screen,
+        extra_upstream_param,
+        previous_screen=None,
+        is_done=False,
+        size=None,
+    ):
+        return "diff-ok"
+
+    monkeypatch.setattr(thai.ptk_renderer, "_output_screen_diff", diff_with_inserted_param)
+    assert thai._install_renderer_patch() is True
+    assert getattr(thai.ptk_renderer._output_screen_diff, "_vith_thai_patched", False) is True

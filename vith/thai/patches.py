@@ -1,22 +1,12 @@
 """
-Thai (`U+0E00..U+0E7F`) and Lao (`U+0E80..U+0EFF`) script support for `vith`.
+`prompt_toolkit` monkey-patches for Thai (`U+0E00..U+0E7F`) and Lao
+(`U+0E80..U+0EFF`) script support in `vith`.
 
-Adapts the cell-cluster and differential renderer architecture from `szn`
-(`src/thai.zig`, `src/mode_copy.zig`, `src/server/render.zig`):
-
-1. Character-wise Vi motions and edits (`h`, `l`, `j`, `k`, `x`, `X`, `s`,
-   `r`, `~`, `$`, `a`, `<Esc>`) step by terminal cell clusters (`base + comb*`)
-   so the cursor never parks on a zero-width combining mark (`GC=Mn`) and edits
-   never slice a cluster in half.
-2. Word-wise Vi motions and text objects (`w`, `b`, `e`, `W`, `B`, `E`, `iw`,
-   `aw`, `*`, `#`) segment unspaced Thai/Lao text using a two-tier strategy:
-   Tier 1 (`libthai` dictionary breaker via `ctypes`, optional at runtime) with
-   Tier 2 (`find_thai_cluster_end` orthographic syllable cluster heuristic) as
-   an always-available fallback.
-3. Differential terminal rendering (`prompt_toolkit.renderer._output_screen_diff`)
-   cleans up stray zero-width combining marks and invalidates the neighbor cell
-   whenever Thai/Lao `SARA AM` (`U+0E33` / `U+0EB3`) or its preceding consonant
-   at `x - 1` changes.
+Installs version-gated wrappers onto `Document`, `KeyProcessor`, `TextObject`,
+`Window._copy_body`, and `renderer._output_screen_diff` so cursor motion,
+visual selections, right-margin combining marks, and differential terminal
+rendering (`SARA AM` neighbor invalidation and stray-mark cleanup) operate on
+visual cell clusters rather than raw codepoints.
 """
 
 from __future__ import annotations
@@ -25,7 +15,6 @@ import asyncio
 import inspect
 import logging
 import re
-from bisect import bisect_right
 from typing import Any, Callable, Iterable
 
 import prompt_toolkit.renderer as ptk_renderer
@@ -62,7 +51,10 @@ from .classify import (
     is_combining_char,
     is_sara_am,
 )
-from .clusters import (
+from .clusters import (  # noqa: F401
+    _cell_ordinal,
+    _map_column_across_lines,
+    _start_of_cell_ordinal,
     cell_starts,
     next_cell_offset,
     prev_cell_offset,
@@ -128,10 +120,11 @@ def _vertical_cursor_position(
     override).
     """
     column = self.cursor_position_col if preferred_column is None else preferred_column
-    current_line = self.lines[self.cursor_position_row]
-    ordinal = _cell_ordinal(current_line, min(column, len(current_line)))
-    target_line = self.lines[target_row]
-    target_col = _start_of_cell_ordinal(target_line, ordinal)
+    target_col = _map_column_across_lines(
+        self.lines[self.cursor_position_row],
+        column,
+        self.lines[target_row],
+    )
     return self.translate_row_col_to_index(target_row, target_col) - self.cursor_position
 
 
@@ -302,9 +295,9 @@ def _sanitize_and_invalidate_sara_am(
     """
     for y, new_row in new_screen.data_buffer.items():
         # 1. Clear stray width-0 combining cells not overwritten by a trailing
-        #    character. (Only values are replaced, so mutating while
-        #    iterating the dict is safe and avoids a per-row list copy;
-        #    docs/bugs/072.md.)
+        #    character. Snapshotting `list(new_row.items())` avoids any risk
+        #    if `new_row` is a `defaultdict` mutated during iteration
+        #    (docs/bugs/115.md).
         for x, cell in list(new_row.items()):
             if cell.width == 0 and cell.char != "":
                 new_row[x] = Char(char=" ", style=cell.style)
@@ -314,42 +307,29 @@ def _sanitize_and_invalidate_sara_am(
             continue
         prev_row = previous_screen.data_buffer[y]
 
-        # Fast path (docs/bugs/109.md): skip set allocation and key sorting
-        # if neither row contains SARA AM.
-        if not any(_cell_has_sara_am(c) for c in new_row.values()) and not any(
-            _cell_has_sara_am(c) for c in prev_row.values()
-        ):
+        # Single-pass collection of columns `x >= 1` where either `new_row` or
+        # `prev_row` actually holds SARA AM (docs/bugs/114.md). Rows without
+        # SARA AM skip sorting and neighbor inspection entirely.
+        sara_am_xs: set[int] = {
+            x for x, cell in new_row.items() if x >= 1 and _cell_has_sara_am(cell)
+        }
+        for x, cell in prev_row.items():
+            if x >= 1 and _cell_has_sara_am(cell):
+                sara_am_xs.add(x)
+        if not sara_am_xs:
             continue
 
-        # Deterministic ascending order without a double set union +
-        # `sorted(rs(...))` chain per row: distinct keys >= 1 sorted once
-        # (the poisoned keys 1011/1045 can only be added below the current
-        # `x`, never after the loop global order matters; docs/bugs/072.md).
-        all_xs = {x for x in new_row.keys() if x >= 1}
-        for x in prev_row:
-            if x >= 1:
-                all_xs.add(x)
-        for x in sorted(all_xs):
-            if x not in prev_row or x not in new_row:
-                # Use defaults without inflating defaultdicts.
-                prev_cell = prev_row.get(x, _SARA_AM_DEFAULT_CHAR)
-                cur_cell = new_row.get(x, _SARA_AM_DEFAULT_CHAR)
-            else:
-                prev_cell = prev_row[x]
-                cur_cell = new_row[x]
-            if _cell_has_sara_am(prev_cell) or _cell_has_sara_am(cur_cell):
-                prev_left = prev_row.get(x - 1, _SARA_AM_DEFAULT_CHAR)
-                cur_left = new_row.get(x - 1, _SARA_AM_DEFAULT_CHAR)
-                left_changed = (cur_left.char != prev_left.char) or (
-                    cur_left.style != prev_left.style
-                )
-                cur_changed = (cur_cell.char != prev_cell.char) or (
-                    cur_cell.style != prev_cell.style
-                )
-                if cur_changed and not left_changed:
-                    prev_row[x - 1] = _SARA_AM_POISON
-                elif left_changed and not cur_changed:
-                    prev_row[x] = _SARA_AM_POISON
+        for x in sorted(sara_am_xs):
+            prev_cell = prev_row.get(x, _SARA_AM_DEFAULT_CHAR)
+            cur_cell = new_row.get(x, _SARA_AM_DEFAULT_CHAR)
+            prev_left = prev_row.get(x - 1, _SARA_AM_DEFAULT_CHAR)
+            cur_left = new_row.get(x - 1, _SARA_AM_DEFAULT_CHAR)
+            left_changed = (cur_left.char != prev_left.char) or (cur_left.style != prev_left.style)
+            cur_changed = (cur_cell.char != prev_cell.char) or (cur_cell.style != prev_cell.style)
+            if cur_changed and not left_changed:
+                prev_row[x - 1] = _SARA_AM_POISON
+            elif left_changed and not cur_changed:
+                prev_row[x] = _SARA_AM_POISON
 
 
 _AUTOWRAP_ARM_TAG = "\x00_VITH_THAI_AUTOWRAP_\x00"
@@ -375,6 +355,48 @@ def _named_arg_resolver(params: list[str], is_method: bool):
     return resolve
 
 
+def _verify_signature(
+    fn: Any,
+    expected_prefix: tuple[str, ...],
+    required_names: tuple[str, ...] = (),
+) -> tuple[str, ...] | None:
+    """
+    Verify that `fn` has a signature starting with `expected_prefix` and
+    containing all `required_names` (docs/bugs/111.md, docs/bugs/113.md).
+    Returns the parameter name tuple on match, or `None` on mismatch/uninspectable.
+    """
+    try:
+        params = tuple(inspect.signature(fn).parameters.keys())
+    except (TypeError, ValueError):
+        return None
+    if len(params) < len(expected_prefix) or params[: len(expected_prefix)] != expected_prefix:
+        return None
+    if any(name not in params for name in required_names):
+        return None
+    return params
+
+
+def _apply_patch(
+    target: Any,
+    attr_name: str,
+    wrapper: Any,
+    orig_fn: Any,
+    applied: list[tuple[Any, str, object]] | None = None,
+    registry: dict[str, Callable[..., Any]] | None = None,
+) -> None:
+    """
+    Mark `wrapper` as patched, install it on `target`, and record `orig_fn`
+    in `registry` and `applied` for rollback (docs/bugs/113.md).
+    """
+    if registry is not None:
+        registry.setdefault(attr_name, orig_fn)
+    setattr(wrapper, "_vith_thai_patched", True)
+    setattr(wrapper, "_vith_original", orig_fn)
+    setattr(target, attr_name, wrapper)
+    if applied is not None:
+        applied.append((target, attr_name, orig_fn))
+
+
 def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | None = None) -> bool:
     """
     Wrap `prompt_toolkit.layout.containers.Window._copy_body` so zero-width
@@ -390,41 +412,23 @@ def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | Non
     if getattr(orig_copy_body, "_vith_thai_patched", False):
         return True
 
-    # The wrapper resolves `has_focus` by parameter name against this full
-    # expected prefix (Window._copy_body in prompt_toolkit 3.0.53); a
-    # signature drift fails loudly (patch skipped) instead of mis-binding.
-    expected_params = (
+    # Verify the positional prefix unpacked directly by `_patched_copy_body`
+    # and require `has_focus` to be present anywhere in the parameter list so
+    # `_named_arg_resolver` can bind it even if upstream inserts new parameters
+    # (docs/bugs/111.md).
+    expected_prefix = (
         "self",
         "ui_content",
         "new_screen",
         "write_position",
         "move_x",
         "width",
-        "vertical_scroll",
-        "horizontal_scroll",
-        "wrap_lines",
-        "highlight_lines",
-        "vertical_scroll_2",
-        "always_hide_cursor",
-        "has_focus",
-        "align",
-        "get_line_prefix",
     )
-    try:
-        params = list(inspect.signature(orig_copy_body).parameters.keys())
-    except (TypeError, ValueError):
-        logger.warning("Could not inspect Window._copy_body signature; skipping patch.")
+    params = _verify_signature(orig_copy_body, expected_prefix, required_names=("has_focus",))
+    if params is None:
+        logger.warning("Unexpected Window._copy_body signature; skipping right-margin patch.")
         return False
-
-    if len(params) < len(expected_params) or params[: len(expected_params)] != list(
-        expected_params
-    ):
-        logger.warning(
-            "Unexpected Window._copy_body parameters %r; skipping right-margin patch.",
-            params,
-        )
-        return False
-    resolve_arg = _named_arg_resolver(params, is_method=True)
+    resolve_arg = _named_arg_resolver(list(params), is_method=True)
 
     def _patched_copy_body(
         self: Any,
@@ -454,21 +458,26 @@ def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | Non
         right_x = xpos + width - 1
         data_buffer = new_screen.data_buffer
 
-        # O(window_height) fast-path: only inspect `rowcol_to_yx` if at least
-        # one visible row actually has a non-ASCII base character in the
-        # rightmost column of this window.
+        # O(min(len(data_buffer), window_height)) fast-path (docs/bugs/114.md):
+        # only inspect `rowcol_to_yx` if at least one populated visible row
+        # actually has a non-ASCII base character in the rightmost column.
         candidate_rows: set[int] = set()
-        for sy in range(ypos, ypos + write_position.height):
-            if sy in data_buffer:
-                row_buf = data_buffer[sy]
-                cell = row_buf.get(right_x)
-                if cell is not None and cell.char and not cell.char.isascii():
+        y_end = ypos + write_position.height
+        rows_to_check = (
+            (sy for sy in data_buffer if ypos <= sy < y_end)
+            if len(data_buffer) < write_position.height
+            else (sy for sy in range(ypos, y_end) if sy in data_buffer)
+        )
+        for sy in rows_to_check:
+            row_buf = data_buffer[sy]
+            cell = row_buf.get(right_x)
+            if cell is not None and cell.char and not cell.char.isascii():
+                candidate_rows.add(sy)
+                continue
+            if width >= 2:
+                cell2 = row_buf.get(right_x - 1)
+                if cell2 is not None and cell2.width == 2 and not cell2.char.isascii():
                     candidate_rows.add(sy)
-                    continue
-                if width >= 2:
-                    cell2 = row_buf.get(right_x - 1)
-                    if cell2 is not None and cell2.width == 2 and not cell2.char.isascii():
-                        candidate_rows.add(sy)
 
         if not candidate_rows:
             return visible_line_to_row_col, rowcol_to_yx
@@ -524,11 +533,7 @@ def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | Non
 
         return visible_line_to_row_col, rowcol_to_yx
 
-    setattr(_patched_copy_body, "_vith_thai_patched", True)
-    setattr(_patched_copy_body, "_vith_original", orig_copy_body)
-    Window._copy_body = _patched_copy_body  # type: ignore[method-assign]
-    if applied is not None:
-        applied.append((Window, "_copy_body", orig_copy_body))
+    _apply_patch(Window, "_copy_body", _patched_copy_body, orig_copy_body, applied)
     return True
 
 
@@ -544,40 +549,22 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
     if getattr(orig_diff, "_vith_thai_patched", False):
         return True
 
-    # The wrapper resolves `output`/`screen`/`previous_screen`/`is_done`/`size`
-    # by parameter name against this full expected prefix
-    # (`_output_screen_diff` in prompt_toolkit 3.0.53); a signature drift
-    # fails loudly (patch skipped) instead of mis-binding arguments.
-    expected_params = (
-        "app",
+    # Verify that the parameters inspected by `_wrapped_output_screen_diff`
+    # exist in `_output_screen_diff`'s signature so `_named_arg_resolver` can
+    # bind them by name even if upstream inserts/reorders other parameters
+    # (docs/bugs/111.md).
+    required_names = (
         "output",
         "screen",
-        "current_pos",
-        "color_depth",
         "previous_screen",
-        "last_style",
         "is_done",
-        "full_screen",
-        "attrs_for_style_string",
-        "style_string_has_style",
         "size",
-        "previous_width",
     )
-    try:
-        params = list(inspect.signature(orig_diff).parameters.keys())
-    except (TypeError, ValueError):
-        logger.warning("Could not inspect _output_screen_diff signature; skipping patch.")
+    params = _verify_signature(orig_diff, ("app",), required_names=required_names)
+    if params is None:
+        logger.warning("Unexpected _output_screen_diff signature; skipping renderer patch.")
         return False
-
-    if len(params) < len(expected_params) or params[: len(expected_params)] != list(
-        expected_params
-    ):
-        logger.warning(
-            "Unexpected _output_screen_diff parameters %r; skipping renderer patch.",
-            params,
-        )
-        return False
-    resolve_arg = _named_arg_resolver(params, is_method=False)
+    resolve_arg = _named_arg_resolver(list(params), is_method=False)
 
     def _wrapped_output_screen_diff(*args: Any, **kwargs: Any) -> Any:
         output = resolve_arg("output", args, kwargs)
@@ -679,11 +666,9 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
                     else:
                         zw_row.pop(col_idx, None)
 
-    setattr(_wrapped_output_screen_diff, "_vith_thai_patched", True)
-    setattr(_wrapped_output_screen_diff, "_vith_original", orig_diff)
-    ptk_renderer._output_screen_diff = _wrapped_output_screen_diff  # type: ignore[assignment]
-    if applied is not None:
-        applied.append((ptk_renderer, "_output_screen_diff", orig_diff))
+    _apply_patch(
+        ptk_renderer, "_output_screen_diff", _wrapped_output_screen_diff, orig_diff, applied
+    )
     return True
 
 
@@ -694,6 +679,22 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
 # The patch-original registries live in `thai_words` (leaf) so both the
 # word walkers and the wrappers here share one storage; imported at the
 # top of this module (docs/bugs/075.md).
+
+
+def _visual_block_ordinal_bounds(doc: Document, pos_a: int, pos_b: int) -> tuple[int, int]:
+    """
+    Return `(v_low, v_high)` visual cell-cluster ordinal bounds for a
+    visual-block selection between document indices `pos_a` and `pos_b`
+    (docs/bugs/077.md, docs/bugs/113.md).
+    """
+    from_pos, to_pos = sorted((pos_a, pos_b))
+    row_from, col_from = doc.translate_index_to_position(from_pos)
+    row_to, col_to = doc.translate_index_to_position(to_pos)
+    line_from = doc.lines[min(row_from, len(doc.lines) - 1)]
+    line_to = doc.lines[min(row_to, len(doc.lines) - 1)]
+    ord_from = _cell_ordinal(line_from, col_from)
+    ord_to = _cell_ordinal(line_to, col_to)
+    return min(ord_from, ord_to), max(ord_from, ord_to)
 
 
 def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
@@ -724,13 +725,7 @@ def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
         if 0 < cursor_col < len(cursor_line) and is_combining_char(cursor_line[cursor_col]):
             cursor_pos += 1
         cursor_pos = min(cursor_pos, len(self.text))
-        from_pos, to_pos = sorted((cursor_pos, original_pos))
-        row_from, col_from = self.translate_index_to_position(from_pos)
-        row_to, col_to = self.translate_index_to_position(to_pos)
-        line_from = self.lines[min(row_from, len(self.lines) - 1)]
-        line_to = self.lines[min(row_to, len(self.lines) - 1)]
-        v_low = min(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
-        v_high = max(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
+        v_low, v_high = _visual_block_ordinal_bounds(self, cursor_pos, original_pos)
     for from_, to in orig(self):
         if vi_mode() and to > from_ and to <= len(self.text):
             if block:
@@ -752,41 +747,6 @@ def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
                 if new_to > to:
                     to = new_to
         yield from_, to
-
-
-def _cell_ordinal(line: str, col: int) -> int:
-    """
-    Visual cell-cluster ordinal that contains codepoint column `col`
-    (combining marks overprint their base, so every Thai/Lao cluster is
-    exactly one terminal cell: its ordinal == its visual column).
-
-    Empty and ASCII lines shortcut (columns == ordinals); `col` may sit
-    mid-cluster — the ordinal of the cluster's base is returned
-    (docs/bugs/077.md).
-    """
-    if not line or line.isascii():
-        return col
-    starts = cell_starts(line)
-    if not starts:
-        return 0
-    if col >= len(line):
-        # A codepoint parked at/past the line end is the empty slot *after*
-        # the last cell (Vim curswant semantics), not the last cell itself.
-        return len(starts)
-    return max(0, bisect_right(starts, col) - 1)
-
-
-def _start_of_cell_ordinal(line: str, ordinal: int) -> int:
-    """
-    Line-relative codepoint column of the start of visual cell `ordinal`
-    (`len(line)` when the row has fewer cells). ASCII shortcut keeps the
-    codepoint/visual identity.
-    """
-    n = len(line)
-    if not line or line.isascii():
-        return min(ordinal, n)
-    starts = cell_starts(line)
-    return starts[ordinal] if ordinal < len(starts) else n
 
 
 def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] | None:
@@ -816,13 +776,9 @@ def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] |
             # covering whole cells (docs/bugs/077.md). The corners define
             # the rectangle in VISUAL columns (cluster ordinals, like Vim):
             # map each row's span back to codepoints, whole cells only.
-            from_, to_ = sorted((self.cursor_position, selection.original_cursor_position))
-            row_from, col_from = self.translate_index_to_position(from_)
-            row_to, col_to = self.translate_index_to_position(to_)
-            line_from = self.lines[min(row_from, len(self.lines) - 1)]
-            line_to = self.lines[min(row_to, len(self.lines) - 1)]
-            v_low = min(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
-            v_high = max(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
+            v_low, v_high = _visual_block_ordinal_bounds(
+                self, self.cursor_position, selection.original_cursor_position
+            )
             start = _start_of_cell_ordinal(line, v_low)
             cell_end = _start_of_cell_ordinal(line, v_high + 1)
             # If the block extends to or past EOL and prompt_toolkit flagged an EOL space
@@ -916,35 +872,44 @@ def install_prompt_toolkit_thai_patches() -> bool:
             if getattr(current, "_vith_thai_patched", False):
                 continue
 
-            sig_params = tuple(inspect.signature(current).parameters.keys())
-            if sig_params[: len(expected_params)] != expected_params:
+            if _verify_signature(current, expected_params) is None:
                 raise RuntimeError(
-                    f"Document.{method_name} signature {sig_params!r} "
-                    f"does not match expected {expected_params!r}"
+                    f"Document.{method_name} signature does not match expected {expected_params!r}"
                 )
 
-            _ORIGINAL_DOCUMENT_METHODS.setdefault(method_name, current)
-            setattr(replacement, "_vith_thai_patched", True)
-            setattr(Document, method_name, replacement)
-            applied.append((Document, method_name, current))
+            _apply_patch(
+                Document,
+                method_name,
+                replacement,
+                current,
+                applied,
+                _ORIGINAL_DOCUMENT_METHODS,
+            )
 
         # Patch KeyProcessor._fix_vi_cursor_position and _start_timeout.
         kp_fix = getattr(KeyProcessor, "_fix_vi_cursor_position", None)
         if kp_fix is not None and not getattr(kp_fix, "_vith_thai_patched", False):
-            kp_params = tuple(inspect.signature(kp_fix).parameters.keys())
-            if kp_params[:2] == ("self", "event"):
-                _ORIGINAL_KEY_PROCESSOR_METHODS.setdefault("_fix_vi_cursor_position", kp_fix)
-                setattr(_kp_fix_vi_cursor_position, "_vith_thai_patched", True)
-                setattr(KeyProcessor, "_fix_vi_cursor_position", _kp_fix_vi_cursor_position)
-                applied.append((KeyProcessor, "_fix_vi_cursor_position", kp_fix))
+            if _verify_signature(kp_fix, ("self", "event")) is not None:
+                _apply_patch(
+                    KeyProcessor,
+                    "_fix_vi_cursor_position",
+                    _kp_fix_vi_cursor_position,
+                    kp_fix,
+                    applied,
+                    _ORIGINAL_KEY_PROCESSOR_METHODS,
+                )
 
         kp_timeout = getattr(KeyProcessor, "_start_timeout", None)
         if kp_timeout is not None and not getattr(kp_timeout, "_vith_thai_patched", False):
-            _ORIGINAL_KEY_PROCESSOR_METHODS.setdefault("_start_timeout", kp_timeout)
             wrapped_timeout = _make_kp_start_timeout_wrapper(kp_timeout)
-            setattr(wrapped_timeout, "_vith_thai_patched", True)
-            setattr(KeyProcessor, "_start_timeout", wrapped_timeout)
-            applied.append((KeyProcessor, "_start_timeout", kp_timeout))
+            _apply_patch(
+                KeyProcessor,
+                "_start_timeout",
+                wrapped_timeout,
+                kp_timeout,
+                applied,
+                _ORIGINAL_KEY_PROCESSOR_METHODS,
+            )
 
         # Patch TextObject.operator_range for Thai/Lao cell clusters.
         if _PtkTextObject is not None:

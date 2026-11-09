@@ -33,7 +33,7 @@ def _build_preview_maps():
 _TOGGLE_PREVIEWS, _INT_VALUE_PREVIEWS, _LIST_VALUE_PREVIEWS = _build_preview_maps()
 
 
-class CommandPreviewer(object):
+class CommandPreviewer:
     """
     Already show the effect of Vi commands before enter is pressed.
     """

@@ -9,7 +9,7 @@ verified: machine-confirmed
 generated:
   by: "OpenCode (Crouton Alpha)"
   at: "2026-11-08T19:20:00Z"
-timestamp: "2026-11-08T19:20:00Z"
+timestamp: "2026-11-09T21:50:00Z"
 ---
 
 # vith Documentation Bundle
@@ -24,7 +24,8 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Audit & Findings
 
-* [Findings Bundle](bugs/index.md) — **109 machine-verified findings across 4 audit rounds and 2 addenda (all 109 closed)**:
+* [Findings Bundle](bugs/index.md) — **115 machine-verified findings across 6 audit rounds and 2 addenda (all 115 closed)**:
+  * **Round 6 (2026-11-09, hg rev 283+ — [110](bugs/110.md)–[115](bugs/115.md), `fix_status: fixed`)**: 6 deep-audit inventories covering wrong-logic bugs ([110](bugs/110.md)), robustness and `None`-safety ([111](bugs/111.md)), dead code ([112](bugs/112.md)), duplicate logic ([113](bugs/113.md)), unoptimized algorithms and memory growth ([114](bugs/114.md)), and low readability ([115](bugs/115.md)). All items resolved with regression tests (247 passed, `mypy .` 57 files clean, ruff clean).
   * **Round 5 (2026-11-09, hg rev 256 / `v0.11.1` — [093](bugs/093.md)–[109](bugs/109.md), `fix_status: fixed`)**: 17 machine-confirmed findings from a fresh full-project re-audit of the fully-fixed tree (4 parallel auditors + dynamic probes). Two documented fixes were regressed — [093](bugs/093.md) (091 previewer still leaks `ignore_case`; HIGH) and [102](bugs/102.md) (090 lazy-import hoist never applied) — plus Vim-semantics defects, an incomplete [081](bugs/081.md) gate fix, renderer/test/tooling gaps and cleanup inventories. All 17 closed in rev 258–275. Gates: 217 passed / 1 skipped, `mypy .` 56 files, ruff clean.
   * **Round 4 addendum — stem-scan & visual-block audit (2026-11-08–2026-11-09, hg rev 270+ — fixed)**: 13 machine-verified findings ([080](bugs/080.md)–[092](bugs/092.md)) — full-repo re-scan against all prior report classes at 4 parallel auditors + confirmatory E2E harness (HIGH: `:b <pattern>` crash with untitled buffers) plus [092](bugs/092.md) (visual block over lines with SARA AM overshoots mid-line).
   * **Round 3 addendum (2026-11-08, user-reported field bugs — fixed in rev 267–269)**: 4 machine-verified findings ([076](bugs/076.md)–[079](bugs/079.md)) — Thai visual selection fixes (line-relative selection crash, block-column mark counting) and extrapolation audit (`j`/`k` visual-column drift, block `I`/`A` cluster splitting).

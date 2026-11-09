@@ -177,3 +177,52 @@ def test_go_to_buffer_resolution_order(editor, monkeypatch):
     # No match at all is rejected:
     wa.go_to_buffer("zzz-nomatch")
     assert editor.message and editor.message.startswith("E94")
+
+
+def test_tab_page_windows_cache_invalidated_on_split_and_close(editor):
+    # 114 item 8: `TabPage._get_windows()` caches the flattened window list and
+    # invalidates it on `hsplit`, `vsplit`, and `close_active_window`.
+    editor.load_initial_files([None])
+    wa = editor.window_arrangement
+    tab = wa.active_tab
+    assert len(tab.windows()) == 1
+    cached_initial = tab._windows_cache
+    assert cached_initial is not None
+
+    wa.hsplit()
+    assert len(tab.windows()) == 2
+    wa.vsplit()
+    assert len(tab.windows()) == 3
+    assert tab.close_active_window() is False
+    assert len(tab.windows()) == 2
+
+
+def test_window_arrangement_empty_state_guards(editor):
+    # 111 items 1-5 & 113 item 2: calling window/tab navigation and mutation
+    # methods when `tab_pages` or `editor_buffers` is empty does not crash.
+    wa = editor.window_arrangement
+    assert wa.active_tab is None
+    assert wa.active_editor_buffer is None
+    assert wa.active_pt_window is None
+
+    # All must be safe no-ops on an empty arrangement:
+    wa.close_tab()
+    wa.keep_only_current_window()
+    wa.go_to_next_buffer()
+    wa.go_to_previous_buffer()
+    wa.go_to_next_tab()
+    wa.go_to_previous_tab()
+
+    eb = EditorBuffer(editor, "solo.txt")
+    wa._add_editor_buffer(eb)
+    assert wa.editor_buffers == [eb]
+    wa.show_editor_buffer(eb)  # no active tab yet -> safe no-op
+
+    # Single-tab cycling stays at index 0:
+    wa.editor_buffers.clear()
+    editor.load_initial_files(["solo.txt"])
+    assert len(wa.tab_pages) == 1
+    wa.go_to_next_tab()
+    assert wa.active_tab_index == 0
+    wa.go_to_previous_tab()
+    assert wa.active_tab_index == 0

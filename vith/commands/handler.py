@@ -8,8 +8,8 @@ def handle_command(editor, input_string):
     """
     Handle commands entered on the Vi command line.
     """
-    # Treat empty/whitespace input as a no-op.
-    if not input_string or not input_string.strip():
+    # Treat empty/whitespace/colon-only input as a no-op.
+    if not input_string or not input_string.lstrip(':').strip():
         return
 
     # Match with grammar and extract variables.
@@ -45,6 +45,9 @@ def handle_command(editor, input_string):
     elif command in ('s', 'substitute'):
         flags = flags.lstrip('/')
         substitute(editor, range_start, range_end, search, replace, flags)
+
+    elif not command:
+        return
 
     else:
         # For unknown commands, show error message.

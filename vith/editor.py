@@ -259,13 +259,26 @@ class Editor:
         no editor buffer matches `application.current_buffer`.
         """
         current_buffer = self.application.current_buffer
+        if (
+            current_buffer is None
+            or current_buffer is self.command_buffer
+            or current_buffer is self.search_buffer
+        ):
+            return None
 
         # Fast path: the active editor buffer.
         active = self.window_arrangement.active_editor_buffer
         if active is not None and active.buffer == current_buffer:
             return active
 
-        # Find/return the EditorBuffer with this name.
+        # O(1) back-reference attached by `EditorBuffer.__init__`.
+        eb_ref = getattr(current_buffer, '_vith_editor_buffer_ref', None)
+        if eb_ref is not None:
+            eb = eb_ref()
+            if eb is not None and eb in self.window_arrangement.editor_buffers:
+                return eb
+
+        # Fallback for synthetic/replaced buffers in tests.
         for b in self.window_arrangement.editor_buffers:
             if b.buffer == current_buffer:
                 return b

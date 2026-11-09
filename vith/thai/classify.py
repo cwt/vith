@@ -80,6 +80,11 @@ _RIGHT_ATTACHING_CPS: frozenset[int] = frozenset(
     }
 )
 
+_THAI_DIGIT_CPS: frozenset[int] = frozenset(range(0x0E50, 0x0E5A)) | frozenset(
+    range(0x0ED0, 0x0EDA)
+)
+_THAI_SYMBOL_CPS: frozenset[int] = frozenset({0x0E3F, 0x0E4F, 0x0E5A, 0x0E5B})
+
 
 def is_thai(cp: int) -> bool:
     """True if `cp` is in the Thai block (`U+0E00..U+0E7F`)."""
@@ -152,24 +157,6 @@ def is_thai_right_attaching(cp: int) -> bool:
     return cp in _RIGHT_ATTACHING_CPS
 
 
-_THAI_DIGIT_CPS = set(range(0x0E50, 0x0E5A)) | set(range(0x0ED0, 0x0EDA))
-_THAI_SYMBOL_CPS = {0x0E3F, 0x0E4F, 0x0E5A, 0x0E5B}
-
-
-def is_thai_base(cp: int) -> bool:
-    """
-    True if `cp` is a width-1 Thai/Lao codepoint that is not a combining mark,
-    leading vowel, following vowel, right-attaching mark, digit, or symbol
-    (adapted from `szn/src/thai.zig:126-133` `isThaiBase` with digits/symbols excluded;
-    docs/bugs/054.md).
-
-    The result is folded into a precomputed table at import (the predicate
-    used to evaluate `get_cwidth(chr(cp))` per call from the word-motion
-    helpers; docs/bugs/072.md).
-    """
-    return cp in _THAI_BASE_CPS
-
-
 def _build_thai_base_table() -> frozenset[int]:
     """Precompute `is_thai_base` over the Thai/Lao blocks."""
     return frozenset(
@@ -185,4 +172,18 @@ def _build_thai_base_table() -> frozenset[int]:
     )
 
 
-_THAI_BASE_CPS = _build_thai_base_table()
+_THAI_BASE_CPS: frozenset[int] = _build_thai_base_table()
+
+
+def is_thai_base(cp: int) -> bool:
+    """
+    True if `cp` is a width-1 Thai/Lao codepoint that is not a combining mark,
+    leading vowel, following vowel, right-attaching mark, digit, or symbol
+    (adapted from `szn/src/thai.zig:126-133` `isThaiBase` with digits/symbols excluded;
+    docs/bugs/054.md).
+
+    The result is folded into a precomputed table at import (the predicate
+    used to evaluate `get_cwidth(chr(cp))` per call from the word-motion
+    helpers; docs/bugs/072.md).
+    """
+    return cp in _THAI_BASE_CPS

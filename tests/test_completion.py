@@ -219,3 +219,50 @@ def test_words_completer_cache_invalidates_on_line_start_shift():
     doc2 = Document('line zer\ncursor line\nline twoo', 12)
     list(completer.get_completions(doc2, fake_event))
     assert completer._cached_key != key1
+
+
+def test_buffer_name_completer_prefix_before_substring_and_empty_prefix(editor):
+    # 111 item 8: `BufferNameCompleter` yields prefix matches before substring
+    # matches, and with an empty prefix yields each buffer once.
+    from vith.commands.completer import BufferNameCompleter
+    from vith.editor_buffer import EditorBuffer
+
+    wa = editor.window_arrangement
+    wa.editor_buffers = [
+        EditorBuffer(editor, "my_test.py"),
+        EditorBuffer(editor, "test_main.py"),
+        EditorBuffer(editor, "other.py"),
+    ]
+
+    completer = BufferNameCompleter(editor)
+    empty_matches = [c.text for c in completer.get_completions(Document("", 0), CompleteEvent())]
+    assert empty_matches == ["my_test.py", "test_main.py", "other.py"]
+
+    typed_matches = [
+        c.text for c in completer.get_completions(Document("test", 4), CompleteEvent())
+    ]
+    # Prefix match 'test_main.py' comes before substring match 'my_test.py'
+    assert typed_matches == ["test_main.py", "my_test.py"]
+
+
+def test_colorscheme_completer_uses_len_text_start_position(editor):
+    # 115 item 23: `ColorSchemeCompleter` uses `start_position=-len(text)`
+    # directly, matching `BufferNameCompleter`.
+    from vith.commands.completer import ColorSchemeCompleter
+
+    editor.styles = {"monokai": object(), "manni": object(), "vim": object()}
+    completer = ColorSchemeCompleter(editor)
+    matches = list(completer.get_completions(Document("mo", 2), CompleteEvent()))
+    assert [m.text for m in matches] == ["monokai"]
+    assert matches[0].start_position == -2
+
+
+def test_document_completer_handles_expired_weakrefs(editor, editor_buffer):
+    # 111 item 9: `DocumentCompleter` returns empty when weakrefs have expired.
+    completer = DocumentCompleter(editor, editor_buffer)
+
+    def expired_ref():
+        return None
+
+    completer._editor_ref = expired_ref
+    assert list(completer.get_completions(Document("abc", 3), CompleteEvent())) == []

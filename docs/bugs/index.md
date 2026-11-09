@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 115 findings — 109 closed (001–109, Rounds 1–5, hg rev 164–275+) plus 6 open inventories (110–115, Round 6 read-only deep audit)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 115 machine-verified findings across 6 audit rounds and 2 addenda (001–115, all 115 closed)."
 status: stable
 sources:
   - docs/bugs/
@@ -12,7 +12,7 @@ tags: [bugs, findings, audit, round-6]
 generated:
   by: "OpenCode (Hy4)"
   at: "2026-11-09T08:00:00Z"
-timestamp: "2026-11-09T08:00:00Z"
+timestamp: "2026-11-09T21:50:00Z"
 ---
 
 # vith Findings Bundle
@@ -28,6 +28,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 3 addendum (2026-11-08, user-reported field bugs after the fix arc — [076](076.md)–[079](079.md))**: [076](076.md) — visual highlight + `j` crash (absolute/line-relative mix in the `selection_range_at_line` wrapper, fixed rev 267); [077](077.md) — visual block rectangle counts combining marks (cluster-ordinal rect, fixed rev 268); [078](078.md) + [079](079.md) — extrapolation audit of the same selection/cursor stack (fixed rev 269): `j`/`k` visual-column drift over Thai rows (ordinal-based `preferred_column` in `ColdTextBuffer`) and visual-block `I`/`A` anchors splitting clusters (block rectangle in `selection_ranges`).
 * **Round 4 addendum — stem-scan audit (2026-11-08–2026-11-09, hg rev 269 → fixed rev 270+)**: 13 machine-confirmed findings from re-scanning the whole project against all prior report classes ([080](080.md)–[092](092.md)). User-visible: 080 `:b <pattern>` crash with untitled buffers (HIGH); 084 block-`d` cut vs highlight corner skew; 086 mixed-script cluster slicing in word spans; 088 `:e` on a vanished file wiping the saved buffer; 091 previewer abort leaking every uncovered `:set` option; 092 visual-block overshoots on lines with SARA AM / fewer combining marks; 083/087 command-grammar/pager nits. Correctness: 081 gate-latch holes on mass edits (substitute), 082 gate-decay non-text coverage (Thai names/banners), 085 charwise highlight-cluster parity. Perf/hygiene: 090 (`cell_starts` LRU, big-line span-cache bypass, `_cursor_vertical` lazy-import hoist, docstring/update chain) and 089 test-cwd pollution.
 * **Round 5 (2026-11-09, hg rev 256 / `v0.11.1` — [093](093.md)–[109](109.md), `fix_status: fixed`)**: 17 machine-confirmed findings from a fresh full-project re-audit of the *fully-fixed* tree (4 parallel auditors + dynamic probes: 6 000 random command strings, 4 000 random window/tab ops, end-to-end preview/substitute/paste/undo flows). Two documented fixes are **regressed** — [093](093.md) (091 previewer still leaks `ignore_case`) and [102](102.md) (090's lazy-import hoist was never applied) — plus new Vim-semantics defects ([094](094.md)–[096](096.md)), an incomplete [081](081.md) gate fix ([097](097.md)), a renderer state leak ([098](098.md)), tooling/test-quality gaps ([099](099.md)–[101](101.md)), and cleanup inventories ([103](103.md)–[109](109.md)). All 17 findings fixed finding-by-finding across hg rev 258–275 (217 passed / 1 skipped, `mypy .` 56 files clean, ruff clean, Python 3.10 floor intact).
+* **Round 6 (2026-11-09, hg rev 283+ — [110](110.md)–[115](115.md), `fix_status: fixed`)**: 6 deep-audit inventories covering wrong-logic bugs ([110](110.md)), robustness and `None`-safety ([111](111.md)), dead code ([112](112.md)), duplicate logic ([113](113.md)), unoptimized algorithms and memory growth ([114](114.md)), and low readability ([115](115.md)). All items across all 6 inventories resolved with regression tests (247 passed, `mypy .` 57 files clean, ruff clean).
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
@@ -266,18 +267,18 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [074](074.md) | 077 | Dead code/stale example (attribution fixed; `build`/`dist` are stale, not byte-identical) |
 | [075](075.md) | 078 | Readability |
 
-## Round 6 Findings (2026-11-09 deep read-only audit, `fix_status: open`)
+## Round 6 Findings (2026-11-09 deep audit → `fix_status: fixed`)
 
-A fresh read-only deep audit of the whole project (`vith/`, `tests/`, `tools/`) produced 6 inventory documents (110–115) covering bugs/wrong logic, robustness/None-safety, dead code, duplicate logic, unoptimized algorithms/memory growth, and low readability. No source files were changed; all findings are `fix_status: open` and `verified: unverified` (static review).
+**Resolution note (2026-11-09):** all 6 Round 6 inventories ([110](110.md)–[115](115.md)) are 100% resolved and machine-verified (`fix_status: fixed`, `verified: machine-confirmed`) with regression tests across `tests/`. Gates: **247 passed**, `mypy .` 57 files clean, ruff clean.
 
-### Defects (`type: bug`, `fix_status: open`)
+### Defects (`type: bug`, `fix_status: fixed`)
 
 | ID | Finding | Area | Priority |
 | :--- | :--- | :--- | :--- |
 | [110](110.md) | Bugs and wrong-logic inventory: substitute identical replacement, `:wqa!`, empty command, pyflakes syntax errors, invalid UTF-8 column math, cold-text undo/reset, `HttpIO.exists()`, editor_buffer encoding mutation, Thai renderer KeyError risks | commands/reporting/cold-text/io/thai | medium |
 | [111](111.md) | Robustness and None-safety inventory: window/tab/buffer guards, command/handler dereferences, completer weakrefs, lexer syntax sync, Thai cluster snapping, key-binding `event.arg` | window-arrangement/commands/completion/lexer/thai/key-bindings | medium |
 
-### Improvements (`type: improvement`, `fix_status: open`)
+### Improvements (`type: improvement`, `fix_status: fixed`)
 
 | ID | Finding | Category | Priority |
 | :--- | :--- | :--- | :--- |

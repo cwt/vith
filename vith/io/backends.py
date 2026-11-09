@@ -13,11 +13,18 @@ __all__ = (
 )
 
 
-# Decode chain: utf-8 first, latin-1 as the lossy fallback. NOTE: latin-1
-# *never* raises — the second iteration always "succeeds" — so this is not
-# a multi-encoding search despite looking like one (docs/bugs/074.md); see
-# docs/bugs/070.md for the write-side consequences.
-ENCODINGS = ['utf-8', 'latin-1']
+# Primary text encoding tried first on read; `FALLBACK_ENCODING` (`latin-1`)
+# is a 1:1 byte-to-codepoint fallback that never raises `UnicodeDecodeError`.
+# `ENCODINGS` is retained as the canonical `(primary, fallback)` tuple; see
+# docs/bugs/070.md and docs/bugs/074.md for write-side UTF-8 promotion.
+PRIMARY_ENCODING = 'utf-8'
+FALLBACK_ENCODING = 'latin-1'
+ENCODINGS = (PRIMARY_ENCODING, FALLBACK_ENCODING)
+
+
+def _expand_location(location: str) -> str:
+    """Expand leading `~` user-home prefixes for local filesystem locations."""
+    return os.path.expanduser(location)
 
 
 class FileIO(EditorIO):
@@ -27,17 +34,17 @@ class FileIO(EditorIO):
 
     def can_open_location(self, location):
         # We can handle all local files.
-        location = os.path.expanduser(location)
-        return '://' not in location and not os.path.isdir(location)
+        expanded = _expand_location(location)
+        return '://' not in expanded and not os.path.isdir(expanded)
 
     def exists(self, location):
-        return os.path.exists(os.path.expanduser(location))
+        return os.path.exists(_expand_location(location))
 
     def read(self, location):
         """
         Read file from disk.
         """
-        location = os.path.expanduser(location)
+        location = _expand_location(location)
 
         with open(location, 'rb') as f:
             data = f.read()
@@ -47,7 +54,7 @@ class FileIO(EditorIO):
         """
         Write file to disk.
         """
-        location = os.path.expanduser(location)
+        location = _expand_location(location)
 
         with io.open(location, 'w', encoding=encoding) as f:
             f.write(text)
@@ -62,11 +69,10 @@ class GZipFileIO(FileIO):
     """
 
     def can_open_location(self, location):
-        location = os.path.expanduser(location)
-        return '://' not in location and not os.path.isdir(location) and location.endswith('.gz')
+        return super().can_open_location(location) and _expand_location(location).endswith('.gz')
 
     def read(self, location):
-        location = os.path.expanduser(location)
+        location = _expand_location(location)
 
         with gzip.open(location, 'rb') as f:
             data = f.read()
@@ -76,7 +82,7 @@ class GZipFileIO(FileIO):
         """
         Write file to disk.
         """
-        location = os.path.expanduser(location)
+        location = _expand_location(location)
 
         with gzip.open(location, 'wb') as f:
             f.write(text.encode(encoding))
@@ -89,14 +95,14 @@ class DirectoryIO(EditorIO):
 
     def can_open_location(self, location):
         # We can handle all local directories.
-        location = os.path.expanduser(location)
-        return '://' not in location and os.path.isdir(location)
+        expanded = _expand_location(location)
+        return '://' not in expanded and os.path.isdir(expanded)
 
     def exists(self, location):
-        return os.path.isdir(os.path.expanduser(location))
+        return os.path.isdir(_expand_location(location))
 
     def read(self, directory):
-        directory = os.path.expanduser(directory)
+        directory = _expand_location(directory)
         # Read content.
         content = sorted(os.listdir(directory))
         directories = []
@@ -160,14 +166,14 @@ class HttpIO(EditorIO):
         raise NotImplementedError('Cannot write to HTTP.')
 
 
-def _auto_decode(data):
+def _auto_decode(data: bytes) -> tuple[str, str]:
     """
-    Decode bytes. Return a (text, encoding) tuple.
+    Decode bytes as UTF-8, falling back to `latin-1` (which maps every byte
+    0x00..0xFF without raising). Returns a `(text, encoding)` tuple.
     """
     assert isinstance(data, bytes)
 
-    for e in ENCODINGS:
-        try:
-            return data.decode(e), e
-        except UnicodeDecodeError:
-            pass
+    try:
+        return data.decode(PRIMARY_ENCODING), PRIMARY_ENCODING
+    except UnicodeDecodeError:
+        return data.decode(FALLBACK_ENCODING), FALLBACK_ENCODING

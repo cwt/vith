@@ -27,7 +27,7 @@ def checks_python_file(location):
     return bool(location) and location.endswith('.py')
 
 
-class ReporterError(object):
+class ReporterError:
     """
     Error found by a reporter.
     """
@@ -52,6 +52,25 @@ class ReporterError(object):
             other.end_column,
             other.formatted_text,
         )
+
+
+def _byte_offset_to_char_col(line: str, byte_offset: int | None) -> int:
+    """
+    Convert a 0-based UTF-8 byte offset (`ast` `col_offset`) into a 0-based
+    character column within `line`.
+
+    Uses `errors='ignore'` when decoding the byte prefix so a byte offset
+    landing inside a multi-byte sequence or invalid UTF-8 never fabricates
+    replacement characters (`U+FFFD`) that skew the character count.
+    """
+    if not byte_offset or byte_offset <= 0 or not line:
+        return 0
+    if line.isascii():
+        return min(byte_offset, len(line))
+    encoded_line = line.encode('utf-8', errors='surrogatepass')
+    clamped = min(byte_offset, len(encoded_line))
+    char_col = len(encoded_line[:clamped].decode('utf-8', errors='ignore'))
+    return min(char_col, len(line))
 
 
 def report(location, document):
@@ -86,31 +105,16 @@ def report_pyflakes(document):
 
     def message_to_reporter_error(message):
         """Turn pyflakes message into ReporterError."""
-        row = message.lineno - 1
-        if row < 0:
-            row = 0
+        row = max(0, message.lineno - 1)
         if row < len(document.lines):
             line = document.lines[row]
         else:
             line = ''
-        # `message.col` is a byte offset; clamp it to the encoded line length
-        # and decode the prefix without letting invalid bytes skew the count.
-        encoded_line = line.encode('utf-8')
-        col = message.col if message.col is not None else 0
-        if col < 0:
-            col = 0
-        if col > len(encoded_line):
-            col = len(encoded_line)
-        char_col = len(encoded_line[:col].decode('utf-8', errors='replace'))
-        if char_col > len(line):
-            char_col = len(line)
+        char_col = _byte_offset_to_char_col(line, message.col)
         start_index = document.translate_row_col_to_index(row, char_col)
         line_start = document.translate_row_col_to_index(row, 0)
-        line_end = line_start + len(line)
-        if start_index < line_start:
-            start_index = line_start
-        if start_index > line_end:
-            start_index = line_end
+        line_end = min(line_start + len(line), len(document.text))
+        start_index = max(line_start, min(start_index, line_end))
         end_index = start_index
         while end_index < line_end:
             ch = document.text[end_index]
@@ -130,7 +134,7 @@ def report_pyflakes(document):
     return [message_to_reporter_error(m) for m in reporter.messages]
 
 
-class _FlakesMessage(object):
+class _FlakesMessage:
     """Minimal pyflakes-message-like object for syntax/unexpected errors."""
 
     def __init__(self, location, msg, lineno, col):
@@ -141,7 +145,7 @@ class _FlakesMessage(object):
         self.message_args = (msg,)
 
 
-class _FlakesReporter(object):
+class _FlakesReporter:
     """
     Reporter class to be passed to pyflakes.api.check.
     """
@@ -153,7 +157,9 @@ class _FlakesReporter(object):
         self.messages.append(_FlakesMessage(location, msg, 0, 0))
 
     def syntaxError(self, location, msg, lineno, offset, text):
-        self.messages.append(_FlakesMessage(location, msg, lineno, offset or 0))
+        # Python's SyntaxError.offset is 1-based; convert to 0-based col_offset.
+        col = (offset - 1) if offset and offset > 0 else 0
+        self.messages.append(_FlakesMessage(location, msg, lineno, col))
 
     def flake(self, message):
         self.messages.append(message)
