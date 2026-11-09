@@ -156,8 +156,6 @@ class CommandPreviewer(object):
     def _preview_list_value(e, attribute, variables):
         # Honor the catalog-provided attribute (used to hard-code
         # `colorcolumn`, which 073-era drift left stale; docs/bugs/091.md).
-        if attribute is None:
-            return
         value = variables.get('set_value', '')
         if not value:
             setattr(e, attribute, [])

@@ -87,14 +87,9 @@ def _cmd(name):
 
 def _unwrap_command(func):
     """
-    Return the base command function for a possibly already-wrapped handler
-    (a registered `command_wrapper` carries its own base under
-    `_vith_wrapped_command`), so stacked decorators like
-    `@cmd('q') @cmd('quit') def quit(...)` both bind the *original* base.
+    Return the base command function for a possibly already-wrapped handler.
     """
-    if getattr(func, "_is_command_wrapper", False):
-        return func._vith_wrapped_command
-    return func
+    return getattr(func, "_vith_wrapped_command", func)
 
 
 def location_cmd(name, accepts_force=False):
@@ -118,7 +113,6 @@ def location_cmd(name, accepts_force=False):
             else:
                 base(editor, location)
 
-        command_wrapper._is_command_wrapper = True
         command_wrapper._vith_wrapped_command = base
         COMMANDS_TO_HANDLERS[name] = command_wrapper
         # The base function is returned so the module-local alias keeps the
@@ -147,7 +141,6 @@ def cmd(name, accepts_force=False):
             else:
                 base(editor)
 
-        command_wrapper._is_command_wrapper = True
         command_wrapper._vith_wrapped_command = base
         COMMANDS_TO_HANDLERS[name] = command_wrapper
         # See `location_cmd`: the base is returned for module-local calls;

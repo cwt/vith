@@ -447,7 +447,7 @@ def test_formatted_text_stray_combining_cleanup() -> None:
     assert screen.data_buffer[0][0].char == "ที่"
     assert screen.data_buffer[0][1].width == 0
 
-    _sanitize_and_invalidate_sara_am(screen, None, 20)
+    _sanitize_and_invalidate_sara_am(screen, None)
     assert screen.data_buffer[0][0].char == "ที่"
     assert screen.data_buffer[0][1].char == " "
     assert screen.data_buffer[0][1].width == 1

@@ -145,7 +145,7 @@ class ColdTextStack:
         cursor-only undo restores the recorded cursor (docs/bugs/071.md).
         """
         item = cast(tuple[str, int, int], self._items.pop())
-        text_version, cursor_position = self._meta.pop()
+        _, cursor_position = self._meta.pop()
         return (item[0], cursor_position, item[2])
 
     def update_top_cursor(self, cursor_position: int) -> None:

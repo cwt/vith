@@ -62,10 +62,7 @@ except ImportError:  # pragma: no cover - token may be renamed upstream
 # names so `from vith.thai import ...` keeps working for tests, tools and
 # rc files.
 from vith.thai_classify import (  # noqa: F401
-    _THAI_BASE_CPS,
     _THAI_COMBINING_CPS,
-    _THAI_DIGIT_CPS,
-    _THAI_SYMBOL_CPS,
     is_combining_char,
     is_lao,
     is_sara_am,
@@ -324,14 +321,13 @@ def _cell_has_sara_am(cell: Char) -> bool:
     ch = cell.char
     if not ch:
         return False
-    first = ord(ch[0])
-    if first == 0x0E33 or first == 0x0EB3:
+    if is_sara_am(ord(ch[0])):
         return True
     return "\u0e33" in ch or "\u0eb3" in ch
 
 
 def _sanitize_and_invalidate_sara_am(
-    new_screen: Screen, previous_screen: Screen | None, width: int
+    new_screen: Screen, previous_screen: Screen | None = None
 ) -> None:
     """
     1. Clear any stray zero-width combining mark cells (`cell.width == 0 and cell.char != ""`)
@@ -581,12 +577,6 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
     if getattr(orig_diff, "_vith_thai_patched", False):
         return True
 
-    try:
-        params = list(inspect.signature(orig_diff).parameters.keys())
-    except (TypeError, ValueError):
-        logger.warning("Could not inspect _output_screen_diff signature; skipping patch.")
-        return False
-
     # The wrapper resolves `output`/`screen`/`previous_screen`/`is_done`/`size`
     # by parameter name against this full expected prefix
     # (`_output_screen_diff` in prompt_toolkit 3.0.53); a signature drift
@@ -636,7 +626,7 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
             return orig_diff(*args, **kwargs)
 
         width = size.columns if size is not None else 80
-        _sanitize_and_invalidate_sara_am(screen, previous_screen, width)
+        _sanitize_and_invalidate_sara_am(screen, previous_screen)
 
         # In VT100 terminals and multiplexers (such as `szn`), `_output_screen_diff`
         # runs with `DECAWM` disabled (`\x1b[?7l`). When a base character is written
@@ -871,9 +861,7 @@ def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] |
             # at the visual cell boundary (taking max(end, cell_end) unconditionally bled
             # prompt_toolkit's codepoint column into adjacent characters on rows with
             # fewer combining marks than the corner row, e.g. SARA AM; docs/bugs/092.md).
-            if end > len(line) and cell_end >= len(line):
-                end = end
-            else:
+            if not (end > len(line) and cell_end >= len(line)):
                 end = cell_end
             return start, end
         # Char selections: keep the highlight on whole cells for the LAST
