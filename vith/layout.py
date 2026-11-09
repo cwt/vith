@@ -226,18 +226,30 @@ class BufferListOverlay(ConditionalContainer):
             """
             Return a tokenlist with the `search_string` highlighted.
             """
+            if not location:
+                return []
+
             if pattern is None:
-                return [(default_token, location)]
+                token = default_token
+                if location == search_string:
+                    token += ' [SetCursorPosition]'
+                return [(token, location)]
 
-            result = [(default_token, c) for c in location]
-
-            # Replace token of matching positions.
+            result = []
+            last = 0
             for m in pattern.finditer(location):
-                for i in range(m.start(), m.end()):
-                    result[i] = ('class:searchmatch', result[i][1])
+                start, end = m.start(), m.end()
+                if start > last:
+                    result.append((default_token, location[last:start]))
+                if end > start:
+                    result.append(('class:searchmatch', location[start:end]))
+                last = end
+            if last < len(location):
+                result.append((default_token, location[last:]))
 
-            if location == search_string:
-                result[0] = (result[0][0] + ' [SetCursorPosition]', result[0][1])
+            if location == search_string and result:
+                first_style, first_text = result[0]
+                result[0] = (first_style + ' [SetCursorPosition]', first_text)
 
             return result
 

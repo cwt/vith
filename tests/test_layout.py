@@ -339,3 +339,18 @@ def test_untitled_buffer_label_consistency(editor):
 
     lines = buffer_list_lines(editor)
     assert any(UNTITLED_LABEL in line for line in lines)
+
+
+def test_highlight_location_uses_spans_instead_of_per_char_tokens(editor):
+    # 109: highlight_location builds span fragments rather than per-character tokens
+    from vith.layout import BufferListOverlay
+
+    editor.load_initial_files(['/path/to/some_sub_folder/file.py'])
+    overlay = BufferListOverlay(editor)
+    editor.command_buffer.text = ':b sub'
+
+    tokens = _text_callable(overlay)()
+    # Matching fragments must be whole substrings, not single-character fragments
+    match_fragments = [frag for frag in tokens if frag[0] == 'class:searchmatch']
+    assert match_fragments
+    assert any(frag[1] == 'sub' for frag in match_fragments)

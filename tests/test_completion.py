@@ -198,3 +198,24 @@ def test_jedi_availability_probe_is_cached():
     info = _jedi_available.cache_info()
     assert info.misses == 1
     assert info.hits == 1
+
+
+def test_words_completer_cache_invalidates_on_line_start_shift():
+    # 109: shifting line_start across lines before cursor invalidates cache
+    from prompt_toolkit.completion import CompleteEvent
+
+    from vith.completion import DocumentWordsCompleter
+
+    completer = DocumentWordsCompleter()
+    fake_event = CompleteEvent()
+
+    # Cursor on line 1:
+    doc1 = Document('line zero\ncursor line\nline two', 13)
+    list(completer.get_completions(doc1, fake_event))
+    key1 = completer._cached_key
+
+    # Line zero shrinks by 1 and line two grows by 1: total external length is unchanged,
+    # but line_start of line 1 shifted from 10 to 9!
+    doc2 = Document('line zer\ncursor line\nline twoo', 12)
+    list(completer.get_completions(doc2, fake_event))
+    assert completer._cached_key != key1

@@ -65,12 +65,11 @@ class DocumentWordsCompleter(Completer):
         line_start = document.translate_row_col_to_index(row, 0)
         line_end = line_start + len(doc_lines[row])
         # Cheap O(1) key instead of full-text prefix/suffix slices: typing on
-        # the cursor line does not change the prefix/suffix lengths (nor the
-        # row), so the non-cursor word cache keeps hitting across keystrokes
+        # the cursor line does not change the prefix/suffix lengths, row, or
+        # line_start, so the non-cursor word cache keeps hitting across keystrokes
         # without slicing + hashing the whole document per Tab
-        # (docs/bugs/072.md). A same-length edit on another line is not
-        # detected until the next length change — a deliberate trade-off.
-        key = (len(doc_lines), row, len(document.text) - len(doc_lines[row]))
+        # (docs/bugs/072.md, docs/bugs/109.md).
+        key = (len(doc_lines), row, line_start, len(document.text) - len(doc_lines[row]))
 
         # Cache the words from all *other* lines; only recompute them when
         # the surrounding text (or the cursor line) changed.

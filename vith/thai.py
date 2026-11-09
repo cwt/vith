@@ -337,16 +337,7 @@ def _sanitize_and_invalidate_sara_am(
        changes, poison the neighbor in `previous_screen` so `_output_screen_diff`
        re-emits both cells together.
     """
-    row_indices = set(new_screen.data_buffer.keys())
-    if previous_screen is not None:
-        row_indices.update(previous_screen.data_buffer.keys())
-
-    for y in row_indices:
-        new_row = new_screen.data_buffer.get(y)
-        if new_row is None:
-            # Row only exists in previous_screen; nothing to sanitize here.
-            continue
-
+    for y, new_row in new_screen.data_buffer.items():
         # 1. Clear stray width-0 combining cells not overwritten by a trailing
         #    character. (Only values are replaced, so mutating while
         #    iterating the dict is safe and avoids a per-row list copy;
@@ -359,6 +350,14 @@ def _sanitize_and_invalidate_sara_am(
         if previous_screen is None or y not in previous_screen.data_buffer:
             continue
         prev_row = previous_screen.data_buffer[y]
+
+        # Fast path (docs/bugs/109.md): skip set allocation and key sorting
+        # if neither row contains SARA AM.
+        if not any(_cell_has_sara_am(c) for c in new_row.values()) and not any(
+            _cell_has_sara_am(c) for c in prev_row.values()
+        ):
+            continue
+
         # Deterministic ascending order without a double set union +
         # `sorted(rs(...))` chain per row: distinct keys >= 1 sorted once
         # (the poisoned keys 1011/1045 can only be added below the current
