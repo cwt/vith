@@ -535,11 +535,16 @@ class WindowArrangement:
             return
 
         # Remove this buffer.
-        index = self.editor_buffers.index(eb)
-        self.editor_buffers.remove(eb)
+        try:
+            index = self.editor_buffers.index(eb)
+        except ValueError:
+            # Window/buffer lists desynced; fall back to neighbouring buffer.
+            index = 0
+        if eb in self.editor_buffers:
+            self.editor_buffers.remove(eb)
 
         # Close the active window.
-        self.active_tab.close_active_window()
+        active_tab.close_active_window()
 
         # Close all the windows that still have this buffer open and remove
         # tabs emptied by the close. Bookkeeping runs on the live list while

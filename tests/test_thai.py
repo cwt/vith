@@ -1303,3 +1303,79 @@ def test_window_and_renderer_patches_tolerate_inserted_parameters(monkeypatch):
     monkeypatch.setattr(thai.ptk_renderer, "_output_screen_diff", diff_with_inserted_param)
     assert thai._install_renderer_patch() is True
     assert getattr(thai.ptk_renderer._output_screen_diff, "_vith_thai_patched", False) is True
+
+
+def test_autowrap_escape_row_tolerates_mapping_without_setdefault(sticky_gate):
+    # 110 item 12 / 111 item 14 follow-up: exotic `zero_width_escapes`
+    # mapping without `setdefault` must not raise KeyError on a missing row.
+    import io
+
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.data_structures import Point, Size
+    from prompt_toolkit.output.color_depth import ColorDepth
+    from prompt_toolkit.output.vt100 import Vt100_Output
+    from prompt_toolkit.renderer import (
+        _StyleStringHasStyleCache,
+        _StyleStringToAttrsCache,
+    )
+    from prompt_toolkit.styles import DummyStyleTransformation, default_ui_style
+
+    thai.note_document_text("ที่")
+    screen = Screen()
+    for x, ch in enumerate("123456789"):
+        screen.data_buffer[0][x] = Char(char=ch, style="")
+    screen.data_buffer[0][9] = Char(char="ที่", style="")
+    screen.height = 1
+
+    class PlainMapping(dict):
+        # `dict` subclass without `setdefault` to force the fallback path.
+        setdefault = None  # type: ignore[assignment]
+
+        def __getattribute__(self, name):
+            if name == "setdefault":
+                raise AttributeError("no setdefault")
+            return super().__getattribute__(name)
+
+    plain = PlainMapping()
+    screen.zero_width_escapes = plain  # type: ignore[assignment]
+
+    buf = io.StringIO()
+    size = Size(rows=4, columns=10)
+    vt_out = Vt100_Output(buf, lambda: size)
+    style = default_ui_style()
+    attrs_cache = _StyleStringToAttrsCache(
+        style.get_attrs_for_style_str, DummyStyleTransformation()
+    )
+    has_style_cache = _StyleStringHasStyleCache(attrs_cache)
+    app: Application[object] = Application()
+
+    ptk_renderer._output_screen_diff(
+        app,
+        vt_out,
+        screen,
+        Point(x=0, y=0),
+        ColorDepth.DEPTH_8_BIT,
+        None,
+        None,
+        False,
+        full_screen=True,
+        attrs_for_style_string=attrs_cache,
+        style_string_has_style=has_style_cache,
+        size=size,
+        previous_width=0,
+    )
+    vt_out.flush()
+    assert "\x1b[?7h" in buf.getvalue()
+    assert 9 not in screen.zero_width_escapes[0]
+
+
+def test_vith_package_compat_shims_are_lazy():
+    # 112 item 4: pre-reorg `vith.thai_*` names remain available as lazy
+    # compat shims (no import cost unless accessed).
+    import vith
+    from vith.thai import classify, clusters, patches, words
+
+    assert vith.thai_words is words
+    assert vith.thai_classify is classify
+    assert vith.thai_clusters is clusters
+    assert vith.thai_patches is patches

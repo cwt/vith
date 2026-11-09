@@ -226,3 +226,17 @@ def test_window_arrangement_empty_state_guards(editor):
     assert wa.active_tab_index == 0
     wa.go_to_previous_tab()
     assert wa.active_tab_index == 0
+
+
+def test_close_buffer_tolerates_window_buffer_desync(editor):
+    # 111 items 2/5 follow-up: active window shows a buffer missing from
+    # `editor_buffers` (desync); `close_buffer` must not raise ValueError.
+    from vith.window_arrangement import EditorBuffer
+
+    editor.load_initial_files([None])
+    wa = editor.window_arrangement
+    stray = EditorBuffer(editor)
+    wa.active_tab.active_window.editor_buffer = stray
+    assert stray not in wa.editor_buffers
+    wa.close_buffer()  # Must not raise.
+    assert stray not in wa.editor_buffers

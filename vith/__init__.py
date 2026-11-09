@@ -27,6 +27,11 @@ else:
 __all__ = ("__version__",)
 
 
+# Backward-compat shims for pre-reorg flat imports (`vith.thai_words`,
+# `vith.thai_classify`, ... moved to the `vith.thai` package in rev 278 with a
+# 100% compat promise). Kept intentionally per docs/bugs/112.md item 4:
+# no in-repo consumers, but external configs may still use them. Lazy via
+# `__getattr__` so there is no import cost unless accessed.
 def __getattr__(name: str) -> object:
     if name == "thai_words":
         from vith.thai import words

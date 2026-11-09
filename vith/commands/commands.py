@@ -43,12 +43,13 @@ def _confirm_unsaved_changes(editor, force):
 
 def press_enter_to_continue():
     """
-    Wait for the user to press Enter, degrading gracefully on EOF (non-TTY
-    stdin; shared by `_run_pager` and `vith.rc_file`, docs/bugs/113.md).
+    Wait for the user to press Enter, degrading gracefully on EOF or
+    interrupt (non-TTY stdin; shared by `_run_pager` and `vith.rc_file`,
+    docs/bugs/113.md, docs/bugs/115.md).
     """
     try:
         input('\nPress ENTER to continue...')
-    except EOFError:
+    except (EOFError, KeyboardInterrupt):
         pass
 
 

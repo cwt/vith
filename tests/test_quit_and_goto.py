@@ -311,3 +311,16 @@ def test_press_enter_to_continue_shared_helper(monkeypatch):
     monkeypatch.setattr(builtins, "input", fake_input)
     commands_mod.press_enter_to_continue()
     assert prompts == ["\nPress ENTER to continue..."]
+
+    # 115 item 10: EOF and interrupt degrade gracefully (non-TTY stdin).
+    def fake_eof(prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr(builtins, "input", fake_eof)
+    commands_mod.press_enter_to_continue()
+
+    def fake_int(prompt=""):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(builtins, "input", fake_int)
+    commands_mod.press_enter_to_continue()

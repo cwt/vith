@@ -610,11 +610,18 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
                         if cell2 is not None and cell2.width == 2 and len(cell2.char) > 1:
                             target_col = width - 2
                     if target_col >= 0:
-                        zw_row = (
-                            screen.zero_width_escapes.setdefault(y, {})
-                            if hasattr(screen.zero_width_escapes, 'setdefault')
-                            else screen.zero_width_escapes[y]
-                        )
+                        escapes = screen.zero_width_escapes
+                        setdefault = getattr(escapes, 'setdefault', None)
+                        if setdefault is not None:
+                            zw_row = setdefault(y, {})
+                        else:
+                            # Exotic mapping without `setdefault` (e.g. a
+                            # plain-mapping test double): never direct-index
+                            # a missing row (docs/bugs/110.md, 111.md).
+                            zw_row = escapes.get(y)
+                            if zw_row is None:
+                                zw_row = {}
+                                escapes[y] = zw_row
                         old_esc = zw_row.get(target_col, "")
                         saved_escapes.append((y, target_col, old_esc))
                         zw_row[target_col] = old_esc + _AUTOWRAP_ARM_TAG
