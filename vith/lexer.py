@@ -18,17 +18,14 @@ __all__ = ('DocumentLexer',)
 
 # Cache from Pygments token type to prompt_toolkit style class name.
 # (`pygments_token_to_classname` does a chain of `isinstance` checks, which
-# adds up over hundreds of tokens per keystroke.)
-_STYLE_TOKEN_CACHE: dict[Any, str] = {}
+# adds up over hundreds of tokens per keystroke.) Bounded to avoid unbounded
+# memory growth in long sessions.
+from functools import lru_cache
 
 
+@lru_cache(maxsize=4096)
 def _style_classname(token):
-    try:
-        return _STYLE_TOKEN_CACHE[token]
-    except KeyError:
-        style_cls = 'class:' + pygments_token_to_classname(token)
-        _STYLE_TOKEN_CACHE[token] = style_cls
-        return style_cls
+    return 'class:' + pygments_token_to_classname(token)
 
 
 class DocumentLexer(Lexer):
