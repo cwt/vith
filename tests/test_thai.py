@@ -1042,7 +1042,7 @@ def test_block_selection_rectangles_align_on_cells(editor):
         row1 = doc.selection_range_at_line(1)
         row2 = doc.selection_range_at_line(2)
         assert row0 == (5, 6)  # cell ordinal 2 on row 0 = น (was (2, 6) vanilla: mid-cluster)
-        assert row2 == (2, 6)  # cell ordinal 2 on row 2 = แ..พ..ง to EOL space
+        assert row2 == (2, 3)  # cell ordinal 2 on row 2 = แ (1 cell wide, docs/bugs/092.md)
         assert row1 == (3, 4)  # row 1 has no cell at ordinal 2: only the EOL space stays
 
         # LINES selection still spans its lines untouched:
@@ -1066,6 +1066,35 @@ def test_block_selection_ascii_rectangle_matches_vanilla(editor):
             assert doc.selection_range_at_line(row) == thai._ORIGINAL_DOCUMENT_METHODS[
                 "selection_range_at_line"
             ](doc, row)
+
+
+def test_block_selection_with_sara_am(editor):
+    # 092: visual-block selection across lines with SARA AM (GC=Lo, spacing
+    # vowel, width 1) previously bled prompt_toolkit's codepoint column into
+    # subsequent cells because max(end, cell_end) preserved col2+1 from corner
+    # rows with more combining marks (e.g. 'สวัสดี', 'ฉัน' -> col 3).
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    editor.load_initial_files([None])
+    text = "สวัสดีครับ\nทำอะไรอยู่\nปีใหม่นี้ดีไหม\nฉันจะฝันถึงเธอ\n"
+    with set_app(editor.application):
+        line4_start = text.index("ฉัน")
+        # Visual column 0..1 block: from (row 0, col 0) to (row 3, col 2 = 'น')
+        doc = Document(
+            text, cursor_position=line4_start + 2, selection=SelectionState(0, SelectionType.BLOCK)
+        )
+
+        # Check selection_range_at_line (highlight)
+        assert doc.selection_range_at_line(0) == (0, 3)  # 'สวั' (2 visual cells)
+        assert doc.selection_range_at_line(1) == (0, 2)  # 'ทำ' (2 visual cells, no 'อ')
+        assert doc.selection_range_at_line(2) == (0, 3)  # 'ปีใ' (2 visual cells)
+        assert doc.selection_range_at_line(3) == (0, 3)  # 'ฉัน' (2 visual cells)
+
+        # Check selection_ranges (yank/cut)
+        ranges = list(doc.selection_ranges())
+        slices = [doc.text[f:t] for f, t in ranges]
+        assert slices == ["สวั", "ทำ", "ปีใ", "ฉัน"]
 
 
 def test_block_selection_ranges_align_on_cells(editor):

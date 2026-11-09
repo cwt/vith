@@ -777,7 +777,7 @@ def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
                 end_col = _start_of_cell_ordinal(line, v_high + 1)
                 from_ = self.translate_row_col_to_index(row, start_col)
                 end_abs = self.translate_row_col_to_index(row, end_col)
-                to = max(to, end_abs)
+                to = end_abs
                 yield from_, to
                 continue
             last_idx = to - 1
@@ -863,11 +863,16 @@ def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] |
             v_low = min(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
             v_high = max(_cell_ordinal(line_from, col_from), _cell_ordinal(line_to, col_to))
             start = _start_of_cell_ordinal(line, v_low)
-            # End of the last included cell `v_high` (exclusive): the start
-            # of cell `v_high + 1`. Keep prompt_toolkit's own EOL+1 column
-            # when it is larger (its highlight appends a space at the line
-            # end); take the larger of the two so no cluster is cut in half.
-            end = max(end, _start_of_cell_ordinal(line, v_high + 1))
+            cell_end = _start_of_cell_ordinal(line, v_high + 1)
+            # If the block extends to or past EOL and prompt_toolkit flagged an EOL space
+            # (end > len(line)), keep that trailing space marker; otherwise, end strictly
+            # at the visual cell boundary (taking max(end, cell_end) unconditionally bled
+            # prompt_toolkit's codepoint column into adjacent characters on rows with
+            # fewer combining marks than the corner row, e.g. SARA AM; docs/bugs/092.md).
+            if end > len(line) and cell_end >= len(line):
+                end = end
+            else:
+                end = cell_end
             return start, end
         # Char selections: keep the highlight on whole cells for the LAST
         # selected cell (docs/bugs/085.md) — whatever cell the inclusive
