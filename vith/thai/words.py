@@ -14,7 +14,7 @@ from typing import Any, Callable, Pattern
 
 from prompt_toolkit.document import Document
 
-from .thai_classify import (
+from .classify import (
     is_combining_char,
     is_thai,
     is_thai_base,
@@ -23,7 +23,7 @@ from .thai_classify import (
     is_thai_or_lao,
     is_thai_right_attaching,
 )  # noqa: F401 (classification reuse)
-from .thai_clusters import next_cell_offset, prev_cell_offset, snap_to_cell_start  # noqa: F401
+from .clusters import next_cell_offset, prev_cell_offset, snap_to_cell_start  # noqa: F401
 
 # Shared by the Document/KeyProcessor patch wrappers in `vith/thai.py` and
 # the ASCII fast-path delegates here (defined in this leaf module so both

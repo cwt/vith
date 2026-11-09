@@ -8,7 +8,7 @@ public names, so the import surface stays stable.
 from functools import lru_cache
 from typing import List
 
-from vith.thai_classify import is_combining_char
+from .classify import is_combining_char
 
 # ---------------------------------------------------------------------------
 # 2. O(1) Local Cell-Cluster Boundary Scanners

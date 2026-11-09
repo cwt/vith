@@ -23,6 +23,9 @@ Vim semantics & commands:
 
 Thai & Lao script support & renderer:
 
+- Reorganized flat ``thai*.py`` files (``thai.py``, ``thai_classify.py``, ``thai_clusters.py``,
+  ``thai_words.py``) into a dedicated ``vith.thai`` package (``classify.py``, ``clusters.py``,
+  ``words.py``, ``patches.py``) with full backward compatibility.
 - Sticky Thai renderer gate is now latched on multi-line paste, undo/redo, and full-text
   assignments when Thai text is introduced on non-cursor rows (finding 097).
 - Re-entrant differential renderer calls now reliably restore ``screen.zero_width_escapes``

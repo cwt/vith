@@ -25,3 +25,23 @@ else:
         __version__ = _FALLBACK_VERSION
 
 __all__ = ("__version__",)
+
+
+def __getattr__(name: str) -> object:
+    if name == "thai_words":
+        from vith.thai import words
+
+        return words
+    if name == "thai_classify":
+        from vith.thai import classify
+
+        return classify
+    if name == "thai_clusters":
+        from vith.thai import clusters
+
+        return clusters
+    if name == "thai_patches":
+        from vith.thai import patches
+
+        return patches
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

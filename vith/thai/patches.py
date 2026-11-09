@@ -58,69 +58,32 @@ try:
 except ImportError:  # pragma: no cover - token may be renamed upstream
     _PtkZeroWidthEscape = "[ZeroWidthEscape]"  # type: ignore[assignment,misc]
 
-# Split modules (docs/bugs/075.md): `vith.thai` re-exports their public
-# names so `from vith.thai import ...` keeps working for tests, tools and
-# rc files.
-from vith.thai_classify import (  # noqa: F401
-    _THAI_COMBINING_CPS,
+from .classify import (
     is_combining_char,
-    is_lao,
     is_sara_am,
-    is_thai,
-    is_thai_base,
-    is_thai_combining,
-    is_thai_following_vowel,
-    is_thai_leading_vowel,
-    is_thai_or_lao,
-    is_thai_right_attaching,
 )
-from vith.thai_clusters import (  # noqa: F401
+from .clusters import (
     cell_starts,
-    cell_stops,
     next_cell_offset,
     prev_cell_offset,
     snap_to_cell_start,
 )
-from vith.thai_words import (  # noqa: F401
+from .words import (
     _ORIGINAL_DOCUMENT_METHODS,
     _ORIGINAL_KEY_PROCESSOR_METHODS,
-    _iter_word_spans,
-    _word_spans_for_line,
     find_boundaries_of_current_word,
     find_next_word_beginning,
     find_next_word_ending,
     find_previous_word_beginning,
     find_previous_word_ending,
     find_start_of_previous_word,
-    find_thai_cluster_end,
-    find_thai_word_breaks,
 )
 
 __all__ = (
-    "is_thai",
-    "is_lao",
-    "is_thai_or_lao",
-    "is_thai_combining",
-    "is_combining_char",
-    "is_sara_am",
-    "is_thai_leading_vowel",
-    "is_thai_following_vowel",
-    "is_thai_right_attaching",
-    "is_thai_base",
-    "snap_to_cell_start",
-    "next_cell_offset",
-    "prev_cell_offset",
-    "cell_starts",
-    "cell_stops",
-    "find_thai_cluster_end",
-    "find_thai_word_breaks",
-    "find_next_word_beginning",
-    "find_next_word_ending",
-    "find_previous_word_beginning",
-    "find_previous_word_ending",
-    "find_start_of_previous_word",
-    "find_boundaries_of_current_word",
     "install_prompt_toolkit_thai_patches",
+    "note_document_text",
+    "reset_thai_text_gate",
+    "reset_thai_text_gate_if_all_buffers_ascii",
 )
 
 logger = logging.getLogger(__name__)

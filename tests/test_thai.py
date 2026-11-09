@@ -23,7 +23,6 @@ from prompt_toolkit.output import ColorDepth, DummyOutput
 from prompt_toolkit.styles import DummyStyle, DummyStyleTransformation
 
 import vith.thai as thai
-from vith import thai_words
 from vith.editor import Editor
 from vith.thai import (
     _SARA_AM_POISON,
@@ -46,6 +45,7 @@ from vith.thai import (
     prev_cell_offset,
     snap_to_cell_start,
 )
+from vith.thai import words as thai_words
 
 
 def _feed_keys(editor: Editor, *keys: str | Keys) -> None:
@@ -578,7 +578,10 @@ def test_version_gate_rollback_covers_key_processor_patches(monkeypatch) -> None
 
     # Corrupt the primitive used by the patched Document.right method so the
     # startup self-test fails *after* all patches are applied:
-    monkeypatch.setattr(thai, "next_cell_offset", lambda line, col, count=1: col + 99)
+    def _broken_next_cell_offset(line: str, col: int, count: int = 1) -> int:
+        return col + 99
+
+    monkeypatch.setattr(thai.patches, "next_cell_offset", _broken_next_cell_offset)
     assert thai.install_prompt_toolkit_thai_patches() is False
 
     # Both KeyProcessor patches must be rolled back (docs/bugs/005.md):
@@ -952,12 +955,12 @@ def test_rollback_covers_text_object_patch(monkeypatch) -> None:
 
     fake_orig = FakeTextObject.operator_range
 
-    monkeypatch.setattr(thai, "_PtkTextObject", FakeTextObject)
+    monkeypatch.setattr(thai.patches, "_PtkTextObject", FakeTextObject)
 
     def _fail_selftest() -> None:
         raise RuntimeError("simulated self-test failure")
 
-    monkeypatch.setattr(thai, "_thai_install_selftest", _fail_selftest)
+    monkeypatch.setattr(thai.patches, "_thai_install_selftest", _fail_selftest)
 
     assert thai.install_prompt_toolkit_thai_patches() is False
 

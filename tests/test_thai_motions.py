@@ -14,7 +14,7 @@ import pathlib
 from prompt_toolkit.document import Document
 
 import vith.thai as thai
-from vith import thai_words
+from vith.thai import words as thai_words
 
 # Captured from the whole-document scan implementation before introducing
 # the per-line span cache (Tier-2 segmentation, ``_get_libthai`` disabled).
