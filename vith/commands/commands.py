@@ -706,6 +706,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     buffer_lines = buffer.document.lines
     substituted = {}
     last_substituted_row = None
+    any_match = False
     regex_error = None
     for row in line_numbers:
         original = buffer_lines[row]
@@ -715,14 +716,18 @@ def substitute(editor, range_start, range_end, search, replace, flags):
             regex_error = e
             break
         substituted[row] = result
-        if result != original:
+        # Track whether the pattern matched on this row, not whether the
+        # text changed: a substitution whose replacement is identical to the
+        # matched text (e.g. `:s/foo/foo/`) is still a successful match.
+        if pattern.search(original) is not None:
+            any_match = True
             last_substituted_row = row
 
     if regex_error is not None:
         editor.show_message('Invalid regex: %s' % regex_error)
         return
 
-    if last_substituted_row is None:
+    if not any_match:
         editor.show_message('Pattern not found')
         return
 
