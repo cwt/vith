@@ -1,14 +1,14 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 109 machine-verified findings — all 109 closed (001–109, Rounds 1–5, hg rev 164–275+). Round 5 fixed two documented-fix regressions (091 previewer, 090 lazy-import hoist) plus new defects, test/tooling gaps, and cleanup inventories."
+description: "OKF v0.2 findings bundle for the vith bug audit: 115 findings — 109 closed (001–109, Rounds 1–5, hg rev 164–275+) plus 6 open inventories (110–115, Round 6 read-only deep audit)."
 status: stable
 sources:
   - docs/bugs/
   - docs/
 verified: machine-confirmed
 stale_after: 2027-01-01T00:00:00Z
-tags: [bugs, findings, audit, round-5]
+tags: [bugs, findings, audit, round-6]
 generated:
   by: "OpenCode (Hy4)"
   at: "2026-11-09T08:00:00Z"
@@ -265,6 +265,26 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [073](073.md) | 076 | Duplicate logic (row-1 count corrected to four walkers) |
 | [074](074.md) | 077 | Dead code/stale example (attribution fixed; `build`/`dist` are stale, not byte-identical) |
 | [075](075.md) | 078 | Readability |
+
+## Round 6 Findings (2026-11-09 deep read-only audit, `fix_status: open`)
+
+A fresh read-only deep audit of the whole project (`vith/`, `tests/`, `tools/`) produced 6 inventory documents (110–115) covering bugs/wrong logic, robustness/None-safety, dead code, duplicate logic, unoptimized algorithms/memory growth, and low readability. No source files were changed; all findings are `fix_status: open` and `verified: unverified` (static review).
+
+### Defects (`type: bug`, `fix_status: open`)
+
+| ID | Finding | Area | Priority |
+| :--- | :--- | :--- | :--- |
+| [110](110.md) | Bugs and wrong-logic inventory: substitute identical replacement, `:wqa!`, empty command, pyflakes syntax errors, invalid UTF-8 column math, cold-text undo/reset, `HttpIO.exists()`, editor_buffer encoding mutation, Thai renderer KeyError risks | commands/reporting/cold-text/io/thai | medium |
+| [111](111.md) | Robustness and None-safety inventory: window/tab/buffer guards, command/handler dereferences, completer weakrefs, lexer syntax sync, Thai cluster snapping, key-binding `event.arg` | window-arrangement/commands/completion/lexer/thai/key-bindings | medium |
+
+### Improvements (`type: improvement`, `fix_status: open`)
+
+| ID | Finding | Category | Priority |
+| :--- | :--- | :--- | :--- |
+| [112](112.md) | Dead-code inventory: dead guards, redundant token loops, upstream-parity dead branch, compat aliases, commented grammar, obsolete base class, stale build modules | dead code | low |
+| [113](113.md) | Duplicate-logic inventory: hsplit/vsplit, buffer navigation, visual-block rectangle, vertical cursor ordinals, pager waits, I/O expanduser, lexer caching, preview signature bookkeeping | duplication | low |
+| [114](114.md) | Unoptimized algorithms/memory-growth inventory: unbounded style cache, unbounded `cell_starts`, Thai word-break rescan, SARA-AM loop, copy-body row scan, O(n) active buffer lookup, tab handler cache, split-tree rebuild | performance/memory | low |
+| [115](115.md) | Low-readability inventory: patches monolith, constant ordering, mutable-list flag, layout node fallback, implicit None, misleading encoding names, Liskov write mismatch, Path rejection, default encoding, EOFError, process-name slicing, legacy config comparison, TOCTOU, late init, backend lookup, missing annotations, style validation, tilde registration, condition placement, cache attachment | readability | low |
 
 ## Meta
 
