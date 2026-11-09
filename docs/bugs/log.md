@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "OpenCode"
-  at: "2026-11-09T16:07:12Z"
-timestamp: "2026-11-09T16:07:12Z"
+  at: "2026-11-09T16:26:05Z"
+timestamp: "2026-11-09T16:26:05Z"
 ---
 
 # Findings Bundle Log
@@ -36,3 +36,4 @@ This file tracks all modifications to the `docs/bugs/` findings bundle in chrono
 | 2026-11-09T18:00:00Z | [index.md](index.md), [110.md](110.md)…[115.md](115.md) | Appended (Round 6) | Appended 6 open inventories (110–115) from a read-only deep audit: 110 bugs/wrong logic, 111 robustness/None-safety, 112 dead code, 113 duplicate logic, 114 unoptimized algorithms/memory growth, 115 low readability. No source files changed; findings are `fix_status: open` and `verified: unverified` (static review). Bundle now contains 115 findings. |
 | 2026-11-09T21:50:00Z | [index.md](index.md), [110.md](110.md)…[115.md](115.md), [../index.md](../index.md), [../log.md](../log.md) | Findings closed (Round 6) | **Resolution record:** completed all remaining items across Round 6 inventories [110](110.md)–[115](115.md) with 29 new regression tests across `tests/` (247 passed, `mypy .` 57 files clean, ruff clean). Marked [110](110.md)–[115](115.md) as `fix_status: fixed` and `verified: machine-confirmed`. All 115 findings in the bundle are now closed. |
 | 2026-11-09T16:07:12Z | [index.md](index.md), [116.md](116.md)…[123](123.md), [log.md](log.md) | Appended (Round 7) | Appended **8 worth-fixing upstream findings** (`116`-`123`, `fix_status: open`) from triage of 80 open `prompt-toolkit/pyvim` issues: [116](116.md) `ZZ`/`ZQ` (#122/#19), [117](117.md) `:w!` read-only (#77), [118](118.md) `>>`/`<<` vs `tabstop` (#102), [119](119.md) `Ctrl-[` (#134), [120](120.md) counted `i`/`a` (#133), [121](121.md) extensionless highlight (#74), [122](122.md) `*` history (#89), [123](123.md) `:s` ReDoS guard (#159/CWE-1333). Code-verified against `vith/` with OKF v0.2 frontmatter, relative links, and footnoted sources. **Docs-only — no source files were changed**; bundle now contains 123 findings (115 closed + 8 open). |
+| 2026-11-09T16:26:05Z | [index.md](index.md), [116.md](116.md)…[123.md](123.md) | Findings closed (Round 7) | **Resolution record:** fixed all 8 Round 7 findings one-by-one with regression tests (one commit per finding; 119+120 grouped): ZZ/ZQ bindings (116), :w! force-write + :wqa! pass-through (117), >>/<< tabstop shifts (118), Ctrl-[ exit + counted i/a replay (119+120), extensionless content sniffing (121), */# history (122), :s nested-quantifier guard (123). Gates: **274 passed**, `mypy .` 57 files clean, ruff clean. All 123 bundle findings are now closed. |

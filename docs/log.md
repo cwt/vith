@@ -9,7 +9,7 @@ verified: machine-confirmed
 generated:
   by: "OpenCode (Crouton Alpha)"
   at: "2026-11-08T19:20:00Z"
-timestamp: "2026-11-09T21:50:00Z"
+timestamp: "2026-11-09T16:26:05Z"
 ---
 
 # Documentation Bundle Log
@@ -40,3 +40,4 @@ This file tracks all modifications, extensions, and updates to the `vith` OKF do
 | 2026-11-09T15:55:00Z | [bugs/index.md](bugs/index.md), [bugs/093.md](bugs/093.md)…[bugs/109.md](bugs/109.md), [index.md](index.md) | Findings closed (Round 5) | Fixed all 17 open Round 5 findings finding-by-finding (rev 258–275): previewer state leak (093), `:s` flags (094), `:q` active-window guard (095), `:e` unsaved changes check (096), multi-line paste/undo Thai gate latch (097), re-entrant renderer escape restoration (098), cold-text benchmark alignment (099), speed plan reproducible numbers refresh (100), flaky/vacuous test repairs (101), cold_text import hoist (102), misc robustness (103), docs/config drift (104), build/dist removal (105), dead-code sweep (106), logic dedup (107), readability/typing (108), and hot-path perf residuals (109). Final suite: **217 passed, 1 skipped**, `mypy .` 56 files clean, ruff clean. All 109 bundle findings closed. |
 | 2026-11-09T18:00:00Z | [bugs/index.md](bugs/index.md), [bugs/110.md](bugs/110.md)…[bugs/115.md](bugs/115.md), [bugs/log.md](bugs/log.md) | Appended (Round 6) | Appended 6 Round 6 deep-audit inventories ([110](bugs/110.md)–[115](bugs/115.md)): wrong-logic bugs, robustness/None-safety, dead code, duplicate logic, unoptimized algorithms/memory growth, and low readability. |
 | 2026-11-09T21:50:00Z | [bugs/index.md](bugs/index.md), [bugs/110.md](bugs/110.md)…[bugs/115.md](bugs/115.md), [bugs/log.md](bugs/log.md), [index.md](index.md) | Findings closed (Round 6) | Completed all items across Round 6 inventories ([110](bugs/110.md)–[115](bugs/115.md)) with 29 new regression tests across `tests/` (247 passed, `mypy .` 57 files clean, ruff clean). Marked [110](bugs/110.md)–[115](bugs/115.md) as `fix_status: fixed` and `verified: machine-confirmed`. All 115 bundle findings closed. |
+| 2026-11-09T16:26:05Z | [bugs/index.md](bugs/index.md), [bugs/116.md](bugs/116.md)…[bugs/123.md](bugs/123.md), [index.md](index.md) | Findings closed (Round 7) | Fixed all 8 Round 7 upstream-triage findings ([116](bugs/116.md)–[123](bugs/123.md)) one-by-one with regression tests: ZZ/ZQ (116), :w! force-write (117), >>/<< tabstop (118), Ctrl-[ + counted i/a (119+120), extensionless sniffing (121), */# history (122), :s ReDoS guard (123). Gates: **274 passed**, `mypy .` 57 files clean, ruff clean. All 123 bundle findings closed; synchronized `bugs/index.md`, `bugs/log.md`, and the root `index.md` count. |
