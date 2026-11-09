@@ -1,6 +1,40 @@
 CHANGELOG
 =========
 
+0.12.1: 2026-11-09
+-------------------
+
+Bug fixes (Round 7 upstream triage, findings 116–123, all closed):
+
+Vim semantics & key bindings:
+
+- Added ``ZZ`` (write + quit) and ``ZQ`` (quit without saving) navigation-mode
+  bindings (finding 116).
+- ``Ctrl-[`` now leaves insert mode like ``Esc`` (finding 119); a numeric prefix
+  before ``i``/``a`` repeats the typed text on exit, e.g. ``5itest<Esc>`` inserts
+  five copies (finding 120).
+- ``>>`` / ``<<`` now indent by ``tabstop``/``expandtab`` with undo support
+  instead of a hardcoded width (finding 118).
+- ``*`` / ``#`` record the word in search history, so ``/<Up>`` recalls it and
+  bare ``:s`` reuses it (finding 122).
+
+Commands & I/O:
+
+- ``:w!`` force-writes read-only files (granting owner-write for one write,
+  then restoring the mode); ``:wqa!`` now forwards ``force`` to each buffer
+  write (finding 117).
+- ``:s`` rejects nested-quantifier patterns (e.g. ``(a+)+$``) with an
+  ``Unsafe pattern`` message instead of freezing on catastrophic backtracking
+  (finding 123).
+
+Highlighting:
+
+- Extensionless files are highlighted via content sniffing (a python shebang
+  pins ``PythonLexer``, otherwise ``guess_lexer`` on a 4 KiB sample), cached
+  per location on both lexer branches (finding 121).
+
+- Full test suite passing: 274 passed, mypy clean on 57 source files, ruff clean.
+
 0.12.0: 2026-11-09
 -------------------
 
