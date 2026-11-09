@@ -379,21 +379,27 @@ def quit(editor, all_=False, force=False):
     """
     window_arrangement = editor.window_arrangement
     ebs = window_arrangement.editor_buffers
-
-    # When there are buffers that have unsaved changes, show balloon.
-    if not force and any(eb.has_unsaved_changes for eb in ebs):
-        editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
+    has_multiple_windows = (
+        len(window_arrangement.tab_pages) > 1 or window_arrangement.active_tab.window_count() > 1
+    )
 
     # ":q" closes the current window (or the whole tab when it has a single
-    # window); hidden buffers do not block it any more (docs/bugs/067.md).
-    # ":qa" skips the window-close step and exits directly.
-    elif not all_ and (
-        len(window_arrangement.tab_pages) > 1 or window_arrangement.active_tab.window_count() > 1
-    ):
+    # window); hidden buffers or dirty buffers in other windows do not block it
+    # (docs/bugs/067.md, docs/bugs/095.md).
+    if not all_ and has_multiple_windows:
+        active_eb = window_arrangement.active_editor_buffer
+        if not force and active_eb is not None and active_eb.has_unsaved_changes:
+            editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
+            return
         window_arrangement.close_window()
+        return
 
-    else:
-        editor.application.exit()
+    # When closing the last window or quitting all (:qa), any unsaved buffer blocks exit.
+    if not force and any(eb.has_unsaved_changes for eb in ebs):
+        editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
+        return
+
+    editor.application.exit()
 
 
 @cmd('qa', accepts_force=True)

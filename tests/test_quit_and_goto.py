@@ -59,6 +59,45 @@ def test_q_blocks_on_dirty_buffers(editor, monkeypatch):
     assert editor.message == "No write since last change (add ! to override)"
 
 
+def test_q_closes_window_despite_dirty_other_window_or_hidden(editor, monkeypatch):
+    # 095: dirty buffer in another window or hidden must not block :q closing clean window
+    editor.load_initial_files(["clean.txt", "dirty.txt"])
+    wa = editor.window_arrangement
+    eb_clean = wa.active_editor_buffer
+    eb_dirty = [b for b in wa.editor_buffers if b != eb_clean][0]
+    eb_dirty.buffer.text = "dirty edits"
+    assert eb_dirty.has_unsaved_changes
+    assert not eb_clean.has_unsaved_changes
+
+    # Split into 2 windows: clean window active, dirty buffer in other window
+    wa.active_tab.vsplit(eb_dirty)
+    assert wa.active_tab.window_count() == 2
+    wa.cycle_focus()  # focus clean window
+    assert wa.active_editor_buffer == eb_clean
+    exits = _exits_recorder(editor, monkeypatch)
+
+    handle_command(editor, ":q")
+    assert exits == []
+    assert wa.active_tab.window_count() == 1
+    assert editor.message != "No write since last change (add ! to override)"
+
+
+def test_q_force_closes_dirty_window(editor, monkeypatch):
+    # 095: :q! closes dirty active window
+    editor.load_initial_files([None])
+    wa = editor.window_arrangement
+    eb2 = EditorBuffer(editor)
+    wa._add_editor_buffer(eb2)
+    wa.active_tab.vsplit(eb2)
+    assert wa.active_tab.window_count() == 2
+    wa.active_editor_buffer.buffer.text = "unsaved in active"
+    exits = _exits_recorder(editor, monkeypatch)
+
+    handle_command(editor, ":q!")
+    assert exits == []
+    assert wa.active_tab.window_count() == 1
+
+
 def test_qa_exits_from_any_window(editor, monkeypatch):
     editor.load_initial_files([None])
     wa = editor.window_arrangement
