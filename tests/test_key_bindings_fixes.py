@@ -227,6 +227,67 @@ def test_name_under_cursor_selections():
     assert name_at("", 0) == ""
 
 
+def test_zz_writes_active_buffer_and_quits(editor, tmp_path, monkeypatch):
+    # 116: `ZZ` writes the active buffer and exits (`:wq` parity).
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    target = tmp_path / "zz.txt"
+    target.write_text("original\n")
+    editor.load_initial_files([str(target)])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "changed"
+
+    exits = []
+    monkeypatch.setattr(editor.application, "exit", lambda *a, **kw: exits.append(1))
+    kb = create_key_bindings(editor)
+    binding = [b for b in kb.bindings if b.keys == ("Z", "Z")][0]
+    binding.handler(MagicMock())
+
+    assert target.read_text() == "changed\n"
+    assert exits == [1]
+
+
+def test_zq_quits_without_saving(editor, tmp_path, monkeypatch):
+    # 116: `ZQ` quits a dirty buffer without saving (`:q!` parity).
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    target = tmp_path / "zq.txt"
+    target.write_text("original\n")
+    editor.load_initial_files([str(target)])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "unsaved"
+
+    exits = []
+    monkeypatch.setattr(editor.application, "exit", lambda *a, **kw: exits.append(1))
+    kb = create_key_bindings(editor)
+    binding = [b for b in kb.bindings if b.keys == ("Z", "Q")][0]
+    binding.handler(MagicMock())
+
+    assert target.read_text() == "original\n"
+    assert exits == [1]
+
+
+def test_zz_without_filename_does_not_quit(editor, monkeypatch):
+    # 116: `ZZ` on an untitled buffer reports the missing name and stays.
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.load_initial_files([None])
+    exits = []
+    monkeypatch.setattr(editor.application, "exit", lambda *a, **kw: exits.append(1))
+    kb = create_key_bindings(editor)
+    binding = [b for b in kb.bindings if b.keys == ("Z", "Z")][0]
+    binding.handler(MagicMock())
+
+    assert exits == []
+    assert editor.message == "No file name"
+
+
 def test_negative_count_delegate_documented_as_upstream_parity():
     # 071 row 7 (documented upstream-parity dead branch): the Thai
     # find_previous_word_ending(-count) delegate must behave exactly like

@@ -272,6 +272,26 @@ def create_key_bindings(editor):
         editor.window_arrangement.go_to_previous_tab()
         editor.sync_with_prompt_toolkit()
 
+    @kb.add('Z', 'Z', filter=in_navigation_mode)
+    def write_and_quit_current(event):
+        """
+        Write the active buffer and quit (`ZZ`, Vim parity).
+        """
+        from .commands.commands import write_and_quit
+
+        write_and_quit(editor, None)
+        editor.sync_with_prompt_toolkit()
+
+    @kb.add('Z', 'Q', filter=in_navigation_mode)
+    def quit_current_without_saving(event):
+        """
+        Quit without saving (`ZQ`, Vim `:q!` parity).
+        """
+        from .commands.commands import quit
+
+        quit(editor, force=True)
+        editor.sync_with_prompt_toolkit()
+
     @kb.add('f1')
     def show_help(event):
         editor.show_help()
