@@ -7,9 +7,9 @@ sources:
   - docs/bugs/
 verified: machine-confirmed
 generated:
-  by: "OpenCode (Hy4)"
-  at: "2026-11-09T08:00:00Z"
-timestamp: "2026-11-09T21:50:00Z"
+  by: "OpenCode"
+  at: "2026-11-09T16:07:12Z"
+timestamp: "2026-11-09T16:07:12Z"
 ---
 
 # Findings Bundle Log
@@ -35,3 +35,4 @@ This file tracks all modifications to the `docs/bugs/` findings bundle in chrono
 | 2026-11-09T15:55:00Z | [index.md](index.md), [093.md](093.md)…[109.md](109.md) | Findings closed (Round 5) | **Resolution record:** the 2026-11-09 Round 5 fix arc closed all 17 findings (one commit per finding or tightly related group): 093 (:set ic preview leak), 094 (:s flags i/I/E488), 095 (:q window-scoping), 096 (:e unsaved changes guard), 097 (paste/undo Thai gate latch), 098 (re-entrant escape restore), 099 (cold-text bench against vith.cold_text), 100 (speed plan benchmark refresh), 101 (test assertions/inspect), 102 (cold-text thai import hoist), 103 (misc low defects), 104 (docs/config drift), 105 (build/dist cleanup), 106 (dead code sweep), 107 (duplicate logic dedup), 108 (readability/type annotations), 109 (hot-path perf residuals). Full suite: **217 passed, 1 skipped**, `mypy .` 56 files clean, ruff clean. All 109 findings in the bundle are now closed. |
 | 2026-11-09T18:00:00Z | [index.md](index.md), [110.md](110.md)…[115.md](115.md) | Appended (Round 6) | Appended 6 open inventories (110–115) from a read-only deep audit: 110 bugs/wrong logic, 111 robustness/None-safety, 112 dead code, 113 duplicate logic, 114 unoptimized algorithms/memory growth, 115 low readability. No source files changed; findings are `fix_status: open` and `verified: unverified` (static review). Bundle now contains 115 findings. |
 | 2026-11-09T21:50:00Z | [index.md](index.md), [110.md](110.md)…[115.md](115.md), [../index.md](../index.md), [../log.md](../log.md) | Findings closed (Round 6) | **Resolution record:** completed all remaining items across Round 6 inventories [110](110.md)–[115](115.md) with 29 new regression tests across `tests/` (247 passed, `mypy .` 57 files clean, ruff clean). Marked [110](110.md)–[115](115.md) as `fix_status: fixed` and `verified: machine-confirmed`. All 115 findings in the bundle are now closed. |
+| 2026-11-09T16:07:12Z | [index.md](index.md), [116.md](116.md)…[123](123.md), [log.md](log.md) | Appended (Round 7) | Appended **8 worth-fixing upstream findings** (`116`-`123`, `fix_status: open`) from triage of 80 open `prompt-toolkit/pyvim` issues: [116](116.md) `ZZ`/`ZQ` (#122/#19), [117](117.md) `:w!` read-only (#77), [118](118.md) `>>`/`<<` vs `tabstop` (#102), [119](119.md) `Ctrl-[` (#134), [120](120.md) counted `i`/`a` (#133), [121](121.md) extensionless highlight (#74), [122](122.md) `*` history (#89), [123](123.md) `:s` ReDoS guard (#159/CWE-1333). Code-verified against `vith/` with OKF v0.2 frontmatter, relative links, and footnoted sources. **Docs-only — no source files were changed**; bundle now contains 123 findings (115 closed + 8 open). |
