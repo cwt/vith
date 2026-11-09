@@ -159,6 +159,34 @@ def _leave_insert_with_repeat(event):
         buff.exit_selection()
 
 
+def _shift_lines(editor, buff, count, indent):
+    """
+    Indent (`>>`) or unindent (`<<`) `count` lines from the cursor row,
+    using `editor.tabstop` / `editor.expand_tab` (docs/bugs/118.md).
+    """
+    from prompt_toolkit.document import Document
+
+    doc = buff.document
+    first_row = doc.cursor_position_row
+    last_row = min(len(doc.lines) - 1, first_row + _positive_count(count) - 1)
+    lines = list(doc.lines)
+    for row in range(first_row, last_row + 1):
+        line = lines[row]
+        if indent:
+            lines[row] = (' ' * editor.tabstop if editor.expand_tab else '\t') + line
+        elif line.startswith('\t'):
+            lines[row] = line[1:]
+        else:
+            lines[row] = line[min(len(line) - len(line.lstrip(' ')), editor.tabstop) :]
+    buff.save_to_undo_stack()
+    new_text = '\n'.join(lines)
+    buff.document = Document(new_text)
+    shifted = lines[first_row]
+    buff.cursor_position = buff.document.translate_row_col_to_index(
+        first_row, len(shifted) - len(shifted.lstrip())
+    )
+
+
 @Condition
 def whitespace_before_cursor_on_line():
     """
@@ -475,5 +503,23 @@ def create_key_bindings(editor):
         Move cursor to the base character of the last cell cluster of the WORD.
         """
         _move_to_end_of_word_cell(event, WORD=True)
+
+    # Tabstop-honoring shifts (docs/bugs/118.md): `>>` / `<<` indent using
+    # `editor.tabstop` / `expand_tab` instead of the hardcoded 4-space
+    # prompt_toolkit operator. Single `>` / `<` with a motion stays on the
+    # default path.
+    @kb.add('>', '>', filter=in_navigation_mode & ~is_read_only)
+    def shift_line_right(event):
+        """
+        Indent `event.arg` lines from the cursor row by one tabstop.
+        """
+        _shift_lines(editor, event.current_buffer, event.arg, indent=True)
+
+    @kb.add('<', '<', filter=in_navigation_mode & ~is_read_only)
+    def shift_line_left(event):
+        """
+        Unindent `event.arg` lines from the cursor row by one tabstop.
+        """
+        _shift_lines(editor, event.current_buffer, event.arg, indent=False)
 
     return kb

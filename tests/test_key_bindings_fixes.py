@@ -441,6 +441,81 @@ def test_insert_bindings_yield_to_text_objects(editor):
             editor.application.vi_state.operator_func = None
 
 
+def test_shift_right_uses_tabstop(editor):
+    # 118: `>>` indents by `tabstop` spaces with `expand_tab` (not hardcoded 4).
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.tabstop = 2
+    editor.expand_tab = True
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "alpha\nbeta"
+    eb.buffer.cursor_position = 0
+
+    kb = create_key_bindings(editor)
+    handler = [b for b in kb.bindings if b.keys == (">", ">")][0].handler
+    event = MagicMock()
+    event.current_buffer = eb.buffer
+    event.arg = None
+    handler(event)
+
+    assert eb.buffer.document.lines == ["  alpha", "beta"]
+    # Cursor rests on the first non-blank of the shifted row.
+    assert eb.buffer.document.cursor_position_col == 2
+
+    # Undo restores the original text.
+    eb.buffer.undo()
+    assert eb.buffer.document.lines == ["alpha", "beta"]
+
+
+def test_shift_right_count_and_tab(editor):
+    # 118: `2>>` with `noexpandtab` inserts one tab per covered line.
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.tabstop = 4
+    editor.expand_tab = False
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "alpha\nbeta\ngamma"
+    eb.buffer.cursor_position = 0
+
+    kb = create_key_bindings(editor)
+    handler = [b for b in kb.bindings if b.keys == (">", ">")][0].handler
+    event = MagicMock()
+    event.current_buffer = eb.buffer
+    event.arg = 2
+    handler(event)
+
+    assert eb.buffer.document.lines == ["\talpha", "\tbeta", "gamma"]
+
+
+def test_shift_left_removes_tabstop(editor):
+    # 118: `<<` removes up to one tabstop of leading whitespace (or one tab).
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.tabstop = 2
+    editor.expand_tab = True
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "    alpha\n\tbeta\nplain"
+    eb.buffer.cursor_position = 0
+
+    kb = create_key_bindings(editor)
+    handler = [b for b in kb.bindings if b.keys == ("<", "<")][0].handler
+    event = MagicMock()
+    event.current_buffer = eb.buffer
+    event.arg = 3
+    handler(event)
+
+    assert eb.buffer.document.lines == ["  alpha", "beta", "plain"]
+
+
 def test_negative_count_delegate_documented_as_upstream_parity():
     # 071 row 7 (documented upstream-parity dead branch): the Thai
     # find_previous_word_ending(-count) delegate must behave exactly like
