@@ -366,7 +366,7 @@ def buffer_edit(editor, location, force=False):
             editor.show_message(_NO_FILE_NAME)
         elif _confirm_unsaved_changes(editor, force):
             eb.reload()
-    else:
+    elif _confirm_unsaved_changes(editor, force):
         editor.window_arrangement.open_buffer(location, show_in_current_window=True)
 
 

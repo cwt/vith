@@ -89,3 +89,32 @@ def test_write_overwrite_check_expands_tilde(editor, editor_buffer, tmp_path, mo
     # message shown, file unchanged
     assert editor.message is not None
     assert target.read_text() == 'old'
+
+
+def test_edit_blocked_by_unsaved_changes(editor, editor_buffer, tmp_path):
+    # 096: :e <file> must be blocked by unsaved changes unless ! is given
+    eb = _editor_with_text(editor, editor_buffer, 'unsaved changes')
+    assert eb.has_unsaved_changes
+    target = tmp_path / 'other.txt'
+    target.write_text('other contents')
+
+    handle_command(editor, ':e %s' % target)
+    assert editor.message == 'No write since last change (add ! to override)'
+    assert editor.window_arrangement.active_editor_buffer == eb
+
+    # With !, switch proceeds
+    handle_command(editor, ':e! %s' % target)
+    assert editor.window_arrangement.active_editor_buffer.location == str(target)
+
+
+def test_edit_clean_buffer_succeeds(editor, editor_buffer, tmp_path):
+    # 096: :e <file> on a clean buffer switches without warning
+    eb = _editor_with_text(editor, editor_buffer, 'clean')
+    eb._file_content = 'clean'
+    eb._has_unsaved_changes = False
+    assert not eb.has_unsaved_changes
+    target = tmp_path / 'clean_other.txt'
+    target.write_text('clean other')
+
+    handle_command(editor, ':e %s' % target)
+    assert editor.window_arrangement.active_editor_buffer.location == str(target)
