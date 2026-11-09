@@ -440,8 +440,8 @@ def quit_nonzero(editor):
     editor.application.exit()
 
 
-@cmd('wqa')
-def write_and_quit_all(editor):
+@cmd('wqa', accepts_force=True)
+def write_and_quit_all(editor, force=False):
     """
     Write every buffer with unsaved changes and quit. Does not quit when any
     write failed (docs/bugs/067.md).
