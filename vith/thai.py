@@ -674,40 +674,42 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
         if not saved_escapes or output is None:
             return orig_diff(*args, **kwargs)
 
-        if getattr(output, "_vith_write_swap_active", False):
-            # Another `Application` already swapped `write`/`write_raw` on
-            # this output object (re-entrant or nested `run_in_terminal`):
-            # serialize by running the diff without a second swap.
-            return orig_diff(*args, **kwargs)
-
-        orig_write = output.write
-        orig_write_raw = output.write_raw
-        armed = False
-        reset_seq = f"\x1b[?7l\x1b[{width}G"
-
-        def _wrapped_write_raw(data: str) -> None:
-            nonlocal armed
-            if _AUTOWRAP_ARM_TAG in data:
-                data = data.replace(_AUTOWRAP_ARM_TAG, "\x1b[?7h")
-                armed = True
-            orig_write_raw(data)
-
-        def _wrapped_write(data: str) -> None:
-            nonlocal armed
-            orig_write(data)
-            if armed:
-                armed = False
-                orig_write_raw(reset_seq)
-
-        output.write = _wrapped_write  # type: ignore[method-assign]
-        output.write_raw = _wrapped_write_raw  # type: ignore[method-assign]
-        output._vith_write_swap_active = True
         try:
-            return orig_diff(*args, **kwargs)
+            if getattr(output, "_vith_write_swap_active", False):
+                # Another `Application` already swapped `write`/`write_raw` on
+                # this output object (re-entrant or nested `run_in_terminal`):
+                # serialize by running the diff without a second swap.
+                return orig_diff(*args, **kwargs)
+
+            orig_write = output.write
+            orig_write_raw = output.write_raw
+            armed = False
+            reset_seq = f"\x1b[?7l\x1b[{width}G"
+
+            def _wrapped_write_raw(data: str) -> None:
+                nonlocal armed
+                if _AUTOWRAP_ARM_TAG in data:
+                    data = data.replace(_AUTOWRAP_ARM_TAG, "\x1b[?7h")
+                    armed = True
+                orig_write_raw(data)
+
+            def _wrapped_write(data: str) -> None:
+                nonlocal armed
+                orig_write(data)
+                if armed:
+                    armed = False
+                    orig_write_raw(reset_seq)
+
+            output.write = _wrapped_write  # type: ignore[method-assign]
+            output.write_raw = _wrapped_write_raw  # type: ignore[method-assign]
+            output._vith_write_swap_active = True
+            try:
+                return orig_diff(*args, **kwargs)
+            finally:
+                output._vith_write_swap_active = False
+                output.write = orig_write  # type: ignore[method-assign]
+                output.write_raw = orig_write_raw  # type: ignore[method-assign]
         finally:
-            output._vith_write_swap_active = False
-            output.write = orig_write  # type: ignore[method-assign]
-            output.write_raw = orig_write_raw  # type: ignore[method-assign]
             for y, col_idx, old_esc in saved_escapes:
                 zw_row = screen.zero_width_escapes.get(y)
                 if zw_row is not None:

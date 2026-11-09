@@ -900,6 +900,41 @@ def test_output_screen_diff_last_column_autowrap_guard(sticky_gate) -> None:
     assert 9 not in screen.zero_width_escapes[0]
 
 
+def test_reentrant_output_screen_diff_restores_escapes(sticky_gate) -> None:
+    """098: re-entrant diff (_vith_write_swap_active=True) must not leak
+    _AUTOWRAP_ARM_TAG into screen.zero_width_escapes."""
+    from unittest.mock import MagicMock
+
+    import prompt_toolkit.renderer as ptk_renderer
+    from prompt_toolkit.data_structures import Point, Size
+    from prompt_toolkit.layout.screen import Char, Screen
+
+    screen = Screen()
+    screen.data_buffer[0][79] = Char("ก้", "")
+    output = MagicMock()
+    output.write = MagicMock()
+    output.write_raw = MagicMock()
+    output._vith_write_swap_active = True
+
+    size = Size(rows=1, columns=80)
+    ptk_renderer._output_screen_diff(
+        MagicMock(),
+        output,
+        screen,
+        Point(0, 0),
+        MagicMock(),
+        Screen(),
+        None,
+        False,
+        full_screen=True,
+        attrs_for_style_string=MagicMock(),
+        style_string_has_style=MagicMock(),
+        size=size,
+        previous_width=80,
+    )
+    assert 79 not in screen.zero_width_escapes[0]
+
+
 def test_rollback_covers_text_object_patch(monkeypatch) -> None:
     """064A: a failure after TextObject.operator_range is installed must roll
     the TextObject patch back together with everything in `applied`."""
