@@ -293,8 +293,8 @@ class WindowArrangement(object):
         # Clean up buffers.
         self._auto_close_new_empty_buffers()
 
-    def hsplit(self, location=None, new=False, text=None):
-        """Split horizontally."""
+    def _split(self, split_cls, location=None, new=False, text=None):
+        """Shared implementation for horizontal/vertical splits."""
         assert (location is not None) + (text is not None) + bool(
             new
         ) <= 1  # Don't pass two of them.
@@ -303,19 +303,15 @@ class WindowArrangement(object):
             editor_buffer = self._get_or_create_editor_buffer(location=location, text=text)
         else:
             editor_buffer = None
-        self.active_tab.hsplit(editor_buffer)
+        self.active_tab._split(split_cls, editor_buffer)
+
+    def hsplit(self, location=None, new=False, text=None):
+        """Split horizontally."""
+        self._split(HSplit, location=location, new=new, text=text)
 
     def vsplit(self, location=None, new=False, text=None):
         """Split vertically."""
-        assert (location is not None) + (text is not None) + bool(
-            new
-        ) <= 1  # Don't pass two of them.
-
-        if location or text or new:
-            editor_buffer = self._get_or_create_editor_buffer(location=location, text=text)
-        else:
-            editor_buffer = None
-        self.active_tab.vsplit(editor_buffer)
+        self._split(VSplit, location=location, new=new, text=text)
 
     def keep_only_current_window(self):
         """
