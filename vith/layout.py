@@ -86,7 +86,7 @@ class TabsControl(FormattedTextControl):
         def create_tab_handler(index):
             "Return a mouse handler for this tab. Select the tab on click."
 
-            def handler(app, mouse_event):
+            def handler(mouse_event):
                 if mouse_event.event_type == MouseEventType.MOUSE_DOWN:
                     editor.window_arrangement.active_tab_index = index
                     editor.sync_with_prompt_toolkit()

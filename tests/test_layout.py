@@ -316,6 +316,37 @@ def test_tabs_control_reuses_handler_per_index(editor):
     assert first and first == second  # same handler objects
 
 
+def test_tab_click_selects_tab(editor):
+    # 125: clicking a tab selects it — the fragment handler takes a single
+    # `mouse_event` (the reported crash passed `(app, mouse_event)`).
+    from prompt_toolkit.data_structures import Point
+    from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
+
+    from vith.layout import TabsControl
+
+    editor.load_initial_files(['alpha.txt', 'beta.txt'], in_tab_pages=True)
+    assert editor.window_arrangement.active_tab_index == 0
+
+    control = TabsControl(editor)
+    handlers = [fragment[2] for fragment in control.text() if len(fragment) >= 3]
+    assert len(handlers) == 2
+
+    def click(event_type):
+        return MouseEvent(
+            position=Point(x=0, y=0),
+            event_type=event_type,
+            button=MouseButton.LEFT,
+            modifiers=frozenset(),
+        )
+
+    handlers[1](click(MouseEventType.MOUSE_DOWN))
+    assert editor.window_arrangement.active_tab_index == 1
+
+    # Non-click events are ignored without touching tab state.
+    assert handlers[0](click(MouseEventType.MOUSE_UP)) is NotImplemented
+    assert editor.window_arrangement.active_tab_index == 1
+
+
 def test_create_layout_from_node_unknown_node_raises_value_error(editor):
     # 107: create_layout_from_node raises ValueError for unknown node types
     import pytest
