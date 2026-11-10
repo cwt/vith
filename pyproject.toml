@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vith"
-version = "0.12.1"
+version = "0.13.0"
 description = "Vith — a pure-Python Vi clone with Thai & Lao script support (fork of pyvim)"
 readme = "README.md"
 license = "BSD-3-Clause"

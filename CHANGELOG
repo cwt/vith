@@ -1,6 +1,34 @@
 CHANGELOG
 =========
 
+0.13.0: 2026-11-10
+-------------------
+
+Commands, syntax highlighting & dev tooling:
+
+Vim semantics & commands:
+
+- Added ``:set filetype=<lang>`` and ``:set ft=<lang>`` buffer-local lexer override
+  with completion support (``FiletypeCompleter``) and ``:set ft`` inspection.
+- Added ``:next`` / ``:n`` and ``:previous`` / ``:prev`` / ``:N`` file cycling
+  with tab-awareness (switching tabs when multiple exist) and dirty-buffer guards
+  (findings 124 & 126).
+- Fixed tab click handler crashing due to extra closure argument (finding 125).
+- ``:compression`` (and ``:comp`` / ``:coldtext``) now opens statistics in a
+  horizontal split buffer (like ``:help``) closable with ``:q``, replacing the
+  terminal pager.
+
+Tooling & quality gates:
+
+- Added developer helper scripts (``scripts/runtest.sh``, ``scripts/type-check.sh``,
+  ``scripts/lint-check-and-fix.sh``, ``scripts/code-format.sh``).
+- Integrated ``pytest-cov`` and ``pytest-xdist`` for parallel test execution with
+  coverage checks (85% floor enforced).
+- Added comprehensive unit tests for CLI entry points (``vith.entry_points.run_vith``,
+  ``vith.__main__``) and OS process title naming (``vith.process``), bringing all
+  three modules to 100% test coverage.
+- Full test suite passing: 311 passed, mypy clean on 59 source files, ruff clean.
+
 0.12.1: 2026-11-09
 -------------------
 
