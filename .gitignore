@@ -58,3 +58,7 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# Dev-only dependency lock (poetry is just a test helper here,
+# setuptools is the build backend; see scripts/runtest.sh)
+poetry.lock
