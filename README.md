@@ -1,5 +1,11 @@
 # vith (วิธ) — a fork of pyvim
 
+[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE.md)
+[![Python Compatibility](https://img.shields.io/badge/python-3.10+-blue.svg)](#requirements)
+[![PyPI Version](https://img.shields.io/pypi/v/vith.svg)](https://pypi.org/project/vith/)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/cwt/vith)
+<!-- [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cwt/vith) -->
+
 **vith** (Thai: **วิธ**, from วิธี / Pali-Skt *vidhi*, "method"; also a portmanteau of **Vi**M + **TH**Ai) is a fork of [pyvim](https://github.com/prompt-toolkit/pyvim) — "an implementation of Vim in Python" originally created by Jonathan Slenders.
 
 The upstream project was idle for several years, so this fork continues development independently. It adds **Thai & Lao script support** (terminal cell-cluster navigation and editing, two-tier word segmentation, SARA AM differential rendering) and **speed / latency / modern-Python stability** work (streamed + cached Pygments highlighting, lazy colorscheme loading, O(1) pyflakes error index, Python 3.14+/3.15 `asyncio` startup fix).
@@ -10,11 +16,7 @@ This fork is published as a separate PyPI package (`vith`) and is not a drop-in 
 
 ---
 
-*An implementation of Vim in Python*
-
-```sh
-pip install vith
-```
+## Requirements
 
 This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds two large, machine-verified plans (documented in the `docs/` Open Knowledge bundle):
 
