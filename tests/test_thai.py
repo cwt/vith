@@ -1305,7 +1305,7 @@ def test_window_and_renderer_patches_tolerate_inserted_parameters(monkeypatch):
     assert getattr(thai.ptk_renderer._output_screen_diff, "_vith_thai_patched", False) is True
 
 
-def test_autowrap_escape_row_tolerates_mapping_without_setdefault(sticky_gate):
+def test_autowrap_escape_row_tolerates_mapping_without_setdefault(sticky_gate) -> None:
     # 110 item 12 / 111 item 14 follow-up: exotic `zero_width_escapes`
     # mapping without `setdefault` must not raise KeyError on a missing row.
     import io

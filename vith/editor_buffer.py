@@ -1,6 +1,7 @@
 import asyncio
 import os
 import weakref
+from typing import Any
 
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.document import Document
@@ -23,7 +24,7 @@ class EditorBuffer:
     etc... This wrapper contains the necessary data for the editor.
     """
 
-    def __init__(self, editor, location=None, text=None):
+    def __init__(self, editor, location=None, text=None) -> None:
         assert location is None or isinstance(location, str)
         assert text is None or isinstance(text, str)
         assert not (location and text)
@@ -66,8 +67,8 @@ class EditorBuffer:
         # List of reporting errors, and index of those errors by line.
         # Initialized before `ColdTextBuffer` so `_on_text_changed` can never
         # observe uninitialized attributes during construction.
-        self.report_errors = []
-        self.report_errors_by_line = {}
+        self.report_errors: list[Any] = []
+        self.report_errors_by_line: dict[int, Any] = {}
         self._reporter_is_running = False
         self._run_reporter_again = False
 
@@ -92,7 +93,7 @@ class EditorBuffer:
             cold_compression_name=compression_name,
             cold_compression_level=compression_level,
         )
-        self.buffer._vith_editor_buffer_ref = weakref.ref(self)
+        self.buffer._vith_editor_buffer_ref = weakref.ref(self)  # type: ignore[attr-defined]
 
     @property
     def editor(self):

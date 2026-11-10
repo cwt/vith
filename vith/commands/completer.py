@@ -29,7 +29,7 @@ def _filetype_aliases():
 
 
 @lru_cache(maxsize=1)
-def _filetype_display_names():
+def _filetype_display_names() -> dict[str, str]:
     """Map Pygments alias -> human-readable lexer name for completion meta."""
     from pygments.lexers import get_all_lexers
 
