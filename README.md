@@ -2,6 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE.md)
 [![Python Compatibility](https://img.shields.io/badge/python-3.10+-blue.svg)](#requirements)
+[![Tests](https://img.shields.io/badge/tests-311%20passed-blue.svg)](#testing)
 [![PyPI Version](https://img.shields.io/pypi/v/vith.svg)](https://pypi.org/project/vith/)
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/cwt/vith)
 <!-- [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cwt/vith) -->
@@ -23,7 +24,7 @@ This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds two large, ma
 - **Thai & Lao script support**: terminal cell-cluster navigation and editing (`h`, `l`, `j`, `k`, `x`, `X`, `s`, `r`, `~`, `$`, `e`...), two-tier Thai word segmentation (`libthai` with an always-available orthographic fallback) and SARA AM (`U+0E33`/`U+0EB3`) differential renderer fixes. See [`docs/thai_support_plan.md`](docs/thai_support_plan.md).
 - **Speed, latency & modern-Python stability**: streamed + cached Pygments highlighting, per-line word-span caches for Thai word motions, lazy colorscheme loading, cached word completion, an O(1) pyflakes error index, and the Python 3.14+/3.15 `asyncio` startup-crash fix. See [`docs/speed_latency_plan.md`](docs/speed_latency_plan.md).
 
-All changes are audited in [`docs/bugs/`](docs/bugs/) (109 machine-verified findings, all reproduced and closed); quality is enforced with pytest, mypy and ruff.
+All changes are audited in [`docs/bugs/`](docs/bugs/) (126 machine-verified findings across 7 audit rounds and 3 addenda, all reproduced and closed); quality is enforced with pytest (311 passed), mypy and ruff.
 
 Issues, questions, wishes, comments, feedback, remarks? Please create a GitHub issue, I appreciate it.
 
@@ -61,8 +62,8 @@ We have already many nice things, for instance:
 - All of the functionality of [prompt_toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit). This includes a lot of Vi key bindings, it's platform independent and runs every Python version covered by `python_requires >= 3.10`.
 - Thai/Lao input files: cell-cluster safe navigation and *syntax-aware* word segmentation, including dictionary segmentation when `libthai` is installed — with visual mode, visual-block editing (`C-v`, including `I`/`A` multi-cursor inserts) and `j`/`k` staying on the *visual* column, all cluster-aligned on Thai/Lao text.
 - Compressed undo/redo history: cold snapshots are stored with [quez](https://github.com/cwt/quez) (Zstandard level 1 by default), configurable via `editor.cold_text_compression` in `.vithrc` and inspectable with `:compression`.
-- Several `:set ...` commands have been implemented, like `incsearch`, `number`/`relativenumber`, `ignorecase`, `wildmenu`, `expandtab`, `hlsearch`, `ruler`, `paste`, `tabstop`, `cursorline`/`cursorcolumn`, `colorcolumn`, `scrolloff`, `wrap` and `mouse`.
-- Working Vim-style commands: `:vsplit`, `:tabe`, `:only`, `:badd`, `:ls`/`:b` buffer navigation (patterns or 1-based numbers), `:s` substitute (ranges, flags incl. `g`/`i`/`I`, search-history fallback) and `:q`/`:wq`/`:qa`/`:wqa` with Vim window-vs-exit semantics. Auto completion for Python source code uses the amazing Jedi library, and code checking is done (asynchronously) through Pyflakes.
+- Several `:set ...` commands have been implemented, like `incsearch`, `number`/`relativenumber`, `ignorecase`, `wildmenu`, `expandtab`, `hlsearch`, `ruler`, `paste`, `tabstop`, `cursorline`/`cursorcolumn`, `colorcolumn`, `scrolloff`, `wrap`, `mouse` and `filetype`/`ft`.
+- Working Vim-style commands: `:vsplit`, `:tabe`, `:only`, `:badd`, `:ls`/`:b` buffer navigation (patterns or 1-based numbers), `:next`/`:previous` (`:n`/`:prev`) file cycling, `:s` substitute (ranges, flags incl. `g`/`i`/`I`, search-history fallback), `:w`/`:w!` write, and `:q`/`:wq`/`:qa`/`:wqa` (plus `ZZ`/`ZQ`) with Vim window-vs-exit semantics. Auto completion for Python source code uses the amazing Jedi library, and code checking is done (asynchronously) through Pyflakes.
 - Colorschemes can be changed at runtime.
 
 Further, when the project develops, it should also become possible to write extensions in Python, and use Python as a scripting language. (Instead of vimscript, for instance.)
@@ -90,19 +91,32 @@ Visual-block editing (`C-v`) is available — highlights, cuts and inserts are c
 
 ## Testing
 
-To run all tests, install the development dependencies (pytest, mypy, ruff):
+To run all tests, install the development dependencies (pytest, pytest-cov, pytest-xdist, mypy, ruff):
 
 ```sh
 pip install -e ".[dev]"
 ```
 
-And then run from the root `vith` directory:
+Run unit tests via the test runner script (executes all 311 tests in parallel and enforces ≥85% test coverage):
+
+```sh
+bash scripts/runtest.sh
+```
+
+Or run pytest directly from the root `vith` directory:
 
 ```sh
 python -m pytest tests
 ```
 
-Quality gates: `mypy .` (typing, checked against the 3.10 floor), `ruff check` (lint) and `ruff format --check .` (formatting). The reproducible measurements quoted in the docs come from:
+Developer helper scripts are provided in `scripts/`:
+
+- `scripts/runtest.sh`: run the full test suite in parallel with coverage enforcement (311 passed)
+- `scripts/type-check.sh`: run `mypy .` (typing, 59 source files checked against the 3.10 floor)
+- `scripts/lint-check-and-fix.sh`: run `ruff check --fix .` (linting)
+- `scripts/code-format.sh`: run `ruff format` (formatting)
+
+The reproducible measurements quoted in the docs come from:
 
 ```sh
 python tools/bench_plans.py
