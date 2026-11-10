@@ -22,6 +22,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.styles import DynamicStyle
 
+from .cold_text import format_cold_text_stats
 from .commands.completer import create_command_completer
 from .commands.handler import handle_command
 from .commands.preview import CommandPreviewer
@@ -394,6 +395,23 @@ class Editor:
         Show help in new window.
         """
         self.window_arrangement.hsplit(text=HELP_TEXT)
+        self.sync_with_prompt_toolkit()  # Show new window.
+
+    def show_compression(self):
+        """
+        Show cold-text compression stats in new window (like `:help`, close
+        with `:q`).
+        """
+        eb = self.window_arrangement.active_editor_buffer
+        buffer = eb.buffer if eb is not None else None
+        stats_getter = getattr(buffer, 'cold_text_stats', None)
+
+        if stats_getter is None:
+            self.show_message('Cold-text compression is not available for this buffer.')
+            return
+
+        text = '\n'.join(format_cold_text_stats(stats_getter()))
+        self.window_arrangement.hsplit(text=text)
         self.sync_with_prompt_toolkit()  # Show new window.
 
     def run(self):

@@ -338,7 +338,7 @@ def _format_size(num_bytes: int) -> str:
 def _format_stack(label: str, stats: dict[str, Any]) -> str:
     ratio = stats.get('compression_ratio_pct')
     ratio_text = 'n/a' if ratio is None else 'ratio %.1f%% of raw' % (100.0 - float(ratio))
-    return '  %-5s %4i snapshots  raw %8s  compressed %8s  %s' % (
+    return '  %-6s %4i snapshots  raw %8s  compressed %8s  %s' % (
         label + ':',
         int(stats['count']),
         _format_size(int(stats['raw_size_bytes'])),

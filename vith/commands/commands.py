@@ -5,7 +5,6 @@ from typing import Any
 from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.document import Document
 
-from vith.cold_text import format_cold_text_stats
 from vith.thai import note_document_text
 
 __all__ = (
@@ -70,7 +69,7 @@ def press_enter_to_continue():
 def _run_pager(print_handler):
     """
     Run `print_handler` in a terminal pager and wait for Enter afterwards
-    (shared by `:ls`, `:compression` and the rc-file loader; docs/bugs/073.md).
+    (shared by `:ls` and the rc-file loader; docs/bugs/073.md).
     """
 
     def pager_handler():
@@ -361,23 +360,10 @@ def buffer_list_lines(editor):
 @cmd('coldtext')
 def cold_text_compression(editor):
     """
-    Show compressed undo/redo history size and ratio.
+    Show compressed undo/redo history size and ratio in a new window
+    (like `:help`, close with `:q`).
     """
-    eb = editor.window_arrangement.active_editor_buffer
-    buffer = eb.buffer if eb is not None else None
-    stats_getter = getattr(buffer, 'cold_text_stats', None)
-
-    if stats_getter is None:
-        editor.show_message('Cold-text compression is not available for this buffer.')
-        return
-
-    stats = stats_getter()
-
-    def handler():
-        for line in format_cold_text_stats(stats):
-            print(line)
-
-    _run_pager(handler)
+    editor.show_compression()
 
 
 @_cmd('b')

@@ -4,9 +4,6 @@ Tests for compressed cold-text undo/redo history (`vith/cold_text.py`).
 
 from __future__ import annotations
 
-import builtins
-
-import vith.commands.commands as commands_module
 from vith.cold_text import (
     ColdTextBuffer,
     ColdTextStack,
@@ -156,27 +153,20 @@ def test_format_cold_text_stats():
     assert 'total:' in lines[3]
 
 
-def test_compression_command_prints_stats(editor, editor_buffer, monkeypatch, capsys):
+def test_compression_command_shows_stats_in_split(editor, editor_buffer):
     editor_buffer.buffer.text = 'hello'
     editor_buffer.buffer.save_to_undo_stack()
     editor.window_arrangement._add_editor_buffer(editor_buffer)
     editor.sync_with_prompt_toolkit()
 
-    def fake_run_in_terminal(handler):
-        handler()
-
-    def fake_input(_prompt=''):
-        return ''
-
-    monkeypatch.setattr(commands_module, 'run_in_terminal', fake_run_in_terminal)
-    monkeypatch.setattr(builtins, 'input', fake_input)
-
     handle_command(editor, ':compression')
 
-    output = capsys.readouterr().out
-    assert 'Cold-text compression:' in output
-    assert 'undo:' in output
-    assert 'total:' in output
+    eb = editor.window_arrangement.active_editor_buffer
+    assert eb is not editor_buffer
+    text = eb.buffer.text
+    assert 'Cold-text compression:' in text
+    assert 'undo:' in text
+    assert 'total:' in text
 
 
 def test_cold_text_stack_update_top_cursor_affects_pop():
