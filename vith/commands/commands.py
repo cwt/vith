@@ -673,6 +673,60 @@ def _register_generated_set_options() -> None:
 _register_generated_set_options()
 
 
+@set_cmd('filetype', accepts_value=True)
+@set_cmd('ft', accepts_value=True)
+def set_filetype(editor, value):
+    """Override the Pygments lexer for the active buffer (`:set ft=python`)."""
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        editor.show_message('No buffer')
+        return
+    if value is None:
+        override = getattr(eb, 'filetype_override', None)
+        if override:
+            editor.show_message('filetype=%s' % override)
+            return
+        location = getattr(eb, 'location', None)
+        if location:
+            try:
+                from pygments.lexers import get_lexer_for_filename
+
+                lexer = get_lexer_for_filename(location)
+                aliases = getattr(lexer, 'aliases', None)
+                if aliases:
+                    editor.show_message('filetype=%s' % aliases[0])
+                    return
+            except Exception:
+                pass
+        editor.show_message('filetype=')
+        return
+    text = value.strip()
+    if text == '' or text.lower() in ('off', 'none', 'auto'):
+        eb.filetype_override = None
+        try:
+            from prompt_toolkit.application.current import get_app
+
+            get_app().invalidate()
+        except Exception:
+            pass
+        return
+    try:
+        from pygments.lexers import get_lexer_by_name
+
+        lexer = get_lexer_by_name(text)
+    except Exception:
+        editor.show_message('Unknown filetype: %s' % value)
+        return
+    aliases = getattr(lexer, 'aliases', None)
+    eb.filetype_override = aliases[0] if aliases else text
+    try:
+        from prompt_toolkit.application.current import get_app
+
+        get_app().invalidate()
+    except Exception:
+        pass
+
+
 @set_cmd('tildeop')
 @set_cmd('top')
 def enable_tildeop(editor):

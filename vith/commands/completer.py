@@ -1,17 +1,93 @@
+import re
+from functools import lru_cache
+
 from prompt_toolkit.completion import Completer, Completion, PathCompleter, WordCompleter
 from prompt_toolkit.contrib.completers.system import SystemCompleter
 from prompt_toolkit.contrib.regular_languages.completion import GrammarCompleter
+from prompt_toolkit.document import Document
 
 from .commands import SET_COMMANDS, get_commands
 from .grammar import COMMAND_GRAMMAR
 
-__all__ = ('create_command_completer',)
+__all__ = ('create_command_completer', 'FiletypeCompleter')
+
+#: Matches the value part of `:set filetype=<prefix>` (and the `ft` alias),
+#: with optional leading colon/whitespace (command-line buffer omits the
+#: `:` prompt, `handle_command` strings include it).
+_FILETYPE_VALUE_RE = re.compile(r'^\s*:?\s*set\s+(?:filetype|ft)=([^\s]*)$')
+
+
+@lru_cache(maxsize=1)
+def _filetype_aliases():
+    """Sorted Pygments lexer aliases (`get_lexer_by_name` targets)."""
+    from pygments.lexers import get_all_lexers
+
+    aliases = set()
+    for _, alias_list, _, _ in get_all_lexers():
+        aliases.update(alias_list)
+    return sorted(aliases)
+
+
+@lru_cache(maxsize=1)
+def _filetype_display_names():
+    """Map Pygments alias -> human-readable lexer name for completion meta."""
+    from pygments.lexers import get_all_lexers
+
+    mapping: dict[str, str] = {}
+    for name, alias_list, _, _ in get_all_lexers():
+        for alias in alias_list:
+            mapping.setdefault(alias, name)
+    return mapping
+
+
+class FiletypeCompleter(Completer):
+    """
+    Complete Pygments lexer aliases for `:set filetype=`.
+
+    Empty prefix yields all aliases; otherwise only `startswith` matches
+    (mirroring `ColorSchemeCompleter`).
+    """
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+        start_pos = -len(text)
+        display_names = _filetype_display_names()
+
+        for alias in _filetype_aliases():
+            if alias.startswith(text):
+                yield Completion(
+                    alias,
+                    start_position=start_pos,
+                    display=alias,
+                    display_meta=display_names.get(alias, ''),
+                )
+
+
+class CommandCompleter(Completer):
+    """
+    Dispatch `:set filetype=<tab>` to `FiletypeCompleter`, everything else
+    to the grammar completer (which only sees the value fragment, not the
+    option name, so it cannot dispatch itself).
+    """
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.filetype_completer = FiletypeCompleter()
+
+    def get_completions(self, document, complete_event):
+        m = _FILETYPE_VALUE_RE.match(document.text_before_cursor)
+        if m is not None:
+            prefix = m.group(1)
+            sub_document = Document(prefix, len(prefix))
+            yield from self.filetype_completer.get_completions(sub_document, complete_event)
+            return
+        yield from self.inner.get_completions(document, complete_event)
 
 
 def create_command_completer(editor):
     commands = [c + ' ' for c in get_commands()]
 
-    return GrammarCompleter(
+    inner = GrammarCompleter(
         COMMAND_GRAMMAR,
         {
             'command': WordCompleter(commands),
@@ -22,6 +98,7 @@ def create_command_completer(editor):
             'shell_command': SystemCompleter(),
         },
     )
+    return CommandCompleter(inner)
 
 
 class BufferNameCompleter(Completer):

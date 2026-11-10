@@ -45,16 +45,19 @@ class DocumentLexer(Lexer):
     def __init__(self, editor_buffer: Any) -> None:
         self.editor_buffer = editor_buffer
         self._cached_location: str | None = None
+        self._cached_filetype: str | None = None
         self._pygments_lexer: Any = None
         self._syntax_sync: Any = None
         self._directory_lexer: Any = None
 
     def invalidation_hash(self):
         # Invalidate the fragment cache when the buffer location (or file
-        # explorer mode) changes, e.g. after `:w newname.py`.
+        # explorer mode) changes, e.g. after `:w newname.py`, or when the
+        # `:set filetype` override changes.
         return (
             self.editor_buffer.location,
             getattr(self.editor_buffer, 'in_file_explorer_mode', False),
+            getattr(self.editor_buffer, 'filetype_override', None),
         )
 
     def _get_directory_lexer(self):
@@ -69,7 +72,7 @@ class DocumentLexer(Lexer):
             self._directory_lexer = PygmentsLexer(DirectoryListingLexer, sync_from_start=False)
         return self._directory_lexer
 
-    def _sniff_lexer_for_location(self, location: str) -> Any | None:
+    def _sniff_lexer_for_location(self, location: str | None) -> Any | None:
         """
         Guess a Pygments lexer from buffer content for files Pygments cannot
         identify by name (extensionless scripts, docs/bugs/121.md).
@@ -95,24 +98,63 @@ class DocumentLexer(Lexer):
         except Exception:
             return None
 
-    def _ensure_lexer(self, location: str) -> bool:
+    def _lexer_for_override(self, override: str | None) -> Any | None:
+        """Return a Pygments lexer instance for a `:set filetype` override."""
+        if not override:
+            return None
+        try:
+            from pygments.lexers import get_lexer_by_name
+
+            return get_lexer_by_name(override, stripnl=False, stripall=False, ensurenl=False)
+        except Exception:
+            return None
+
+    def _ensure_lexer(self, location: str | None) -> bool:
         """Load/cache the Pygments lexer for this location."""
-        if self._cached_location == location and (
-            _STREAMING_AVAILABLE or self._pygments_lexer is not None
+        override = getattr(self.editor_buffer, 'filetype_override', None)
+        if (
+            self._cached_location == location
+            and self._cached_filetype == override
+            and (_STREAMING_AVAILABLE or self._pygments_lexer is not None)
         ):
             # Already looked up: reuse the result (including a cached miss,
             # so we don't re-scan the Pygments registry on every edit).
             return self._pygments_lexer is not None
 
+        # `:set filetype=...` takes precedence over filename detection.
+        if override:
+            lexer_inst = self._lexer_for_override(override)
+            if lexer_inst is not None:
+                if not _STREAMING_AVAILABLE:
+                    self._pygments_lexer = PygmentsLexer(
+                        lexer_inst.__class__, sync_from_start=False
+                    )
+                    self._syntax_sync = None
+                else:
+                    self._cached_location = location
+                    self._cached_filetype = override
+                    self._pygments_lexer = lexer_inst
+                    self._syntax_sync = RegexSync.from_pygments_lexer_cls(lexer_inst.__class__)
+                    return True
+                self._cached_location = location
+                self._cached_filetype = override
+                return self._pygments_lexer is not None
+            # Invalid override: fall through to filename detection instead
+            # of crashing (the `:set` handler rejects these, so this only
+            # happens for programmatically set values).
+
         if not _STREAMING_AVAILABLE:
             # Legacy fallback for prompt_toolkit builds without `RegexSync`:
             # cache the `PygmentsLexer` per location (docs/bugs/030.md, 065.md).
-            self._pygments_lexer = PygmentsLexer.from_filename(location, sync_from_start=False)
+            self._pygments_lexer = (
+                PygmentsLexer.from_filename(location, sync_from_start=False) if location else None
+            )
             if self._pygments_lexer is None or isinstance(self._pygments_lexer, SimpleLexer):
                 sniffed = self._sniff_lexer_for_location(location)
                 if sniffed is not None:
                     self._pygments_lexer = PygmentsLexer(sniffed.__class__, sync_from_start=False)
             self._cached_location = location
+            self._cached_filetype = override
             self._syntax_sync = None
             return self._pygments_lexer is not None
 
@@ -120,18 +162,24 @@ class DocumentLexer(Lexer):
         from pygments.util import ClassNotFound
 
         try:
-            lexer_inst = get_lexer_for_filename(
-                location, stripnl=False, stripall=False, ensurenl=False
+            lexer_inst = (
+                get_lexer_for_filename(location, stripnl=False, stripall=False, ensurenl=False)
+                if location
+                else None
             )
+            if lexer_inst is None:
+                raise ClassNotFound('no location')
         except ClassNotFound:
             lexer_inst = self._sniff_lexer_for_location(location)
             if lexer_inst is None:
                 self._cached_location = location
+                self._cached_filetype = override
                 self._pygments_lexer = None
                 self._syntax_sync = None
                 return False
 
         self._cached_location = location
+        self._cached_filetype = override
         self._pygments_lexer = lexer_inst
         self._syntax_sync = RegexSync.from_pygments_lexer_cls(lexer_inst.__class__)
         return True
@@ -142,10 +190,10 @@ class DocumentLexer(Lexer):
         """
         location = self.editor_buffer.location
 
-        if location:
-            if getattr(self.editor_buffer, 'in_file_explorer_mode', False):
-                return self._get_directory_lexer().lex_document(document)
+        if getattr(self.editor_buffer, 'in_file_explorer_mode', False):
+            return self._get_directory_lexer().lex_document(document)
 
+        if location or getattr(self.editor_buffer, 'filetype_override', None):
             if not self._ensure_lexer(location):
                 # No Pygments lexer found for this location (or Pygments
                 # could not guess one): fall back to no highlighting.

@@ -31,6 +31,9 @@ class EditorBuffer:
         self._editor_ref = weakref.ref(editor)
         self.location = location
         self.encoding = 'utf-8'
+        # Pygments lexer alias overriding filename-based detection
+        # (`:set filetype=python`). `None` means auto-detect.
+        self.filetype_override: str | None = None
 
         #: is_new: True when this file does not yet exist in the storage.
         self.is_new = True

@@ -71,6 +71,17 @@ class CommandPreviewer:
         self._wrap_lines = e.wrap_lines
         self._break_indent = e.break_indent
         self._enable_mouse_support = e.enable_mouse_support
+        # Buffer-local `:set filetype` preview state (the override lives on
+        # the active EditorBuffer, not on the Editor).
+        self._filetype_buffer = None
+        self._filetype_override = None
+        try:
+            eb = e.window_arrangement.active_editor_buffer
+        except Exception:
+            eb = None
+        if eb is not None:
+            self._filetype_buffer = eb
+            self._filetype_override = getattr(eb, 'filetype_override', None)
 
     def restore(self):
         """
@@ -98,6 +109,12 @@ class CommandPreviewer:
         e.wrap_lines = self._wrap_lines
         e.break_indent = self._break_indent
         e.enable_mouse_support = self._enable_mouse_support
+        eb = getattr(self, '_filetype_buffer', None)
+        if eb is not None:
+            try:
+                eb.filetype_override = self._filetype_override
+            except Exception:
+                pass
 
     def preview(self, input_string):
         """
@@ -133,6 +150,10 @@ class CommandPreviewer:
             # 073.md). Options that mutate vi_state (tildeop) are not
             # preview-restorable and stay ignored, as before.
             case 'set':
+                if set_option in ('filetype', 'ft'):
+                    self._preview_filetype_value(e, variables)
+                    return
+
                 spec = _TOGGLE_PREVIEWS.get(set_option)
                 if spec is not None:
                     setattr(e, spec[0], spec[1])
@@ -166,3 +187,32 @@ class CommandPreviewer:
         except ValueError:
             return
         setattr(e, attribute, numbers)
+
+    def _preview_filetype_value(self, e, variables):
+        # Live-highlight while typing `:set filetype=...`; invalid names are
+        # ignored (no message during preview). `None` (bare `:set filetype`)
+        # and empty/`off` (clear) restore the saved override via `restore()`
+        # already run by `preview()`.
+        if variables.get('set_value') is None:
+            return
+        value = (variables.get('set_value') or '').strip()
+        eb = getattr(self, '_filetype_buffer', None)
+        if eb is None:
+            try:
+                eb = e.window_arrangement.active_editor_buffer
+            except Exception:
+                return
+            self._filetype_buffer = eb
+        if eb is None:
+            return
+        if value == '' or value.lower() in ('off', 'none', 'auto'):
+            eb.filetype_override = None
+            return
+        try:
+            from pygments.lexers import get_lexer_by_name
+
+            lexer = get_lexer_by_name(value)
+        except Exception:
+            return
+        aliases = getattr(lexer, 'aliases', None)
+        eb.filetype_override = aliases[0] if aliases else value
