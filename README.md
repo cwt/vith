@@ -1,8 +1,7 @@
 # vith (วิธ) — a fork of pyvim
 
-[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE.md)
-[![Python Compatibility](https://img.shields.io/badge/python-3.10+-blue.svg)](#requirements)
-[![Tests](https://img.shields.io/badge/tests-311%20passed-blue.svg)](#testing)
+[![License](https://img.shields.io/pypi/l/vith)](LICENSE)
+[![Python Compatibility](https://img.shields.io/pypi/pyversions/vith)](#requirements)
 [![PyPI Version](https://img.shields.io/pypi/v/vith.svg)](https://pypi.org/project/vith/)
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/cwt/vith)
 <!-- [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cwt/vith) -->
