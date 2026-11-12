@@ -11,14 +11,13 @@ Options:
     -u <vithrc> : Use this .vithrc file instead.
 """
 
-import os
 import sys
 
 import docopt
 
 from vith.editor import Editor
 from vith.process import set_process_name
-from vith.rc_file import run_rc_file
+from vith.rc_file import find_config_file, run_rc_file
 
 __all__ = ('run',)
 
@@ -42,17 +41,13 @@ def run():
     # Create new editor instance.
     editor = Editor()
 
-    # Apply rc file.
+    # Apply configuration file.
     if vithrc:
         run_rc_file(editor, vithrc)
     else:
-        default_vithrc = os.path.expanduser('~/.vithrc')
-        legacy_pyvimrc = os.path.expanduser('~/.pyvimrc')
-
-        if os.path.exists(default_vithrc):
-            run_rc_file(editor, default_vithrc)
-        elif os.path.exists(legacy_pyvimrc):
-            run_rc_file(editor, legacy_pyvimrc)
+        config_file = find_config_file()
+        if config_file:
+            run_rc_file(editor, config_file)
 
     # Load files and run.
     editor.load_initial_files(locations, in_tab_pages=in_tab_pages, hsplit=hsplit, vsplit=vsplit)

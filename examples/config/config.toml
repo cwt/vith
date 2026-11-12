@@ -1,0 +1,56 @@
+# Vith configuration. Save to ~/.config/vith/config.toml (or ~/.vithrc)
+
+[editor]
+# Show line numbers by default (:set number)
+number = true
+
+# Highlight search (:set hlsearch)
+hlsearch = true
+
+# Case-insensitive searching (:set ignorecase)
+ignorecase = true
+
+# Expand tabs: pressing Tab inserts spaces (:set expandtab)
+expandtab = true
+
+# Default global tabstop width for untyped text (:set tabstop=8)
+tabstop = 8
+
+# Scroll offset: keep rows visible above/below cursor (:set scrolloff=2)
+scrolloff = 2
+
+# Show tabs and trailing whitespace (:set list)
+list = true
+
+# Use Jedi for autocompletion of Python files (:set jedi)
+jedi = true
+
+# Cold-text compression for undo/redo snapshots
+# Options: zstd (default), zlib, zlib-fast, zlib-best, lzo, none
+cold_text_compression = "zstd"
+cold_text_compression_level = 1
+
+# Color scheme (:colorscheme emacs)
+colorscheme = "emacs"
+
+[tabstop]
+# Per-filetype tab stop settings:
+python = 4
+rust = 4
+go = 4
+c = 8
+markdown = 4
+javascript = 2
+typescript = 2
+html = 2
+css = 2
+json = 2
+yaml = 2
+
+[hooks]
+# Python hook scripts to execute on startup.
+# Place scripts in ~/.config/vith/hooks/ (or <config_dir>/hooks/).
+# Only scripts listed here are enabled.
+enabled = [
+    "build-and-run.py",
+]

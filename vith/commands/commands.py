@@ -62,7 +62,7 @@ def press_enter_to_continue():
     """
     try:
         input('\nPress ENTER to continue...')
-    except (EOFError, KeyboardInterrupt):
+    except (EOFError, KeyboardInterrupt, OSError):
         pass
 
 

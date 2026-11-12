@@ -71,7 +71,12 @@ We can also do some cool stuff. Like for instance running the editor on the Pyth
 
 ## Configuring vith
 
-It is possible to create a `.vithrc` file for a custom configuration (with graceful fallback to `~/.pyvimrc`). Have a look at this example: [`vithrc`](examples/config/vithrc)
+Vith uses a declarative TOML configuration file loaded from `~/.config/vith/config.toml` (or `~/.vithrc`). Advanced Python callbacks and keybindings can be placed in `~/.config/vith/hooks/` and registered under `[hooks]`.
+
+Have a look at these examples:
+- TOML configuration: [`config.toml`](examples/config/config.toml)
+- Modular Python hook: [`build-and-run.py`](examples/config/hooks/build-and-run.py)
+- Legacy Python `.vithrc`: [`vithrc`](examples/config/vithrc)
 
 ## Limitations
 

@@ -26,6 +26,7 @@ dependencies = [
     # Python 3.14+ has zstd in the standard library; older versions need
     # the zstandard package to keep zstd as the default cold-text backend.
     "zstandard; python_version < '3.14'",
+    "tomli; python_version < '3.11'",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

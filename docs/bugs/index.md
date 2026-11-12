@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 128 machine-verified findings across 7 audit rounds and 3 addenda (001–128, all 128 closed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 129 machine-verified findings across 7 audit rounds and 3 addenda (001–129, all 129 closed)."
 status: stable
 sources:
   - docs/bugs/
@@ -291,7 +291,7 @@ findings were merged and the open set renumbered into contiguous 063–075
 
 ## Round 7 Addendum Findings (2026-11-09–12 field reports & improvements → `fix_status: fixed`)
 
-**Resolution note (2026-11-09–12):** five user-reported field bugs and improvements fixed one-by-one with regression tests (one commit per item). Gates: **327 passed**, `mypy .` 60 files clean, ruff clean. All 128 bundle findings are now closed.
+**Resolution note (2026-11-09–12):** six user-reported field bugs and improvements fixed one-by-one with regression tests (one commit per item). Gates: **338 passed**, `mypy .` 61 files clean, ruff clean. All 129 bundle findings are now closed.
 
 ### Defects & Improvements (`fix_status: fixed`)
 
@@ -302,6 +302,7 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [126](126.md) | `:next` duplicates the tab-bar entry instead of switching tabs (124 follow-up) | commands/tabs | medium |
 | [127](127.md) | Tab stop position calculation ignores character display widths (user field report) | thai/layout | high |
 | [128](128.md) | Per-filetype standard tab stops and buffer-local tabstop options | editor/layout/commands | medium |
+| [129](129.md) | TOML configuration format with modular hook registration | config/rc | medium |
 
 ## Round 7 Findings (2026-11-09 upstream triage → `fix_status: fixed`)
 
