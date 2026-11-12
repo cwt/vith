@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 126 machine-verified findings across 7 audit rounds and 3 addenda (001–126, all 126 closed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 127 machine-verified findings across 7 audit rounds and 3 addenda (001–127, all 127 closed)."
 status: stable
 sources:
   - docs/bugs/
@@ -289,9 +289,9 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [114](114.md) | Unoptimized algorithms/memory-growth inventory: unbounded style cache, unbounded `cell_starts`, Thai word-break rescan, SARA-AM loop, copy-body row scan, O(n) active buffer lookup, tab handler cache, split-tree rebuild | performance/memory | low |
 | [115](115.md) | Low-readability inventory: patches monolith, constant ordering, mutable-list flag, layout node fallback, implicit None, misleading encoding names, Liskov write mismatch, Path rejection, default encoding, EOFError, process-name slicing, legacy config comparison, TOCTOU, late init, backend lookup, missing annotations, style validation, tilde registration, condition placement, cache attachment | readability | low |
 
-## Round 7 Addendum Findings (2026-11-09–10 field reports → `fix_status: fixed`)
+## Round 7 Addendum Findings (2026-11-09–12 field reports → `fix_status: fixed`)
 
-**Resolution note (2026-11-09–10):** three user-reported field bugs fixed one-by-one with regression tests (one commit per bug). Gates: **279 passed**, `mypy .` 57 files clean, ruff clean. All 126 bundle findings are now closed.
+**Resolution note (2026-11-09–12):** four user-reported field bugs fixed one-by-one with regression tests (one commit per bug). Gates: **315 passed**, `mypy .` 59 files clean, ruff clean. All 127 bundle findings are now closed.
 
 ### Defects (`type: bug`, `fix_status: fixed`)
 
@@ -300,6 +300,7 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [124](124.md) | Missing `:next` / `:previous` file cycling (user field report) | commands/navigation | medium |
 | [125](125.md) | Mouse click on a document tab crashes the editor (two-argument handler) | layout/mouse | high |
 | [126](126.md) | `:next` duplicates the tab-bar entry instead of switching tabs (124 follow-up) | commands/tabs | medium |
+| [127](127.md) | Tab stop position calculation ignores character display widths (user field report) | thai/layout | high |
 
 ## Round 7 Findings (2026-11-09 upstream triage → `fix_status: fixed`)
 

@@ -49,6 +49,7 @@ from .patches import (  # noqa: F401
     _SARA_AM_POISON,  # internal/test re-export (not in __all__)
     _THAI_GATE,  # internal/test re-export (not in __all__)
     _install_renderer_patch,  # internal/test re-export (not in __all__)
+    _install_tabs_processor_patch,  # internal/test re-export (not in __all__)
     _install_window_copy_body_patch,  # internal/test re-export (not in __all__)
     _PtkTextObject,  # internal/test re-export (not in __all__)
     _PtkZeroWidthEscape,  # internal/test re-export (not in __all__)

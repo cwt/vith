@@ -29,10 +29,17 @@ except Exception:  # pragma: no cover
     _PtkTextObject = None  # type: ignore[assignment,misc]
     _PtkTextObjectType = None  # type: ignore[assignment,misc]
 from prompt_toolkit.data_structures import Point
+from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent, KeyProcessor
 from prompt_toolkit.layout.containers import Window
+from prompt_toolkit.layout.processors import (
+    TabsProcessor,
+    Transformation,
+    TransformationInput,
+    explode_text_fragments,
+)
 from prompt_toolkit.layout.screen import Char, Screen
-from prompt_toolkit.utils import get_cwidth
+from prompt_toolkit.utils import get_cwidth, to_int, to_str
 
 try:
     from prompt_toolkit.layout.containers import _CHAR_CACHE as _PtkCharCache
@@ -679,6 +686,102 @@ def _install_renderer_patch(applied: list[tuple[Any, str, object]] | None = None
     return True
 
 
+def _install_tabs_processor_patch(applied: list[tuple[Any, str, object]] | None = None) -> bool:
+    """
+    Wrap `prompt_toolkit.layout.processors.TabsProcessor.apply_transformation`
+    so tab stop position calculation advances according to the visual display
+    width of preceding characters (using `get_cwidth`, zero for combining marks,
+    two for fullwidth characters) rather than raw codepoint counts (where
+    `pos += 1` misaligns tabs following Thai combining characters or CJK text).
+    """
+    orig_apply = getattr(TabsProcessor, "apply_transformation", None)
+    if orig_apply is None:
+        logger.warning("TabsProcessor.apply_transformation not found; skipping tabs patch.")
+        return False
+    if getattr(orig_apply, "_vith_thai_patched", False):
+        return True
+
+    expected_prefix = ("self", "ti")
+    params = _verify_signature(orig_apply, expected_prefix)
+    if params is None:
+        logger.warning(
+            "Unexpected TabsProcessor.apply_transformation signature; skipping tabs patch."
+        )
+        return False
+
+    def _patched_apply_transformation(self: Any, ti: TransformationInput) -> Transformation:
+        tabstop = max(1, to_int(self.tabstop))
+        style = self.style
+
+        # Create separator for tabs.
+        separator1 = to_str(self.char1)
+        separator2 = to_str(self.char2)
+
+        # Transform fragments.
+        fragments = explode_text_fragments(ti.fragments)
+
+        position_mappings: dict[int, int] = {}
+        result_fragments: StyleAndTextTuples = []
+        pos = 0
+        visual_col = 0
+
+        for i, fragment_and_text in enumerate(fragments):
+            position_mappings[i] = pos
+
+            if fragment_and_text[1] == "\t":
+                # Calculate how many characters we have to insert based on visual column.
+                count = tabstop - (visual_col % tabstop)
+                if count == 0:
+                    count = tabstop
+
+                # Insert tab.
+                result_fragments.append((style, separator1))
+                result_fragments.append((style, separator2 * (count - 1)))
+                pos += count
+                visual_col += count
+            else:
+                result_fragments.append(fragment_and_text)
+                pos += 1
+                if _PtkZeroWidthEscape not in fragment_and_text[0]:
+                    visual_col += get_cwidth(fragment_and_text[1])
+
+        position_mappings[len(fragments)] = pos
+        # Add `pos+1` to mapping, because the cursor can be right after the
+        # line as well.
+        position_mappings[len(fragments) + 1] = pos + 1
+
+        position_mappings_reversed = {v: k for k, v in position_mappings.items()}
+
+        def source_to_display(from_position: int) -> int:
+            "Maps original cursor position to the new one."
+            return position_mappings.get(from_position, pos)
+
+        def display_to_source(display_pos: int) -> int:
+            "Maps display cursor position to the original one."
+            cur = display_pos
+            while cur >= 0:
+                val = position_mappings_reversed.get(cur)
+                if val is not None:
+                    return val
+                cur -= 1
+            return 0
+
+        return Transformation(
+            result_fragments,
+            source_to_display=source_to_display,
+            display_to_source=display_to_source,
+        )
+
+    _apply_patch(
+        TabsProcessor,
+        "apply_transformation",
+        _patched_apply_transformation,
+        orig_apply,
+        applied,
+    )
+    return True
+
+
 # ---------------------------------------------------------------------------
 # 6. Version-Gated prompt_toolkit Patch Installer (Section 4.1)
 # ---------------------------------------------------------------------------
@@ -959,12 +1062,13 @@ def install_prompt_toolkit_thai_patches() -> bool:
                 setattr(_thai_operator_range, "_vith_thai_patched", True)
                 _PtkTextObject.operator_range = _thai_operator_range  # type: ignore[method-assign]
 
-        # Window copy-body and renderer patches. They fail soft (warn + skip)
+        # Window copy-body, renderer, and tabs-processor patches. They fail soft (warn + skip)
         # on genuine signature drift; an unexpected raise inside them still
         # reaches the rollback below because each install appends its own
         # (target, attribute, original) triple on success.
         _install_window_copy_body_patch(applied)
         _install_renderer_patch(applied)
+        _install_tabs_processor_patch(applied)
 
         # Startup self-test required by Section 4.1:
         _thai_install_selftest()

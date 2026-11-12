@@ -1379,3 +1379,164 @@ def test_vith_package_compat_shims_are_lazy():
     assert vith.thai_classify is classify
     assert vith.thai_clusters is clusters
     assert vith.thai_patches is patches
+
+
+def test_tabs_processor_thai_combining_chars_visual_alignment():
+    # 127: TabsProcessor in prompt_toolkit previously counted codepoints
+    # (pos += 1) rather than visual display width (get_cwidth), causing
+    # tab expansions after Thai combining marks to misalign horizontally.
+    from prompt_toolkit.layout.processors import TabsProcessor, TransformationInput
+    from prompt_toolkit.utils import get_cwidth
+
+    def identity_stod(pos: int) -> int:
+        return pos
+
+    lines = [
+        "  เพนแทกซ์คือแป้นแตก\tแม้ดูแปลกมีที่มา",
+        "ยอดเลนส์ทาคูมาร์\t\tพัฒนาเป็นเมาท์เค",
+        "กล้องฟิล์มสีสวยสด\t\tดังสีหยดสาดรดเท",
+        "ดิจิตอลดีไซน์เท่\t\tแป้นแสนเก๋ตัวเล็กดี",
+        "  บางภาพเราโอเวอร์\tบ้างอันเดอร์ไม่พอดี",
+        "หื่นฮาเป็นพิธี\t\tฟุ้งวจีมิตรภาพอวล",
+        "น้าป้าหลายหลากรุ่น\t\tทั้งวัยรุ่นและจอมกวน",
+        "แตกต่างกันแต่ล้วน\t\tจุดมุ่งหมายถ่ายภาพเอย",
+    ]
+
+    # Test with tabstop = 8 (Vim default in pentax.txt screenshot)
+    proc8 = TabsProcessor(tabstop=8, char1="|", char2="-")
+    for line in lines:
+        doc = Document(line, 0)
+        ti = TransformationInput(
+            buffer_control=None,
+            document=doc,
+            lineno=0,
+            source_to_display=identity_stod,
+            fragments=[("", line)],
+            width=80,
+            height=1,
+        )
+        tf = proc8.apply_transformation(ti)
+        rendered = "".join(text for _, text in tf.fragments)
+        parts = line.split("\t")
+        second_text = parts[-1]
+        idx_second = rendered.index(second_text)
+        prefix = rendered[:idx_second]
+        visual_col = sum(get_cwidth(c) for c in prefix)
+        assert visual_col == 24, f"Line {line!r} aligned at visual col {visual_col} instead of 24"
+
+    # Test with tabstop = 4
+    proc4 = TabsProcessor(tabstop=4, char1="|", char2="-")
+    for line in lines:
+        doc = Document(line, 0)
+        ti = TransformationInput(
+            buffer_control=None,
+            document=doc,
+            lineno=0,
+            source_to_display=identity_stod,
+            fragments=[("", line)],
+            width=80,
+            height=1,
+        )
+        tf = proc4.apply_transformation(ti)
+        rendered = "".join(text for _, text in tf.fragments)
+        parts = line.split("\t")
+        second_text = parts[-1]
+        idx_second = rendered.index(second_text)
+        prefix = rendered[:idx_second]
+        visual_col = sum(get_cwidth(c) for c in prefix)
+        assert visual_col % 4 == 0, f"Line {line!r} not on tabstop=4: col {visual_col}"
+
+
+def test_tabs_processor_cursor_position_and_display_mapping():
+    # Test source_to_display and display_to_source with Thai combining characters.
+    from prompt_toolkit.layout.processors import TabsProcessor, TransformationInput
+
+    def identity_stod(pos: int) -> int:
+        return pos
+
+    proc = TabsProcessor(tabstop=8, char1="|", char2="-")
+    line = "  เพนแทกซ์คือแป้นแตก\tแม้ดูแปลกมีที่มา"
+    doc = Document(line, 0)
+    ti = TransformationInput(
+        buffer_control=None,
+        document=doc,
+        lineno=0,
+        source_to_display=identity_stod,
+        fragments=[("", line)],
+        width=80,
+        height=1,
+    )
+    tf = proc.apply_transformation(ti)
+
+    # Source index of the tab is 20
+    tab_src_idx = line.index("\t")
+    assert tab_src_idx == 20
+    # Tab in display starts at fragment index 20
+    assert tf.source_to_display(tab_src_idx) == 20
+
+    # Source index of 'แม้' (after tab) is 21
+    after_tab_src_idx = line.index("แม้")
+    assert after_tab_src_idx == 21
+    # Tab expands by 7 display cells: 20 + 7 = 27
+    assert tf.source_to_display(after_tab_src_idx) == 27
+
+    # Clicking anywhere inside the tab (indices 20..26) maps back to tab character (20)
+    for disp_idx in range(20, 27):
+        assert tf.display_to_source(disp_idx) == 20
+
+    # Clicking on 'แม้' (index 27) maps to 21
+    assert tf.display_to_source(27) == 21
+
+
+def test_tabs_processor_cjk_double_width_tab_alignment():
+    # Tabs following double-width (CJK) characters advance by visual width (127).
+    from prompt_toolkit.layout.processors import TabsProcessor, TransformationInput
+    from prompt_toolkit.utils import get_cwidth
+
+    def identity_stod(pos: int) -> int:
+        return pos
+
+    proc = TabsProcessor(tabstop=4, char1="|", char2="-")
+    # '中' is width 2, so tab at visual col 2 expands to width 2 (col 4).
+    line = "中\tA"
+    doc = Document(line, 0)
+    ti = TransformationInput(
+        buffer_control=None,
+        document=doc,
+        lineno=0,
+        source_to_display=identity_stod,
+        fragments=[("", line)],
+        width=80,
+        height=1,
+    )
+    tf = proc.apply_transformation(ti)
+    rendered = "".join(text for _, text in tf.fragments)
+    assert rendered == "中|-A"
+    idx_a = rendered.index("A")
+    prefix = rendered[:idx_a]
+    assert sum(get_cwidth(c) for c in prefix) == 4
+
+
+def test_version_gate_rollback_covers_tabs_processor_patch(monkeypatch):
+    # Failure during the self-test must roll back the TabsProcessor patch.
+    from prompt_toolkit.layout.processors import TabsProcessor
+
+    # Ensure clean unpatched state for test
+    orig = getattr(TabsProcessor.apply_transformation, "_vith_original", None)
+    if orig is not None:
+        monkeypatch.setattr(TabsProcessor, "apply_transformation", orig)
+
+    def _broken_next_cell_offset(line: str, col: int, count: int = 1) -> int:
+        return col + 99
+
+    monkeypatch.setattr(thai.patches, "next_cell_offset", _broken_next_cell_offset)
+    assert thai.install_prompt_toolkit_thai_patches() is False
+
+    # TabsProcessor patch must be rolled back
+    assert getattr(TabsProcessor.apply_transformation, "_vith_thai_patched", False) is False
+
+    # Restoring allows patch to install cleanly
+    monkeypatch.undo()
+    assert thai.install_prompt_toolkit_thai_patches() is True
+    assert getattr(TabsProcessor.apply_transformation, "_vith_thai_patched", False) is True
+
