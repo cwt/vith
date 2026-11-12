@@ -196,19 +196,33 @@ def set_cmd(name, accepts_value=False):
 
 
 @_cmd('set')
+@_cmd('setlocal')
+@_cmd('setl')
 def set_command_execute(editor, variables):
     """
-    Execute a ':set' command.
+    Execute a ':set' or ':setlocal' command.
     """
     option = variables.get('set_option')
     value = variables.get('set_value')
+    command = variables.get('command')
+    is_local = command in ('setlocal', 'setl')
 
     if option in SET_COMMANDS:
         # Call the correct handler.
         if option in SET_COMMANDS_TAKING_VALUE:
-            SET_COMMANDS[option](editor, value)
+            if is_local and option in ('tabstop', 'ts'):
+                _set_int_option(editor, value, 'tabstop', 'tabstop', 1, is_local=True)
+            elif is_local and option in ('filetype', 'ft'):
+                set_filetype(editor, value)
+            else:
+                SET_COMMANDS[option](editor, value)
         else:
-            SET_COMMANDS[option](editor)
+            if is_local and option in ('tabstop', 'ts'):
+                _set_int_option(editor, None, 'tabstop', 'tabstop', 1, is_local=True)
+            elif is_local and option in ('filetype', 'ft'):
+                set_filetype(editor, None)
+            else:
+                SET_COMMANDS[option](editor)
     else:
         editor.show_message('Unknown option: %s' % option)
 
@@ -572,7 +586,7 @@ def color_scheme(editor, variables):
         editor.use_colorscheme(colorscheme)
 
 
-def _set_int_option(editor, value, attribute, display_name, minimum):
+def _set_int_option(editor, value, attribute, display_name, minimum, is_local=False):
     """
     Shared implementation of the integer-valued `:set` handlers.
 
@@ -580,7 +594,12 @@ def _set_int_option(editor, value, attribute, display_name, minimum):
     error messages; otherwise the attribute is set when `value >= minimum`.
     """
     if value is None:
-        editor.show_message('%s=%i' % (display_name, getattr(editor, attribute)))
+        if attribute == 'tabstop':
+            eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+            current_value = eb.tabstop if eb is not None else getattr(editor, attribute)
+        else:
+            current_value = getattr(editor, attribute)
+        editor.show_message('%s=%i' % (display_name, current_value))
         return
     try:
         number = int(value)
@@ -590,7 +609,26 @@ def _set_int_option(editor, value, attribute, display_name, minimum):
     if number < minimum:
         editor.show_message('Argument must be positive')
     else:
-        setattr(editor, attribute, number)
+        if attribute == 'tabstop':
+            eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+            if is_local:
+                if eb is not None:
+                    eb.tabstop = number
+                else:
+                    editor.show_message('No buffer')
+                    return
+            else:
+                setattr(editor, attribute, number)
+                if eb is not None:
+                    eb.tabstop = number
+        else:
+            setattr(editor, attribute, number)
+        try:
+            from prompt_toolkit.application.current import get_app
+
+            get_app().invalidate()
+        except Exception:
+            pass
 
 
 #: Canonical `:set` option catalog — the single source of truth for option
@@ -682,27 +720,16 @@ def set_filetype(editor, value):
         editor.show_message('No buffer')
         return
     if value is None:
-        override = getattr(eb, 'filetype_override', None)
-        if override:
-            editor.show_message('filetype=%s' % override)
-            return
-        location = getattr(eb, 'location', None)
-        if location:
-            try:
-                from pygments.lexers import get_lexer_for_filename
-
-                lexer = get_lexer_for_filename(location)
-                aliases = getattr(lexer, 'aliases', None)
-                if aliases:
-                    editor.show_message('filetype=%s' % aliases[0])
-                    return
-            except Exception:
-                pass
-        editor.show_message('filetype=')
+        ft = eb.filetype
+        if ft:
+            editor.show_message('filetype=%s' % ft)
+        else:
+            editor.show_message('filetype=')
         return
     text = value.strip()
     if text == '' or text.lower() in ('off', 'none', 'auto'):
         eb.filetype_override = None
+        eb.tabstop = None
         try:
             from prompt_toolkit.application.current import get_app
 
@@ -719,6 +746,7 @@ def set_filetype(editor, value):
         return
     aliases = getattr(lexer, 'aliases', None)
     eb.filetype_override = aliases[0] if aliases else text
+    eb.tabstop = None
     try:
         from prompt_toolkit.application.current import get_app
 

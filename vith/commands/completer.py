@@ -14,7 +14,7 @@ __all__ = ('create_command_completer', 'FiletypeCompleter')
 #: Matches the value part of `:set filetype=<prefix>` (and the `ft` alias),
 #: with optional leading colon/whitespace (command-line buffer omits the
 #: `:` prompt, `handle_command` strings include it).
-_FILETYPE_VALUE_RE = re.compile(r'^\s*:?\s*set\s+(?:filetype|ft)=([^\s]*)$')
+_FILETYPE_VALUE_RE = re.compile(r'^\s*:?\s*(?:set|setlocal|setl)\s+(?:filetype|ft)=([^\s]*)$')
 
 
 @lru_cache(maxsize=1)

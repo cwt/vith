@@ -71,10 +71,11 @@ class CommandPreviewer:
         self._wrap_lines = e.wrap_lines
         self._break_indent = e.break_indent
         self._enable_mouse_support = e.enable_mouse_support
-        # Buffer-local `:set filetype` preview state (the override lives on
+        # Buffer-local `:set filetype` and `tabstop` preview state (lives on
         # the active EditorBuffer, not on the Editor).
         self._filetype_buffer = None
         self._filetype_override = None
+        self._buffer_tabstop_override = None
         try:
             eb = e.window_arrangement.active_editor_buffer
         except Exception:
@@ -82,6 +83,7 @@ class CommandPreviewer:
         if eb is not None:
             self._filetype_buffer = eb
             self._filetype_override = getattr(eb, 'filetype_override', None)
+            self._buffer_tabstop_override = getattr(eb, '_tabstop_override', None)
 
     def restore(self):
         """
@@ -113,6 +115,7 @@ class CommandPreviewer:
         if eb is not None:
             try:
                 eb.filetype_override = self._filetype_override
+                eb._tabstop_override = self._buffer_tabstop_override
             except Exception:
                 pass
 
@@ -149,7 +152,8 @@ class CommandPreviewer:
             # same table the `:set` handlers are generated from, docs/bugs/
             # 073.md). Options that mutate vi_state (tildeop) are not
             # preview-restorable and stay ignored, as before.
-            case 'set':
+            case 'set' | 'setlocal' | 'setl':
+                is_local = command in ('setlocal', 'setl')
                 if set_option in ('filetype', 'ft'):
                     self._preview_filetype_value(e, variables)
                     return
@@ -161,7 +165,7 @@ class CommandPreviewer:
 
                 spec = _INT_VALUE_PREVIEWS.get(set_option)
                 if spec is not None:
-                    self._preview_int_value(e, spec[0], spec[1], variables)
+                    self._preview_int_value(e, spec[0], spec[1], variables, is_local=is_local)
                     return
 
                 attribute = _LIST_VALUE_PREVIEWS.get(set_option)
@@ -169,10 +173,18 @@ class CommandPreviewer:
                     self._preview_list_value(e, attribute, variables)
 
     @staticmethod
-    def _preview_int_value(e, attribute, minimum, variables):
+    def _preview_int_value(e, attribute, minimum, variables, is_local=False):
         raw_value = variables.get('set_value')
         if raw_value and raw_value.isdigit() and int(raw_value) >= minimum:
-            setattr(e, attribute, int(raw_value))
+            val = int(raw_value)
+            if attribute == 'tabstop':
+                eb = getattr(e.window_arrangement, 'active_editor_buffer', None)
+                if eb is not None:
+                    eb._tabstop_override = val
+                if not is_local:
+                    setattr(e, attribute, val)
+            else:
+                setattr(e, attribute, val)
 
     @staticmethod
     def _preview_list_value(e, attribute, variables):

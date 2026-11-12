@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 127 machine-verified findings across 7 audit rounds and 3 addenda (001–127, all 127 closed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 128 machine-verified findings across 7 audit rounds and 3 addenda (001–128, all 128 closed)."
 status: stable
 sources:
   - docs/bugs/
@@ -289,11 +289,11 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [114](114.md) | Unoptimized algorithms/memory-growth inventory: unbounded style cache, unbounded `cell_starts`, Thai word-break rescan, SARA-AM loop, copy-body row scan, O(n) active buffer lookup, tab handler cache, split-tree rebuild | performance/memory | low |
 | [115](115.md) | Low-readability inventory: patches monolith, constant ordering, mutable-list flag, layout node fallback, implicit None, misleading encoding names, Liskov write mismatch, Path rejection, default encoding, EOFError, process-name slicing, legacy config comparison, TOCTOU, late init, backend lookup, missing annotations, style validation, tilde registration, condition placement, cache attachment | readability | low |
 
-## Round 7 Addendum Findings (2026-11-09–12 field reports → `fix_status: fixed`)
+## Round 7 Addendum Findings (2026-11-09–12 field reports & improvements → `fix_status: fixed`)
 
-**Resolution note (2026-11-09–12):** four user-reported field bugs fixed one-by-one with regression tests (one commit per bug). Gates: **315 passed**, `mypy .` 59 files clean, ruff clean. All 127 bundle findings are now closed.
+**Resolution note (2026-11-09–12):** five user-reported field bugs and improvements fixed one-by-one with regression tests (one commit per item). Gates: **327 passed**, `mypy .` 60 files clean, ruff clean. All 128 bundle findings are now closed.
 
-### Defects (`type: bug`, `fix_status: fixed`)
+### Defects & Improvements (`fix_status: fixed`)
 
 | ID | Finding | Area | Priority |
 | :--- | :--- | :--- | :--- |
@@ -301,6 +301,7 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [125](125.md) | Mouse click on a document tab crashes the editor (two-argument handler) | layout/mouse | high |
 | [126](126.md) | `:next` duplicates the tab-bar entry instead of switching tabs (124 follow-up) | commands/tabs | medium |
 | [127](127.md) | Tab stop position calculation ignores character display widths (user field report) | thai/layout | high |
+| [128](128.md) | Per-filetype standard tab stops and buffer-local tabstop options | editor/layout/commands | medium |
 
 ## Round 7 Findings (2026-11-09 upstream triage → `fix_status: fixed`)
 

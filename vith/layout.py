@@ -761,7 +761,7 @@ class EditorLayout:
             return self.editor.display_unprintable_characters
 
         def tabstop_value():
-            return self.editor.tabstop
+            return getattr(editor_buffer, 'tabstop', self.editor.tabstop)
 
         def tab_char1():
             if self.editor.display_unprintable_characters:

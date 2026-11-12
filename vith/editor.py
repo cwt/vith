@@ -11,7 +11,8 @@ Usage::
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any
 
 import pygments
 from prompt_toolkit.application import Application
@@ -42,7 +43,7 @@ from .window_arrangement import WindowArrangement
 if TYPE_CHECKING:
     from .editor_buffer import EditorBuffer
 
-__all__ = ('Editor',)
+__all__ = ('Editor', 'DEFAULT_FILETYPE_TABSTOPS', 'FiletypeTabstops')
 
 
 def _terminal_title_extra_sequence(title_osc_body: str) -> str:
@@ -60,6 +61,99 @@ def _terminal_title_extra_sequence(title_osc_body: str) -> str:
     ):
         extra_seq += f"\x1bk{title_osc_body}\x1b\\"
     return extra_seq
+
+
+@lru_cache(maxsize=512)
+def _canonical_filetype(name: str) -> str:
+    """Resolve a filetype name or alias to its primary canonical alias."""
+    try:
+        from pygments.lexers import get_lexer_by_name
+
+        lexer = get_lexer_by_name(name)
+        aliases = getattr(lexer, 'aliases', ())
+        if aliases:
+            return aliases[0].lower()
+    except Exception:
+        pass
+    return name.lower()
+
+
+#: Standard tab stop settings for common programming and markup languages.
+DEFAULT_FILETYPE_TABSTOPS: dict[str, int] = {
+    # 2 spaces: Web, data interchange, shell, config, scripting
+    'javascript': 2,
+    'typescript': 2,
+    'html': 2,
+    'css': 2,
+    'scss': 2,
+    'sass': 2,
+    'less': 2,
+    'json': 2,
+    'yaml': 2,
+    'ruby': 2,
+    'lua': 2,
+    'bash': 2,
+    'markdown': 2,
+    'xml': 2,
+    'graphql': 2,
+    'vue': 2,
+    'svelte': 2,
+    # 4 spaces: General programming languages
+    'python': 4,
+    'rust': 4,
+    'go': 4,
+    'c': 4,
+    'cpp': 4,
+    'csharp': 4,
+    'java': 4,
+    'kotlin': 4,
+    'php': 4,
+    'zig': 4,
+    'swift': 4,
+    'scala': 4,
+    'perl': 4,
+    'sql': 4,
+    # 8 spaces: Hard-tab oriented formats
+    'make': 8,
+    'gitcommit': 8,
+}
+
+
+class FiletypeTabstops(dict[str, int]):
+    """
+    Dictionary mapping filetype names to tabstop integers.
+
+    Automatically normalizes keys so that looking up or setting any recognized
+    alias (e.g. `'py'` vs `'python'`, `'ts'` vs `'typescript'`, `'js'` vs
+    `'javascript'`) synchronizes with the canonical filetype name.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__()
+        self.update(*args, **kwargs)
+
+    def __setitem__(self, key: str, value: int) -> None:
+        canonical = _canonical_filetype(str(key).lower())
+        super().__setitem__(canonical, int(value))
+
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        other = dict(*args, **kwargs)
+        for k, v in other.items():
+            self[k] = v
+
+    def __getitem__(self, key: str) -> int:
+        canonical = _canonical_filetype(str(key).lower())
+        return super().__getitem__(canonical)
+
+    def get(self, key: str, default: Any = None) -> Any:  # type: ignore[override]
+        canonical = _canonical_filetype(str(key).lower())
+        if super().__contains__(canonical):
+            return super().__getitem__(canonical)
+        return default
+
+    def __contains__(self, key: object) -> bool:
+        canonical = _canonical_filetype(str(key).lower())
+        return super().__contains__(canonical)
 
 
 class Editor:
@@ -85,6 +179,7 @@ class Editor:
         self.show_wildmenu = True
         self.expand_tab = True  # Insert spaces instead of tab characters.
         self.tabstop = 8  # Number of spaces that a tab character represents (Vim default: 8).
+        self._filetype_tabstops = FiletypeTabstops(DEFAULT_FILETYPE_TABSTOPS)
         self.incsearch = True  # Show matches while typing search string.
         self.ignore_case = False  # Ignore case while searching.
         self.enable_mouse_support = True
@@ -182,6 +277,26 @@ class Editor:
         self.previewer = CommandPreviewer(self)
 
         self.last_substitute_text = ''
+
+    @property
+    def filetype_tabstops(self) -> FiletypeTabstops:
+        """Mapping from filetype to tabstop width, configurable in .vithrc."""
+        return self._filetype_tabstops
+
+    @filetype_tabstops.setter
+    def filetype_tabstops(self, value: dict[str, int]) -> None:
+        self._filetype_tabstops = FiletypeTabstops(value)
+
+    def get_filetype_tabstop(self, filetype: str | None) -> int:
+        """
+        Resolve the tabstop for a given filetype.
+
+        Returns the value from `filetype_tabstops` matching the filetype or any
+        of its aliases, falling back to `self.tabstop` (Vim default: 8).
+        """
+        if not filetype:
+            return self.tabstop
+        return self._filetype_tabstops.get(filetype, self.tabstop)
 
     def load_initial_files(self, locations, in_tab_pages=False, hsplit=False, vsplit=False):
         """

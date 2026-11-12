@@ -113,14 +113,34 @@ def _replace_cell_clusters(event):
     event.app.vi_state.input_mode = InputMode.NAVIGATION
 
 
+def _get_buffer_tabstop(editor, buff=None) -> int:
+    """
+    Return effective tabstop for `buff` (or active buffer), falling back to `editor.tabstop`.
+    """
+    if buff is not None:
+        eb_ref = getattr(buff, '_vith_editor_buffer_ref', None)
+        if eb_ref is not None:
+            eb = eb_ref()
+            if eb is not None:
+                return eb.tabstop
+    try:
+        active_eb = editor.window_arrangement.active_editor_buffer
+        if active_eb is not None:
+            return active_eb.tabstop
+    except Exception:
+        pass
+    return getattr(editor, 'tabstop', 8)
+
+
 def _insert_indentation(editor, buffer_):
     """
     Insert one indentation step at `buffer_`'s cursor (tabstop spaces with
     `editor.expand_tab`, otherwise a literal tab). Shared by the `<C-t>`
     indent binding and the Insert-mode `tab` binding (docs/bugs/073.md).
     """
+    tabstop = _get_buffer_tabstop(editor, buffer_)
     if editor.expand_tab:
-        buffer_.insert_text(' ' * editor.tabstop)
+        buffer_.insert_text(' ' * tabstop)
     else:
         buffer_.insert_text('\t')
 
@@ -183,10 +203,11 @@ def _record_word_search(editor, event, direction):
 def _shift_lines(editor, buff, count, indent):
     """
     Indent (`>>`) or unindent (`<<`) `count` lines from the cursor row,
-    using `editor.tabstop` / `editor.expand_tab` (docs/bugs/118.md).
+    using buffer's `tabstop` / `editor.expand_tab` (docs/bugs/118.md).
     """
     from prompt_toolkit.document import Document
 
+    tabstop = _get_buffer_tabstop(editor, buff)
     doc = buff.document
     first_row = doc.cursor_position_row
     last_row = min(len(doc.lines) - 1, first_row + _positive_count(count) - 1)
@@ -194,11 +215,11 @@ def _shift_lines(editor, buff, count, indent):
     for row in range(first_row, last_row + 1):
         line = lines[row]
         if indent:
-            lines[row] = (' ' * editor.tabstop if editor.expand_tab else '\t') + line
+            lines[row] = (' ' * tabstop if editor.expand_tab else '\t') + line
         elif line.startswith('\t'):
             lines[row] = line[1:]
         else:
-            lines[row] = line[min(len(line) - len(line.lstrip(' ')), editor.tabstop) :]
+            lines[row] = line[min(len(line) - len(line.lstrip(' ')), tabstop) :]
     buff.save_to_undo_stack()
     new_text = '\n'.join(lines)
     buff.document = Document(new_text)

@@ -31,8 +31,8 @@ COMMAND_GRAMMAR = compile(
         (?P<go_to_line>\d+)                                     |
 
         # Set operation
-        (?P<command>set) \s+ (?P<set_option>[^\s=]+)
-                             (=(?P<set_value>[^\s]*))?           |
+        (?P<command>set|setlocal|setl) \s+ (?P<set_option>[^\s=]+)
+                                       (=(?P<set_value>[^\s]*))?           |
 
         # Colorscheme command
         (?P<command>colorscheme|colo) \s+ (?P<colorscheme>[^\s]+)    |

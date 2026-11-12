@@ -35,6 +35,8 @@ class EditorBuffer:
         # Pygments lexer alias overriding filename-based detection
         # (`:set filetype=python`). `None` means auto-detect.
         self.filetype_override: str | None = None
+        self._detected_filetype: str | None = None
+        self._tabstop_override: int | None = None
 
         #: is_new: True when this file does not yet exist in the storage.
         self.is_new = True
@@ -99,6 +101,77 @@ class EditorBuffer:
     def editor(self):
         """Back reference to the Editor."""
         return self._editor_ref()
+
+    @property
+    def filetype(self) -> str:
+        """
+        Effective filetype of the buffer (canonical Pygments lexer alias).
+
+        Returns the `:set filetype` override if set, else the detected filetype
+        from the buffer location or content sniffing, or an empty string.
+        """
+        if self.filetype_override:
+            return self.filetype_override.lower()
+        if self._detected_filetype is not None:
+            return self._detected_filetype
+        if self.location:
+            try:
+                from pygments.lexers import get_lexer_for_filename
+
+                lexer = get_lexer_for_filename(self.location)
+                aliases = getattr(lexer, 'aliases', None)
+                if aliases:
+                    self._detected_filetype = aliases[0].lower()
+                    return self._detected_filetype
+            except Exception:
+                pass
+        text = getattr(self, '_file_content', '') or ''
+        if not text and hasattr(self, 'buffer'):
+            text = self.buffer.text
+        if text:
+            first_line = text.split('\n', 1)[0]
+            if first_line.startswith('#!') and 'python' in first_line:
+                self._detected_filetype = 'python'
+                return self._detected_filetype
+            try:
+                from pygments.lexers import guess_lexer
+
+                sample = text if len(text) <= 4096 else text[:4096]
+                if sample.strip():
+                    lexer = guess_lexer(sample)
+                    aliases = getattr(lexer, 'aliases', None)
+                    if aliases:
+                        self._detected_filetype = aliases[0].lower()
+                        return self._detected_filetype
+            except Exception:
+                pass
+        self._detected_filetype = ''
+        return ''
+
+    @property
+    def tabstop(self) -> int:
+        """
+        Effective visual tab width for this buffer.
+
+        Resolution order:
+        1. Explicit buffer-local override (`self._tabstop_override`), e.g. from
+           `:setlocal tabstop=N` or `:set tabstop=N`.
+        2. Filetype-specific setting from `editor.filetype_tabstops` matching the
+           buffer's effective `filetype`.
+        3. Global editor default (`editor.tabstop`).
+        """
+        if self._tabstop_override is not None:
+            return self._tabstop_override
+        editor = self.editor
+        if editor is not None:
+            return editor.get_filetype_tabstop(self.filetype)
+        return 8
+
+    @tabstop.setter
+    def tabstop(self, value: int | None) -> None:
+        if value is not None and value < 1:
+            raise ValueError('tabstop must be at least 1')
+        self._tabstop_override = value
 
     def _on_text_changed(self, *args):
         "Buffer text changed."
@@ -311,6 +384,7 @@ class EditorBuffer:
             self._file_content = self.buffer.text
             self._has_unsaved_changes = False
             if location_changed:
+                self._detected_filetype = None
                 self.run_reporter()
                 note_document_text(self.location)
             return True
