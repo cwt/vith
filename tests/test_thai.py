@@ -1517,6 +1517,15 @@ def test_tabs_processor_cjk_double_width_tab_alignment():
     assert sum(get_cwidth(c) for c in prefix) == 4
 
 
+def test_editor_default_tabstop_is_eight():
+    # 127: Vim default for tabstop is 8. Text files formatted with tabs (such
+    # as pentax.txt) rely on 8-column tab stops.
+    from vith.editor import Editor
+
+    editor = Editor()
+    assert editor.tabstop == 8
+
+
 def test_version_gate_rollback_covers_tabs_processor_patch(monkeypatch):
     # Failure during the self-test must roll back the TabsProcessor patch.
     from prompt_toolkit.layout.processors import TabsProcessor

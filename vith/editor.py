@@ -84,7 +84,7 @@ class Editor:
         self.show_ruler = True
         self.show_wildmenu = True
         self.expand_tab = True  # Insert spaces instead of tab characters.
-        self.tabstop = 4  # Number of spaces that a tab character represents.
+        self.tabstop = 8  # Number of spaces that a tab character represents (Vim default: 8).
         self.incsearch = True  # Show matches while typing search string.
         self.ignore_case = False  # Ignore case while searching.
         self.enable_mouse_support = True
