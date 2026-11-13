@@ -34,3 +34,34 @@ def test_location_commands_alternation_longest_first():
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
         assert m.variables().get('command') == expected, line
+
+
+def test_substitute_grammar_ranges_delimiters_and_non_collisions():
+    for line, exp_range, exp_args in (
+        (':%s/a/b/g', '%', '/a/b/g'),
+        (':%s', '%', None),
+        (':.,$s#a/b#c#i', '.,$', '#a/b#c#i'),
+        (":'<,'>s|a|b|", "'<,'>", '|a|b|'),
+        (':.-1,.+1s/a/b', '.-1,.+1', '/a/b'),
+        (':s /a/b', '', ' /a/b'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        variables = m.variables()
+        assert variables.get('command') == 's', line
+        assert variables.get('sub_range') == exp_range, line
+        assert variables.get('sub_args') == exp_args, line
+
+    for line, expected_cmd in (
+        (':set number', 'set'),
+        (':setlocal ts=4', 'setlocal'),
+        (':sp foo.py', 'sp'),
+        (':split', 'split'),
+        (':s1', 's1'),
+        (':sub', 'sub'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        variables = m.variables()
+        assert variables.get('command') == expected_cmd, line
+        assert variables.get('sub_args') is None, line

@@ -37,6 +37,9 @@ class EditorBuffer:
         self.filetype_override: str | None = None
         self._detected_filetype: str | None = None
         self._tabstop_override: int | None = None
+        # Last visual selection 0-based line bounds `(start_row, end_row)`
+        # recorded when entering command mode from selection (`'<`, `'>`).
+        self.visual_marks: tuple[int, int] | None = None
 
         #: is_new: True when this file does not yet exist in the storage.
         self.is_new = True

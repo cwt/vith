@@ -1,4 +1,10 @@
-from .commands import call_command_handler, has_command_handler, substitute
+from .commands import (
+    call_command_handler,
+    has_command_handler,
+    parse_substitute_args,
+    parse_substitute_range,
+    substitute,
+)
 from .grammar import COMMAND_GRAMMAR
 
 __all__ = ('handle_command',)
@@ -22,11 +28,8 @@ def handle_command(editor, input_string):
     command = variables.get('command')
     go_to_line = variables.get('go_to_line')
     shell_command = variables.get('shell_command')
-    range_start = variables.get('range_start')
-    range_end = variables.get('range_end')
-    search = variables.get('search')
-    replace = variables.get('replace')
-    flags = variables.get('flags', '')
+    sub_range = variables.get('sub_range')
+    sub_args = variables.get('sub_args')
 
     # Call command handler.
 
@@ -43,7 +46,8 @@ def handle_command(editor, input_string):
         call_command_handler(command, editor, variables)
 
     elif command in ('s', 'substitute'):
-        flags = flags.lstrip('/')
+        range_start, range_end = parse_substitute_range(sub_range)
+        search, replace, flags = parse_substitute_args(sub_args)
         substitute(editor, range_start, range_end, search, replace, flags)
 
     elif not command:

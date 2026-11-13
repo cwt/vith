@@ -1548,4 +1548,3 @@ def test_version_gate_rollback_covers_tabs_processor_patch(monkeypatch):
     monkeypatch.undo()
     assert thai.install_prompt_toolkit_thai_patches() is True
     assert getattr(TabsProcessor.apply_transformation, "_vith_thai_patched", False) is True
-

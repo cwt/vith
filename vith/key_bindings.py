@@ -278,6 +278,7 @@ def create_key_bindings(editor):
 
     in_insert_mode = vi_insert_mode & vi_buffer_focussed
     in_navigation_mode = vi_navigation_mode & vi_buffer_focussed
+    in_selection_mode = vi_selection_mode & vi_buffer_focussed
 
     @kb.add('c-t', filter=~in_insert_mode)
     def disable_default_transpose_chars(event):
@@ -317,6 +318,29 @@ def create_key_bindings(editor):
         Entering command mode.
         """
         editor.enter_command_mode()
+
+    @kb.add(':', filter=in_selection_mode)
+    def enter_command_mode_from_selection(event):
+        """
+        Record visual selection line marks (`'<`, `'>`), exit selection, and
+        open the command line pre-filled with `'<,'>`.
+        """
+        buff = event.current_buffer
+        doc = buff.document
+        start_idx, end_idx = doc.selection_range()
+        start_row = doc.translate_index_to_position(start_idx)[0]
+        end_row = doc.translate_index_to_position(end_idx)[0]
+
+        eb = editor.window_arrangement.active_editor_buffer
+        if eb is None:
+            eb_ref = getattr(buff, '_vith_editor_buffer_ref', None)
+            if eb_ref is not None:
+                eb = eb_ref()
+        if eb is not None:
+            eb.visual_marks = (start_row, end_row)
+
+        buff.exit_selection()
+        editor.enter_command_mode(initial_text="'<,'>")
 
     @kb.add(
         'tab',

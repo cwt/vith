@@ -1,5 +1,6 @@
 import os
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from prompt_toolkit.application import run_in_terminal
@@ -769,8 +770,200 @@ def disable_tildeop(editor):
     editor.application.vi_state.tilde_operator = False
 
 
+_LINE_ADDRESS_RE = re.compile(r"^(?P<base>\d+|\.|\$|'<|'>)(?P<offset>[+-]\d+)?$")
+
+
+@dataclass(frozen=True)
+class _SubstituteOptions:
+    """Parsed execution options for `:substitute`."""
+
+    sub_count: int
+    ignore_case: bool
+    report_only: bool
+    print_last: bool
+
+
+def parse_substitute_range(sub_range: str | None) -> tuple[str | None, str | None]:
+    """
+    Split a raw substitute range expression (e.g. `'%'`, `'1,3'`, `"'<,'>"`)
+    into `(range_start, range_end)`.
+    """
+    if not sub_range:
+        return None, None
+    if ',' in sub_range:
+        range_start, range_end = sub_range.split(',', 1)
+        return range_start, range_end
+    return sub_range, None
+
+
+def _split_delimited_fields(text: str, delim: str) -> list[str]:
+    """
+    Split `text` into up to three segments (`search`, `replace`, `flags`) on
+    unescaped occurrences of `delim`, unescaping `\\<delim>` in the search and
+    replacement segments while preserving all other regex escapes.
+    """
+    fields: list[str] = []
+    current: list[str] = []
+    i = 0
+    length = len(text)
+
+    while i < length and len(fields) < 2:
+        ch = text[i]
+        if ch == '\\' and i + 1 < length:
+            next_ch = text[i + 1]
+            if next_ch == delim:
+                current.append(delim)
+            else:
+                current.append(ch)
+                current.append(next_ch)
+            i += 2
+            continue
+        if ch == delim:
+            fields.append(''.join(current))
+            current = []
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+
+    if len(fields) == 2:
+        fields.append(text[i:])
+    else:
+        fields.append(''.join(current))
+    return fields
+
+
+def parse_substitute_args(sub_args: str | None) -> tuple[str | None, str | None, str]:
+    """
+    Parse the argument tail of `:s` (`/<search>/<replace>/<flags>` with any
+    non-alphanumeric delimiter) into `(search, replace, flags)`.
+    """
+    if not sub_args or not sub_args.lstrip():
+        return None, None, ''
+
+    stripped = sub_args.lstrip()
+    delim = stripped[0]
+    fields = _split_delimited_fields(stripped[1:], delim)
+
+    search = fields[0]
+    replace = fields[1] if len(fields) >= 2 else None
+    flags = fields[2].replace(delim, '').rstrip() if len(fields) == 3 else ''
+    return search, replace, flags
+
+
+def _parse_substitute_flags(
+    flags: str, default_ignore_case: bool
+) -> tuple[_SubstituteOptions | None, str | None]:
+    """
+    Parse and validate `:substitute` flags (`g`, `i`, `I`, `n`, `p`), returning
+    either `(_SubstituteOptions, None)` or `(None, error_message)`.
+    """
+    clean_flags = flags.replace('/', '')
+    ignore_case = default_ignore_case
+    sub_count = 1
+    report_only = False
+    print_last = False
+
+    for ch in clean_flags:
+        match ch:
+            case 'g':
+                sub_count = 0
+            case 'i':
+                ignore_case = True
+            case 'I':
+                ignore_case = False
+            case 'n':
+                report_only = True
+            case 'p':
+                print_last = True
+            case _:
+                return None, f'E488: Trailing characters: {ch}'
+
+    return (
+        _SubstituteOptions(
+            sub_count=sub_count,
+            ignore_case=ignore_case,
+            report_only=report_only,
+            print_last=print_last,
+        ),
+        None,
+    )
+
+
+def _resolve_line_address(
+    address: str,
+    cursor_row: int,
+    line_count: int,
+    visual_marks: tuple[int, int] | None,
+) -> tuple[int | None, str | None]:
+    """
+    Resolve a single line address (`N`, `0`, `.`, `$`, `'<`, `'>`, with optional
+    `+/-N` offset) to a 0-based row index, or return an error message.
+    """
+    match = _LINE_ADDRESS_RE.match(address)
+    if match is None:
+        return None, 'E19: No such line in current buffer'
+
+    base = match.group('base')
+    offset_text = match.group('offset')
+    offset = int(offset_text) if offset_text else 0
+
+    if base == '.':
+        base_row = cursor_row
+    elif base == '$':
+        base_row = line_count - 1
+    elif base in ("'<", "'>"):
+        if visual_marks is None:
+            return None, 'E20: Mark not set'
+        base_row = visual_marks[0] if base == "'<" else visual_marks[1]
+    elif base == '0' and offset_text is None:
+        # `:0s` / `:0,1s` maps line 0 to the first line, matching Vim (docs/bugs/083.md).
+        return 0, None
+    else:
+        base_row = int(base) - 1
+
+    return base_row + offset, None
+
+
+def _resolve_substitute_range(
+    range_start: str | None,
+    range_end: str | None,
+    cursor_row: int,
+    line_count: int,
+    visual_marks: tuple[int, int] | None,
+) -> tuple[list[int] | None, str | None]:
+    """
+    Resolve substitute range bounds to an ordered list of 0-based row indices,
+    or return an error message when a mark is unset or the range is invalid.
+    """
+    if not range_start:
+        assert not range_end
+        return [cursor_row], None
+
+    if range_start == '%':
+        if range_end:
+            return None, 'E19: No such line in current buffer'
+        return list(range(line_count)), None
+
+    start_row, start_err = _resolve_line_address(range_start, cursor_row, line_count, visual_marks)
+    if start_err is not None or start_row is None:
+        return None, start_err
+
+    if range_end:
+        end_row, end_err = _resolve_line_address(range_end, cursor_row, line_count, visual_marks)
+        if end_err is not None or end_row is None:
+            return None, end_err
+    else:
+        end_row = start_row
+
+    if not 0 <= start_row <= end_row < line_count:
+        return None, 'E19: No such line in current buffer'
+
+    return list(range(start_row, end_row + 1)), None
+
+
 def substitute(editor, range_start, range_end, search, replace, flags):
-    """Substitute /search/ with /replace/ over a range of text"""
+    """Substitute /search/ with /replace/ over a range of text."""
 
     search_state = editor.application.current_search_state
     eb = editor.window_arrangement.active_editor_buffer
@@ -797,72 +990,62 @@ def substitute(editor, range_start, range_end, search, replace, flags):
         return
 
     # Parse and validate flags (docs/bugs/083.md, docs/bugs/094.md).
-    clean_flags = flags.replace('/', '')
-    ignore_case = bool(getattr(editor, 'ignore_case', False))
-    sub_count = 1
-
-    for ch in clean_flags:
-        match ch:
-            case 'g':
-                sub_count = 0
-            case 'i':
-                ignore_case = True
-            case 'I':
-                ignore_case = False
-            case _:
-                editor.show_message(f'E488: Trailing characters: {ch}')
-                return
+    options, flag_error = _parse_substitute_flags(
+        flags,
+        default_ignore_case=bool(getattr(editor, 'ignore_case', False)),
+    )
+    if flag_error is not None or options is None:
+        editor.show_message(flag_error)
+        return
 
     # Compile the regex once; reject malformed patterns up front.
-    regex_flags = re.IGNORECASE if ignore_case else 0
+    regex_flags = re.IGNORECASE if options.ignore_case else 0
     try:
         pattern = re.compile(search, flags=regex_flags)
     except re.error as e:
         editor.show_message('Invalid regex: %s' % e)
         return
 
-    # Convert and validate the captured range. (`:0,1s` maps `0` to the
-    # first line, like Vim — E19 was raised for the 0-row trick before,
-    # docs/bugs/083.md.)
-    if not range_start:
-        assert not range_end
-        range_start_row = range_end_row = cursor_position_row
-    else:
-        range_start_row = max(0, int(range_start) - 1)
-        range_end_row = max(0, int(range_end) - 1) if range_end else range_start_row
-    if not 0 <= range_start_row <= range_end_row < len(buffer.document.lines):
-        editor.show_message('E19: No such line in current buffer')
-        return
-    line_numbers = list(range(range_start_row, range_end_row + 1))
-
-    # Transform each line once, tracking the last substituted row and
-    # rejecting invalid replacement escapes without mutating the buffer.
     buffer_lines = buffer.document.lines
+    line_numbers, range_error = _resolve_substitute_range(
+        range_start,
+        range_end,
+        cursor_position_row,
+        len(buffer_lines),
+        getattr(eb, 'visual_marks', None),
+    )
+    if range_error is not None or line_numbers is None:
+        editor.show_message(range_error)
+        return
+
+    # Transform each line once, tracking match counts and rejecting invalid
+    # replacement escapes without mutating the buffer.
     substituted = {}
     last_substituted_row = None
-    any_match = False
-    regex_error = None
+    total_matches = 0
+    matched_lines = 0
     for row in line_numbers:
         original = buffer_lines[row]
         try:
-            result = pattern.sub(replace, original, count=sub_count)
+            result, count = pattern.subn(replace, original, count=options.sub_count)
         except re.error as e:
-            regex_error = e
-            break
+            editor.show_message('Invalid regex: %s' % e)
+            return
         substituted[row] = result
-        # Track whether the pattern matched on this row, not whether the
-        # text changed: a substitution whose replacement is identical to the
-        # matched text (e.g. `:s/foo/foo/`) is still a successful match.
-        if pattern.search(original) is not None:
-            any_match = True
+        if count > 0:
+            total_matches += count
+            matched_lines += 1
             last_substituted_row = row
 
-    if regex_error is not None:
-        editor.show_message('Invalid regex: %s' % regex_error)
+    if total_matches == 0:
+        editor.show_message('Pattern not found')
         return
 
-    if not any_match:
-        editor.show_message('Pattern not found')
+    if options.report_only:
+        match_word = 'match' if total_matches == 1 else 'matches'
+        line_word = 'line' if matched_lines == 1 else 'lines'
+        editor.show_message(f'{total_matches} {match_word} on {matched_lines} {line_word}')
+        search_state.text = search
         return
 
     # Apply substitution.
@@ -883,6 +1066,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     # on other rows could leave the 002/062-era sanitizer disarmed while the
     # screen shows Thai (docs/bugs/081.md). Note the full replaced text.
     note_document_text(new_text)
+    assert last_substituted_row is not None
     row = last_substituted_row
     buffer.cursor_position = doc.translate_row_col_to_index(row, 0) + (
         len(doc.lines[row]) - len(doc.lines[row].lstrip())
@@ -894,3 +1078,6 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     # update editor state
     editor.last_substitute_text = replace
     search_state.text = search
+
+    if options.print_last:
+        editor.show_message(doc.lines[row])

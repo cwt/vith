@@ -104,7 +104,9 @@ def find_config_file() -> str | None:
     return None
 
 
-def _resolve_hook_path(hook_name: str, config_path: str | None = None, custom_dir: str | None = None) -> str | None:
+def _resolve_hook_path(
+    hook_name: str, config_path: str | None = None, custom_dir: str | None = None
+) -> str | None:
     """
     Resolve a hook script filename or path to an absolute path on disk.
 
@@ -175,7 +177,9 @@ def run_hook_file(editor: Editor, hook_path: str | os.PathLike) -> bool:
         return False
 
 
-def apply_toml_config(editor: Editor, toml_data: dict[str, Any], config_path: str | None = None) -> None:
+def apply_toml_config(
+    editor: Editor, toml_data: dict[str, Any], config_path: str | None = None
+) -> None:
     """
     Apply parsed TOML configuration to an Editor instance.
 

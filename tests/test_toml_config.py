@@ -142,10 +142,7 @@ def test_apply_toml_config_tabstops(editor):
 
 def test_run_hook_file(editor, tmp_path):
     hook_file = tmp_path / "my_hook.py"
-    hook_file.write_text(
-        "def configure(e):\n"
-        "    e.custom_hook_ran = True\n"
-    )
+    hook_file.write_text("def configure(e):\n    e.custom_hook_ran = True\n")
 
     assert run_hook_file(editor, hook_file) is True
     assert getattr(editor, "custom_hook_ran", False) is True
@@ -165,25 +162,13 @@ def test_toml_registered_hooks_executed(editor, tmp_path):
     hooks_dir.mkdir(parents=True)
 
     hook1 = hooks_dir / "setup_keys.py"
-    hook1.write_text(
-        "def configure(e):\n"
-        "    e.hook1_active = True\n"
-    )
+    hook1.write_text("def configure(e):\n    e.hook1_active = True\n")
 
     hook2 = hooks_dir / "unregistered.py"
-    hook2.write_text(
-        "def configure(e):\n"
-        "    e.hook2_active = True\n"
-    )
+    hook2.write_text("def configure(e):\n    e.hook2_active = True\n")
 
     config_file = config_dir / "config.toml"
-    config_file.write_text(
-        "[editor]\n"
-        "tabstop = 4\n"
-        "\n"
-        "[hooks]\n"
-        'enabled = ["setup_keys.py"]\n'
-    )
+    config_file.write_text("[editor]\ntabstop = 4\n\n[hooks]\nenabled = [\"setup_keys.py\"]\n")
 
     run_rc_file(editor, config_file)
 
@@ -195,14 +180,7 @@ def test_toml_registered_hooks_executed(editor, tmp_path):
 
 def test_run_rc_file_toml_in_vithrc(editor, tmp_path):
     rc_file = tmp_path / ".vithrc"
-    rc_file.write_text(
-        "[editor]\n"
-        "tabstop = 2\n"
-        "number = false\n"
-        "\n"
-        "[tabstop]\n"
-        "markdown = 4\n"
-    )
+    rc_file.write_text("[editor]\ntabstop = 2\nnumber = false\n\n[tabstop]\nmarkdown = 4\n")
 
     run_rc_file(editor, rc_file)
     assert editor.tabstop == 2
@@ -213,9 +191,7 @@ def test_run_rc_file_toml_in_vithrc(editor, tmp_path):
 def test_run_rc_file_legacy_python_in_vithrc(editor, tmp_path):
     rc_file = tmp_path / ".vithrc"
     rc_file.write_text(
-        "def configure(editor):\n"
-        "    editor.tabstop = 3\n"
-        "    editor.show_line_numbers = False\n"
+        "def configure(editor):\n    editor.tabstop = 3\n    editor.show_line_numbers = False\n"
     )
 
     run_rc_file(editor, rc_file)

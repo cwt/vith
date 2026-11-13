@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 import pygments
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.document import Document
 from prompt_toolkit.enums import EditingMode
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.history import FileHistory
@@ -555,14 +556,16 @@ class Editor:
         finally:
             self._clear_terminal_title()
 
-    def enter_command_mode(self):
+    def enter_command_mode(self, initial_text: str = '') -> None:
         """
-        Go into command mode.
+        Go into command mode, optionally pre-populating the command buffer.
         """
         self.application.layout.focus(self.command_buffer)
         self.application.vi_state.input_mode = InputMode.INSERT
 
         self.previewer.save()
+        if initial_text:
+            self.command_buffer.document = Document(initial_text, len(initial_text))
 
     def leave_command_mode(self, append_to_history=False):
         """

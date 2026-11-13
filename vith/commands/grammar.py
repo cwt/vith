@@ -12,6 +12,8 @@ def _longest_first(name: str) -> tuple[int, str]:
 
 
 #: The compiled grammar for the Vim command line.
+# Substitute ranges support %, numeric, ., $, '<, '>, and optional +/- offsets;
+# any non-alphanumeric delimiter other than backslash or double quote is allowed.
 COMMAND_GRAMMAR = compile(
     r"""
     # Allow leading colons and whitespace. (They are ignored.)
@@ -19,7 +21,7 @@ COMMAND_GRAMMAR = compile(
     \s*
     (
         # Substitute command
-        ((?P<range_start>\d+)(,(?P<range_end>\d+))?)?  (?P<command>s|substitute) \s* / (?P<search>[^/]*) ( / (?P<replace>[^/]*) (?P<flags> ( / \w* )* )? )?   |
+        (?P<sub_range>(%%|(\d+|\.|\$|'<|'>)([+-]\d+)?(,(\d+|\.|\$|'<|'>)([+-]\d+)?)?)?) \s* (?P<command>s|substitute) (?P<sub_args>\s*[^a-zA-Z0-9_\\\s"].*)?   |
 
         # Commands accepting a location.
         (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>[^\s]+)   |
