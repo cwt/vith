@@ -1,6 +1,45 @@
 CHANGELOG
 =========
 
+0.14.0: 2026-11-13
+-------------------
+
+Tab stops, TOML configuration & ``:s`` substitute enhancements:
+
+Tab stops & rendering:
+
+- Wrapped ``TabsProcessor.apply_transformation`` to calculate tab expansion from
+  visual display columns (``get_cwidth``) instead of codepoint counts, fixing
+  column alignment with Thai combining marks and double-width CJK characters
+  (finding 127).
+- Changed the default ``tabstop`` from ``4`` to ``8`` to match Vi/Vim standards
+  (finding 127).
+- Added per-filetype tab stop defaults (``DEFAULT_FILETYPE_TABSTOPS`` /
+  ``FiletypeTabstops``) with canonical alias normalization and 3-tier buffer
+  resolution, plus ``:setlocal`` / ``:setl`` support for ``tabstop`` and
+  ``filetype`` with live preview and completion (finding 128).
+
+Configuration & hooks:
+
+- Added declarative TOML configuration (``~/.config/vith/config.toml`` with
+  fallback to ``~/.vithrc`` and ``~/.pyvimrc``) using ``tomllib``/``tomli`` and
+  modular Python hook loading from ``~/.config/vith/hooks/`` via ``[hooks]``
+  with example configs (finding 129).
+
+Commands & editing:
+
+- Extended ``:s`` / ``:substitute`` with ``%``, ``.``, ``$``, ``'<,'>``, and
+  ``+/-N`` line ranges, bare ranged repeats (``:%s``, ``:1,3s``), arbitrary
+  non-alphanumeric delimiters with ``\<delim>`` unescaping, and ``n``/``p`` flags.
+- Bound ``:`` in visual selection mode to record per-buffer ``visual_marks``
+  and pre-fill ``'<,'>`` in the command line.
+
+Docs & quality gates:
+
+- Updated ``README.md`` badges, requirements, configuration examples, and
+  testing/command documentation.
+- Full test suite passing: 350 passed, mypy clean on 62 source files, ruff clean.
+
 0.13.0: 2026-11-10
 -------------------
 
