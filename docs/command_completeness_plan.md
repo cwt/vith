@@ -24,12 +24,12 @@ sources:
   - ../tests/test_quit_and_goto.py
   - ../tests/test_substitute.py
   - ../tests/test_set_int_options.py
-verified: machine-confirmed
+verified: [machine-confirmed, human-reviewed]
 stale_after: 2027-05-19T00:00:00Z
 tags: [commands, ex-mode, vim-parity, grammar, completer, preview, planning]
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-19T09:20:00Z"
+  at: "2026-11-19T10:10:00Z"
 ---
 
 # Ex Command Completeness Plan for `vith`
@@ -135,10 +135,10 @@ All new commands MUST uphold the invariants established across `vith`'s audit ro
   * With no argument: formats `"<display_name>" [Modified][New file] <N> lines --<P>%--` via `editor.show_message()`.
   * With a location argument: updates `eb.location = location`, resets `eb._detected_filetype = None`, refreshes `editor.update_title()`, and shows the updated file status.
 * **`:ver` / `:version`** (`cmd`):
-  * Displays `vith` version (`importlib.metadata.version('vith')` with fallback), Python version, `prompt_toolkit` version, Thai word-segmentation backend (`libthai` vs orthographic fallback), and default cold-text compressor.
+  * Displays `vith` version (`importlib.metadata.version('vith')` with fallback), Python version, `prompt_toolkit` version, Thai word-segmentation backend (`libthai` vs orthographic fallback), and default cold-text compressor via `_run_pager` (with a pure `version_lines(editor)` helper for tests; **D2**).
 * **`:messages` / `:mes`** (`cmd`):
   * Record non-empty messages in a bounded `collections.deque(maxlen=200)` inside `Editor.show_message()`[^src-editor].
-  * `:messages` displays the recorded history (or `No messages` when empty).
+  * `:messages` prints the recorded history via `_run_pager` (using a pure `messages_lines(editor)` helper; **D2**), or shows `No messages` when empty.
 
 ---
 
@@ -167,18 +167,20 @@ Behavioral contract:
    * Missing file reports `E484: Can't open file {location}`; bare `:r` on an untitled buffer reports `No file name`.
    * Normalizes `\r\n` → `\n` and strips a single trailing `\n` before splitting into inserted lines.
 4. **Shell reading (`:r !{cmd}`)**:
-   * Runs `subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)` (avoiding interactive terminal hijack while staying safe against hung commands).
-   * Inserts decoded `stdout` lines (normalizing `\r\n` → `\n`). If `returncode != 0` and `stderr` is present, surfaces the error message clearly.
+   * Runs `subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)` (matching Unix Vim's `shellredir` `2>&1` capture while avoiding interactive terminal hijack and hung commands).
+   * Inserts captured output lines (normalizing `\r\n` → `\n`) even when `returncode != 0`, and reports `shell returned {N}` via `editor.show_message()` on non-zero exit (**D3**). Aborts without mutating only on launch/timeout errors (`OSError`, `subprocess.TimeoutExpired`).
 5. **Buffer insertion, undo & Thai gate**:
    * Empty-buffer special case: if the buffer is completely empty (`text == ''`), replaces the empty line instead of prepending a spurious blank line (matching Vim's `:r` into an empty buffer).
    * Calls `buffer.save_to_undo_stack()`, assigns `Document(new_text)`, calls `note_document_text(inserted_text)`, moves cursor to the first non-blank character of the first inserted line, and shows `"{source}" {N}L` via `editor.show_message()`.
 
-#### 3.2.2 `:sav` / `:saveas` and `:so` / `:source`
+#### 3.2.2 `:sav` / `:saveas`, `:w {file}` Parity, and `:so` / `:source`
 
+* **`:w {file}`** (strict Vim semantics, **D1**):
+  * On a **named** buffer where `{file}` differs from `eb.location`, writes a copy to `{file}` without altering `eb.location`, `is_new`, filetype, or clearing `has_unsaved_changes`.
+  * On an **untitled** buffer (`eb.location is None`), assigns `eb.location = {file}`, clears `has_unsaved_changes`, and refreshes filetype/title.
 * **`:sav` / `:saveas`** (`location_cmd`, `accepts_force=True`):
   * Requires a location (otherwise `E471: Argument required`).
-  * Checks file-exists guard unless `!`, writes buffer to `location`, updates `eb.location` and refreshes filetype/reporter/title.
-  * *(See §6 Decision D1 regarding `:w {file}` vs `:saveas {file}` location mutation semantics.)*
+  * Checks file-exists guard unless `!`, writes buffer to `location`, always updates `eb.location = location`, clears `has_unsaved_changes`, and refreshes filetype/reporter/title (**D1**).
 * **`:so` / `:source`** (`location_cmd`, `accepts_force=False`):
   * Reloads `location` (or `find_config_file()` when omitted) via `vith.rc_file`[^src-rc-file].
   * Add a quiet/message-reporting callback mode to `run_rc_file` so `:source` surfaces parse/missing-file errors via `editor.show_message()` without dropping out of the TUI to raw `input()`.
@@ -196,7 +198,7 @@ Behavioral contract:
   * `:tabo` / `:tabonly`: close all tab pages except `active_tab`.
   * `:tabfir` / `:tabfirst`, `:tabl` / `:tablast`: jump to tab `0` / `-1`.
   * `:tabm [N|+N|-N]` / `:tabmove`: move active tab to position `N` (default end), or relative `±N`.
-  * `:tabs`: list all tab pages and their windows/buffers (highlighting active tab/window).
+  * `:tabs`: list all tab pages and their windows/buffers via `_run_pager` (with a pure `tabs_lines(editor)` helper; highlighting active tab/window; **D2**).
 
 ---
 
@@ -229,10 +231,10 @@ Currently, range parsing (`%`, `.`, `$`, `'<`, `'>`, `N`, `±offset`) is hardcod
 | `:[range]j[!]`, `:join[!]` | `.` (joins `.` and `.+1` if single line) | Joins lines in range with single space (stripping leading whitespace on joined lines); `!` joins verbatim without stripping/inserting spaces. |
 | `:[range]sort[!] [i][u][r][n]` | `%` (whole buffer) | Sorts lines in range: `!` or `r` reverses, `i` folds case, `u` deduplicates, `n` sorts by first decimal integer on each line. |
 | `:[range]g[!]`/`:global[!]`, `:[range]v`/`:vglobal` | `%` | `/{pat}/{cmd}` (supports alternate delimiters like `:s`, enforces `_UNSAFE_NESTED_QUANTIFIER` ReDoS guard). Marks matching (or non-matching for `:g!`/`:v`) lines first, then executes sub-command (`d`, `y`, `s`, `m`, `t`, `p`, `norm`) as a single undo step. |
-| `:[range]!{cmd}` | *(requires explicit range)* | Pipes addressed lines to `cmd`'s stdin and replaces the range with stdout as one undoable change; aborts without mutating on subprocess error. |
+| `:[range]!{cmd}` | *(requires explicit range)* | Pipes addressed lines to `cmd`'s stdin and replaces the range with combined output (`stdout` + `stderr`, matching Unix Vim's `shellredir`) as one undoable change even on non-zero exit (reporting `shell returned {N}`; undoable via `u`); aborts without mutating only on spawn/timeout failure (**D3**). |
 | `:[range]w[!] [file]`, `:[range]w[!] >> {file}`, `:[range]w !{cmd}` | `%` | Writes only the addressed range to `{file}` (without altering `eb.location` or clearing `has_unsaved_changes` when partial), appends with `>>`, or pipes range to `{cmd}`'s stdin. |
 | `:[range]retab[!] [N]` | `%` | Re-expands tabs/spaces using `tabstop` (or updated `N`) and `expand_tab`; without `!`, converts only leading indent when `expandtab` is off. |
-| `:[range]norm[!] {keys}` / `:normal` | `.` | *(Phase 3b / scoped)* Feeds normal-mode key sequence on each line in the range inside a single undo snapshot (guarded against recursion and unmapped hangs). |
+| `:[range]norm[!] {keys}` / `:normal` | `.` | Included in Phase 3 (**D4**). Feeds normal-mode key sequence via `KeyProcessor.feed()` starting at column 0 on each line in the range inside a single undo snapshot, returning cleanly to Normal mode after each line; `!` ignores user mappings; guarded against recursion, read-only buffers, and Thai/Lao gate bypasses. |
 
 ---
 
@@ -251,8 +253,8 @@ Currently, range parsing (`%`, `.`, `$`, `'<`, `'>`, `N`, `±offset`) is hardcod
 Upgrade `:set` / `:setlocal` / `:setl` across `grammar.py`[^src-grammar], `commands.py`[^src-commands], and `preview.py`[^src-preview] (preserving existing validation semantics pinned in `tests/test_set_int_options.py`[^src-test-set]):
 
 1. **Syntax upgrades**:
-   * **Bare `:set`**: lists options whose current values differ from defaults.
-   * **`:set all`**: lists all options and their current values.
+   * **Bare `:set`**: lists options whose current values differ from defaults via `_run_pager` (with a pure `set_options_lines(editor, show_all=False)` helper; **D2**).
+   * **`:set all`**: lists all options and their current values via `_run_pager` (**D2**).
    * **Query (`?`)**: `:set {opt}?` displays `{opt}` / `no{opt}` for boolean toggles and `{opt}={val}` for int/list/filetype options.
    * **Toggle (`!` / `inv`)**: `:set {opt}!` and `:set inv{opt}` flip any boolean option in `SET_TOGGLE_GROUPS` (plus `tildeop`).
    * **Multiple arguments**: `:set nu rnu ts=4 et` parses space-separated tokens left-to-right and validates/previews cleanly.
@@ -268,8 +270,8 @@ Upgrade `:set` / `:setlocal` / `:setl` across `grammar.py`[^src-grammar], `comma
 
 #### 3.4.3 Inspection Commands & Command-Line Polish
 
-* **`:reg` / `:registers`**: lists non-empty registers from `editor.application.vi_state.named_registers` and the unnamed clipboard (`"`).
-* **`:marks`**: lists marks recorded on `eb.buffer` plus `'<` / `'>` visual line marks.
+* **`:reg` / `:registers`**: lists non-empty registers from `editor.application.vi_state.named_registers` and the unnamed clipboard (`"`) via `_run_pager` (with a pure `registers_lines(editor)` helper; **D2**).
+* **`:marks`**: lists marks recorded on `eb.buffer` plus `'<` / `'>` visual line marks via `_run_pager` (with a pure `marks_lines(editor)` helper; **D2**).
 * **Completer & Lexer updates** (`completer.py`[^src-completer], `lexer.py`[^src-lexer]):
   * Ensure all newly registered commands appear in command completion, `:r`/`:sav`/`:so` complete paths via `PathCompleter`, `:r !` completes executables via `SystemCompleter`, `:bd`/`:sb` complete open buffers via `BufferNameCompleter`, and `:set` completes `inv*` / `?` / `!` forms gracefully.
 * **Documentation refresh**:
@@ -303,7 +305,7 @@ Every phase MUST land with dedicated unit tests and pass all repository gates be
 1. **New Test Suites**:
    * `tests/test_ex_commands.py`: Phase 1 aliases (`:ls`, `:files`, `:x`, `:xa`, `:wa`, `:up`, `:u`/`:undo`, `:red`/`:redo`, `:noh`, `:clo`, `:enew`, `:f`/`:file`, `:ver`, `:messages`).
    * `tests/test_read_command.py`: Phase 2 `:r`/`:read` (file, gzip, missing file, untitled bare `:r`, `:0r`, `:$r`, empty buffer, `:r !cmd`, read-only guard, Thai gate latch, undo round-trip), `:sav`, `:so`, `:b #`, `:bd <target>`, `:tabo`/`:tabm`/`:tabs`.
-   * `tests/test_range_commands.py`: Phase 3 `ranges.py`, `:$`/`+N`/`-N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort` (flags + Unicode/Thai), `:g`/`:v` (incl. ReDoS guard), `:[range]!cmd`, `:[range]w` (partial/append/pipe), `:retab`.
+   * `tests/test_range_commands.py`: Phase 3 `ranges.py`, `:$`/`+N`/`-N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort` (flags + Unicode/Thai), `:g`/`:v` (incl. ReDoS guard), `:[range]!cmd` (incl. non-zero exit status + undo), `:[range]w` (partial/append/pipe), `:retab`, `:[range]norm[!]`.
    * `tests/test_set_ergonomics.py`: Phase 4 `%`/`#` expansion + modifiers, `:set` `?`/`!`/`inv`/bare/`all`/multi-option, `smartcase`/`shiftwidth`/`readonly`/`autoindent`/`fileencoding`, `:reg`, `:marks`.
    * Extend `tests/test_commands_grammar.py`[^src-test-grammar] and `tests/test_preview.py` to pin grammar non-collisions and zero-side-effect previewing.
 2. **Mandatory Invariant Assertions per Mutating Command**:
@@ -318,14 +320,14 @@ Every phase MUST land with dedicated unit tests and pass all repository gates be
 
 ---
 
-## 6. Open Design Decisions (Confirm Before Implementation)
+## 6. Design Decisions (Confirmed — Strict Vim Parity)
 
-| ID | Topic | Options | Recommended Default |
-| :--- | :--- | :--- | :--- |
-| **D1** | `:w {file}` vs `:saveas {file}` location mutation | **(A)** Keep `:w {file}` mutating `eb.location` (preserves current pyvim/`test_write_commands.py`[^src-test-write] behavior) and have `:sav` explicitly share it; **(B)** Make `:w {file}` write-a-copy (strict Vim) and reserve renaming for `:sav` (only rename on `:w {file}` when buffer was untitled). | **(B)** for Vim parity — update only any test that relied on renaming a named buffer via `:w other`. |
-| **D2** | Pager vs scratch split for `:messages`, `:tabs`, `:reg`, `:marks`, `:set all` | **(A)** `_run_pager` (exits alternate screen, `Press ENTER`, matches `:buffers`/`:ls`); **(B)** Read-only scratch `hsplit` (matches `:help`/`:compression`, stays inside TUI, easy to search/yank/test). | **(B)** for multi-line inspection commands (`:messages`, `:tabs`, `:reg`, `:marks`, `:set all`, `:ver`), keeping `:ls`/`:buffers` on `_run_pager` (or switching consistently if preferred). |
-| **D3** | `:r !cmd` / `:[range]!cmd` non-zero exit code | **(A)** Abort buffer mutation when `returncode != 0` and show `stderr`; **(B)** Insert `stdout` even on non-zero exit (Vim behavior) and show exit status. | **(B)** for `:r !cmd` if `stdout` is non-empty (plus message), **(A)** for `:[range]!cmd` so a typo in `:%!jq` never wipes the buffer. |
-| **D4** | `:normal` (`:norm`) scope | **(A)** Include in Phase 3 via `KeyProcessor.feed()` with recursion guard; **(B)** Defer `:norm` to a follow-up after Phase 3 ships. | **(B)** Defer `:norm` until core range commands stabilize, avoiding subtle `KeyProcessor` re-entrancy risks. |
+| ID | Topic | Confirmed Behavior (Vim Parity) |
+| :--- | :--- | :--- |
+| **D1** | `:w {file}` vs `:saveas {file}` location mutation | **Strict Vim (Option B)**: `:w {file}` on a named buffer writes a copy without mutating `eb.location`, `is_new`, filetype, or clearing `has_unsaved_changes` (it names the buffer only when untitled); `:sav[!] {file}` always writes, renames `eb.location`, clears `has_unsaved_changes`, and refreshes filetype/title (preserving existing write guards in `tests/test_write_commands.py`[^src-test-write]). |
+| **D2** | Output UI for `:messages`, `:tabs`, `:reg`, `:marks`, `:set` / `:set all`, `:ver` | **Strict Vim pager (Option A)**: All multi-line inspection commands use `_run_pager` (`Press ENTER to continue...`, matching Vim's hit-enter pager and `:ls`/`:buffers`), backed by pure `*_lines(editor)` helpers for clean unit testing. Split windows remain reserved for `:help` (and `:compression`). |
+| **D3** | `:r !cmd` / `:[range]!cmd` non-zero exit code | **Strict Vim filter/read (Option B)**: Both `:r !cmd` and `:[range]!cmd` capture combined output (`stderr=subprocess.STDOUT`, matching Unix Vim's `shellredir`), insert/replace the buffer inside a single undoable step even on non-zero exit (so `u` restores original lines cleanly), and report `shell returned {N}`. Mutation aborts only on launch/timeout errors (`OSError`, `TimeoutExpired`). |
+| **D4** | `:normal` (`:norm`) scope | **Included in Phase 3 (Option A)**: Ship `:[range]norm[!] {keys}` / `:normal` directly in Phase 3 via `KeyProcessor.feed()` with column-0 start per line, automatic return to Normal mode after each line, single undo snapshot for the range, `!` to ignore user mappings, and recursion/read-only/Thai-gate guards. |
 
 ---
 
