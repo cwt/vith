@@ -352,3 +352,141 @@ def test_noh_and_nohlsearch_suppress_and_auto_restore_on_search(editor):
     editor.application.layout.focus(editor.search_buffer)
     editor.application.key_processor.after_key_press.fire()
     assert editor._hlsearch_suppressed is False
+
+
+def test_update_only_writes_when_modified_or_named_target(editor, tmp_path, monkeypatch):
+    target = tmp_path / 'note.txt'
+    target.write_text('initial\n')
+    editor.load_initial_files([str(target)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    writes = []
+    orig_write = eb.write
+
+    def tracked_write(*args, **kwargs):
+        writes.append((args, kwargs))
+        return orig_write(*args, **kwargs)
+
+    monkeypatch.setattr(eb, 'write', tracked_write)
+
+    # Clean buffer: `:up` is a clean no-op without touching disk.
+    handle_command(editor, ':up')
+    assert writes == []
+    assert editor.message is None
+
+    # Dirty buffer: `:update` writes changes.
+    eb.buffer.text = 'updated'
+    handle_command(editor, ':update')
+    assert len(writes) == 1
+    assert target.read_text() == 'updated\n'
+    assert not eb.has_unsaved_changes
+
+    # Clean buffer with explicit destination writes to that destination.
+    other = tmp_path / 'copy.txt'
+    handle_command(editor, f':up {other}')
+    assert len(writes) == 2
+    assert other.read_text() == 'updated\n'
+
+
+def test_update_empty_arrangement_guards(editor, tmp_path):
+    handle_command(editor, ':up')
+    assert editor.message is None
+
+    handle_command(editor, f':up {tmp_path / "nowhere.txt"}')
+    assert editor.message == 'No file name'
+
+
+def test_xit_and_exit_conditional_write_and_multi_window_semantics(editor, tmp_path, monkeypatch):
+    f1 = tmp_path / 'a.txt'
+    f2 = tmp_path / 'b.txt'
+    f1.write_text('orig a\n')
+    f2.write_text('orig b\n')
+    editor.load_initial_files([str(f1)])
+    wa = editor.window_arrangement
+    eb1 = wa.active_editor_buffer
+
+    exits = _record_exits(editor, monkeypatch)
+
+    # Multi-window: `:x` writes dirty active buffer and closes ONLY its window.
+    handle_command(editor, f':vsp {f2}')
+    eb2 = wa.active_editor_buffer
+    assert wa.active_tab.window_count() == 2
+    eb2.buffer.text = 'changed b'
+
+    handle_command(editor, ':x')
+    assert f2.read_text() == 'changed b\n'
+    assert exits == []
+    assert wa.active_tab.window_count() == 1
+    assert wa.active_editor_buffer is eb1
+
+    # Failed write (existing target without `!`): `:xit` aborts without exiting.
+    handle_command(editor, f':xit {f2}')
+    assert editor.message == 'File exists (add ! to override)'
+    assert exits == []
+    assert f2.read_text() == 'changed b\n'
+
+    # Clean last window: `:exit` exits without rewriting `f1`.
+    writes = []
+    orig_write = eb1.write
+
+    def tracked_write(*args, **kwargs):
+        writes.append(1)
+        return orig_write(*args, **kwargs)
+
+    monkeypatch.setattr(eb1, 'write', tracked_write)
+    editor.message = None
+    handle_command(editor, ':exit')
+    assert writes == []
+    assert exits == [1]
+
+
+def test_wall_and_xall_write_dirty_buffers_and_abort_on_error(editor, tmp_path, monkeypatch):
+    f1 = tmp_path / 'w1.txt'
+    f2 = tmp_path / 'w2.txt'
+    f1.write_text('one\n')
+    f2.write_text('two\n')
+    editor.load_initial_files([str(f1), str(f2)])
+    wa = editor.window_arrangement
+    eb1, eb2 = wa.editor_buffers[0], wa.editor_buffers[1]
+
+    # Clean buffers: `:wa` writes nothing.
+    writes = []
+    for eb in (eb1, eb2):
+        orig = eb.write
+
+        def make_tracker(fn):
+            def tracked(*args, **kwargs):
+                writes.append(1)
+                return fn(*args, **kwargs)
+
+            return tracked
+
+        monkeypatch.setattr(eb, 'write', make_tracker(orig))
+
+    handle_command(editor, ':wa')
+    assert writes == []
+
+    # Dirty buffers: `:wall` writes only dirty ones.
+    eb1.buffer.text = 'one edited'
+    handle_command(editor, ':wall')
+    assert writes == [1]
+    assert f1.read_text() == 'one edited\n'
+    assert not eb1.has_unsaved_changes
+
+    # Dirty untitled buffer causes `:xa` to abort with 'No file name'.
+    exits = _record_exits(editor, monkeypatch)
+    untitled = EditorBuffer(editor)
+    untitled.buffer.text = 'unnamed work'
+    wa._add_editor_buffer(untitled)
+    handle_command(editor, ':xa')
+    assert editor.message == 'No file name'
+    assert exits == []
+
+    # Naming the untitled buffer allows `:xall` to write all dirty buffers and exit.
+    f3 = tmp_path / 'w3.txt'
+    untitled.location = str(f3)
+    eb2.buffer.text = 'two edited'
+    handle_command(editor, ':xall')
+    assert exits == [1]
+    assert f2.read_text() == 'two edited\n'
+    assert f3.read_text() == 'unnamed work\n'

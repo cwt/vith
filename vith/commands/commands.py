@@ -520,6 +520,37 @@ def write(editor, location, force=False):
     return eb.write(location, force=force)
 
 
+@location_cmd('up', accepts_force=True)
+@location_cmd('update', accepts_force=True)
+def update(editor, location, force=False):
+    """
+    Write the active buffer only when modified or given a destination path
+    (`:up` / `:update`). Returns whether the buffer is cleanly up to date.
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        if location is not None:
+            editor.show_message(_NO_FILE_NAME)
+            return False
+        return True
+    if location is not None or eb.has_unsaved_changes:
+        return write(editor, location, force=force)
+    return True
+
+
+@location_cmd('x', accepts_force=True)
+@location_cmd('xit', accepts_force=True)
+@location_cmd('exit', accepts_force=True)
+def write_if_modified_and_quit(editor, location, force=False):
+    """
+    Write the active buffer if modified (or when a location is provided)
+    and close the current window / exit (`:x` / `:xit` / `:exit`).
+    """
+    if not update(editor, location, force=force):
+        return
+    quit(editor, all_=False, force=force)
+
+
 @location_cmd('wq', accepts_force=True)
 def write_and_quit(editor, location, force=False):
     """
@@ -540,6 +571,25 @@ def quit_nonzero(editor):
     editor.application.exit()
 
 
+@cmd('wall', accepts_force=True)
+@cmd('wa', accepts_force=True)
+def write_all(editor, force=False):
+    """
+    Write every buffer with unsaved changes (`:wa` / `:wall`).
+    Returns whether every dirty buffer was written successfully.
+    """
+    for eb in editor.window_arrangement.editor_buffers:
+        if eb.has_unsaved_changes:
+            if eb.location is None:
+                editor.show_message(_NO_FILE_NAME)
+                return False
+            if not eb.write(force=force):
+                return False
+    return True
+
+
+@cmd('xall', accepts_force=True)
+@cmd('xa', accepts_force=True)
 @cmd('wqall', accepts_force=True)
 @cmd('wqa', accepts_force=True)
 def write_and_quit_all(editor, force=False):
@@ -547,11 +597,8 @@ def write_and_quit_all(editor, force=False):
     Write every buffer with unsaved changes and quit. Does not quit when any
     write failed (docs/bugs/067.md).
     """
-    for eb in editor.window_arrangement.editor_buffers:
-        if eb.has_unsaved_changes and not eb.write(force=force):
-            return
-
-    editor.application.exit()
+    if write_all(editor, force=force):
+        editor.application.exit()
 
 
 def _is_buffer_read_only(buff) -> bool:

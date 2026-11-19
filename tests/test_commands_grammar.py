@@ -88,9 +88,31 @@ def test_phase1_aliases_match_without_collisions():
         (':redo', 'redo', ''),
         (':noh', 'noh', ''),
         (':nohlsearch', 'nohlsearch', ''),
+        (':up', 'up', ''),
+        (':update!', 'update', '!'),
+        (':x', 'x', ''),
+        (':xit!', 'xit', '!'),
+        (':exit', 'exit', ''),
+        (':wa', 'wa', ''),
+        (':wall!', 'wall', '!'),
+        (':xa', 'xa', ''),
+        (':xall!', 'xall', '!'),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
         variables = m.variables()
         assert variables.get('command') == expected_cmd, line
         assert variables.get('force') == expected_force, line
+
+    for line, expected_cmd, expected_loc in (
+        (':up dest.txt', 'up', 'dest.txt'),
+        (':update! dest.txt', 'update', 'dest.txt'),
+        (':x out.txt', 'x', 'out.txt'),
+        (':xit out.txt', 'xit', 'out.txt'),
+        (':exit! out.txt', 'exit', 'out.txt'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        variables = m.variables()
+        assert variables.get('command') == expected_cmd, line
+        assert variables.get('location') == expected_loc, line
