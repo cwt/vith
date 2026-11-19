@@ -41,6 +41,8 @@ class EditorBuffer:
         # Last visual selection 0-based line bounds `(start_row, end_row)`
         # recorded when entering command mode from selection (`'<`, `'>`).
         self.visual_marks: tuple[int, int] | None = None
+        # Buffer-local named marks (`m{a-z}` -> `(row, col)` 0-based).
+        self.marks: dict[str, tuple[int, int]] = {}
 
         #: is_new: True when this file does not yet exist in the storage.
         self.is_new = True

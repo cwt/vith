@@ -555,3 +555,139 @@ def test_toml_config_supports_phase4_options(editor):
     assert editor.smartcase is True
     assert editor.shiftwidth == 2
     assert editor.autoindent is False
+
+
+def test_registers_command_and_info_split(editor, tmp_path):
+    from prompt_toolkit.clipboard import ClipboardData
+    from prompt_toolkit.selection import SelectionType
+
+    from vith.commands.commands import registers_lines
+
+    f = tmp_path / 'reg.txt'
+    f.write_text('first line\nsecond line\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+
+    # Empty clipboard and registers:
+    editor.application.clipboard.set_data(ClipboardData(''))
+    editor.application.vi_state.named_registers.clear()
+    assert registers_lines(editor) == []
+    handle_command(editor, ':reg')
+    assert editor.message == 'No registers'
+
+    # Populate unnamed clipboard (linewise), named char/block registers:
+    handle_command(editor, ':1,2y')
+    editor.application.vi_state.named_registers['a'] = ClipboardData(
+        'hello\tworld', SelectionType.CHARACTERS
+    )
+    editor.application.vi_state.named_registers['0'] = ClipboardData('zero', SelectionType.BLOCK)
+
+    lines = registers_lines(editor)
+    assert lines[0] == 'Type Name Content'
+    assert any(
+        '""' in line and 'first line^Jsecond line' in line and '  l  ' in line for line in lines
+    )
+    assert any('"0' in line and 'zero' in line and '  b  ' in line for line in lines)
+    assert any('"a' in line and 'hello^Iworld' in line and '  c  ' in line for line in lines)
+
+    # `:registers` opens inside vith as a read-only `[Registers]` scratch split:
+    handle_command(editor, ':registers')
+    reg_eb = editor.window_arrangement.active_editor_buffer
+    assert reg_eb.is_scratch is True
+    assert reg_eb.scratch_title == '[Registers]'
+    assert reg_eb.buffer.read_only() is True
+    assert '"a' in reg_eb.buffer.text
+    handle_command(editor, ':q')
+    assert editor.window_arrangement.active_editor_buffer.location == str(f)
+
+
+def test_marks_command_and_mark_navigation(editor, tmp_path):
+    from vith.commands.commands import marks_lines
+
+    f = tmp_path / 'marks.txt'
+    f.write_text('  first line\n    second line\nthird line\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    # No marks yet:
+    assert marks_lines(editor) == []
+    handle_command(editor, ':marks')
+    assert editor.message == 'No marks'
+
+    # Set mark `a` on line 2 col 6 (`s` -> `c`) via `:norm!`, and set visual marks:
+    handle_command(editor, ':2norm! 6lma')
+    assert eb.marks['a'] == (1, 6)
+    eb.visual_marks = (0, 2)
+
+    lines = marks_lines(editor)
+    assert lines[0] == 'mark line  col file/text'
+    assert any(
+        'a' in line and '   2' in line and '   6' in line and 'second line' in line
+        for line in lines
+    )
+    assert any('<' in line and '   1' in line and 'first line' in line for line in lines)
+    assert any('>' in line and '   3' in line and 'third line' in line for line in lines)
+
+    # Jump to mark linewise (`'a` -> first non-blank, col 4) and exact (`` `a `` -> col 6):
+    handle_command(editor, ":1norm! 'a")
+    assert eb.buffer.document.cursor_position_row == 1
+    assert eb.buffer.document.cursor_position_col == 4
+
+    handle_command(editor, ':1norm! `a')
+    assert eb.buffer.document.cursor_position_row == 1
+    assert eb.buffer.document.cursor_position_col == 6
+
+    # `:marks` opens inside vith as a read-only `[Marks]` scratch split:
+    handle_command(editor, ':marks')
+    marks_eb = editor.window_arrangement.active_editor_buffer
+    assert marks_eb.is_scratch is True
+    assert marks_eb.scratch_title == '[Marks]'
+    assert marks_eb.buffer.read_only() is True
+    assert 'second line' in marks_eb.buffer.text
+    handle_command(editor, ':q')
+    assert editor.window_arrangement.active_editor_buffer is eb
+
+
+def test_phase4_command_and_option_completions(editor, tmp_path):
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+
+    from vith.commands.completer import create_command_completer
+
+    f = tmp_path / 'alpha.py'
+    f.write_text('x = 1\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+    completer = create_command_completer(editor)
+
+    def complete(text):
+        doc = Document(text, len(text))
+        return [c.text for c in completer.get_completions(doc, CompleteEvent())]
+
+    # Phase 1-4 commands registered in command completion:
+    assert 'registers ' in complete('reg')
+    assert 'reg ' in complete('reg')
+    assert 'marks ' in complete('mar')
+    assert 'saveas ' in complete('sav')
+    assert 'source ' in complete('sou')
+    assert 'normal ' in complete('nor')
+    assert 'tabmove ' in complete('tabm')
+    assert 'tabs ' in complete('tab')
+
+    # Phase 4 `:set` options + `inv*` + graceful `?`/`!`:
+    assert 'smartcase' in complete('set sm')
+    assert 'scs' in complete('set sc')
+    assert 'shiftwidth' in complete('set sh')
+    assert 'sw' in complete('set sw')
+    assert 'readonly' in complete('set re')
+    assert 'ro' in complete('set ro')
+    assert 'invro' in complete('set invr')
+    assert 'autoindent' in complete('set au')
+    assert 'fileencoding' in complete('set filee')
+    assert 'fenc' in complete('set fe')
+    assert complete('set nu?') == []
+    assert complete('set nu!') == []
+
+    # Buffer completion on `:bd` / `:sb` and path completion on `:sav` / `:so`:
+    assert str(f) in complete('bd ')
+    assert str(f) in complete('sb ')
+    assert any('alpha.py' in item for item in complete(f'sav {tmp_path}/'))
+    assert any('alpha.py' in item for item in complete(f'so {tmp_path}/'))

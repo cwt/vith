@@ -365,3 +365,17 @@ def test_set_grammar_bare_all_query_toggle_and_multi():
         assert v.get('set_option') == exp_opt, line
         assert v.get('set_value') == exp_val, line
         assert v.get('set_rest') == exp_rest, line
+
+
+def test_reg_and_marks_grammar_non_collisions():
+    for line, expected_cmd in (
+        (':reg', 'reg'),
+        (':registers', 'registers'),
+        (':marks', 'marks'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('command') == expected_cmd, line
+        assert v.get('dest_addr') is None, line
+        assert v.get('read_shell') is None, line

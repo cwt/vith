@@ -645,6 +645,63 @@ def create_key_bindings(editor):
         )
         event.app.vi_state.input_mode = InputMode.INSERT
 
+    # Buffer-local Vi marks (`m{a-z}`, `'{a-z}`/`'<`/`'>`, `` `{a-z} ``).
+    def _resolve_editor_buffer(buff):
+        eb_ref = getattr(buff, '_vith_editor_buffer_ref', None)
+        if eb_ref is not None:
+            eb = eb_ref()
+            if eb is not None:
+                return eb
+        return editor.window_arrangement.active_editor_buffer
+
+    def _jump_to_mark(event, *, linewise):
+        mark = event.data
+        buff = event.current_buffer
+        eb = _resolve_editor_buffer(buff)
+        if eb is None:
+            return
+        doc = buff.document
+        line_count = len(doc.lines)
+        if not line_count:
+            return
+        target_row = None
+        target_col = 0
+        if mark in ('<', '>') and eb.visual_marks is not None:
+            target_row = eb.visual_marks[0] if mark == '<' else eb.visual_marks[1]
+        elif mark in eb.marks:
+            target_row, target_col = eb.marks[mark]
+        else:
+            return
+        row = max(0, min(target_row, line_count - 1))
+        line_text = doc.lines[row]
+        if linewise:
+            col = len(line_text) - len(line_text.lstrip())
+        else:
+            col = max(0, min(target_col, max(0, len(line_text) - 1)))
+        buff.cursor_position = doc.translate_row_col_to_index(row, col)
+
+    @kb.add('m', Keys.Any, filter=in_navigation_mode & ~vi_waiting_for_text_object_mode)
+    def set_buffer_mark(event):
+        """Record a buffer-local lowercase mark (`m{a-z}`) at the cursor position."""
+        mark = event.data
+        if len(mark) != 1 or not ('a' <= mark <= 'z'):
+            return
+        eb = _resolve_editor_buffer(event.current_buffer)
+        if eb is None:
+            return
+        doc = event.current_buffer.document
+        eb.marks[mark] = (doc.cursor_position_row, doc.cursor_position_col)
+
+    @kb.add("'", Keys.Any, filter=in_navigation_mode & ~vi_waiting_for_text_object_mode)
+    def jump_to_mark_line(event):
+        """Jump to the first non-blank character on a marked line (`'{mark}`)."""
+        _jump_to_mark(event, linewise=True)
+
+    @kb.add('`', Keys.Any, filter=in_navigation_mode & ~vi_waiting_for_text_object_mode)
+    def jump_to_mark_exact(event):
+        """Jump to the exact row and column of a mark (`` `{mark} ``)."""
+        _jump_to_mark(event, linewise=False)
+
     # Word-occurrence search with history (docs/bugs/122.md): like the
     # prompt_toolkit `*` / `#` defaults, plus a search-history entry so
     # `/<Up>` recalls the pattern and bare `:s` reuses it.

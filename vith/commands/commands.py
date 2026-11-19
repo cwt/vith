@@ -1215,6 +1215,135 @@ def show_messages(editor):
     editor.show_info('\n'.join(lines), title='[Messages]')
 
 
+def _format_register_type(selection_type: Any) -> str:
+    if selection_type == SelectionType.LINES:
+        return 'l'
+    if selection_type == SelectionType.BLOCK:
+        return 'b'
+    return 'c'
+
+
+def _format_register_preview(text: str, max_len: int = 200) -> str:
+    preview = text.replace('\r', '^M').replace('\n', '^J').replace('\t', '^I')
+    if len(preview) > max_len:
+        return preview[: max_len - 3] + '...'
+    return preview
+
+
+def _register_sort_key(name: str) -> tuple[int, str]:
+    if name.isdigit():
+        return (0, name)
+    if 'a' <= name <= 'z':
+        return (1, name)
+    return (2, name)
+
+
+def registers_lines(editor: Any) -> list[str]:
+    """
+    Build Vim-style `:registers` lines from the unnamed clipboard (`""`) and
+    non-empty named registers on `editor.application.vi_state.named_registers`.
+    """
+    rows: list[str] = []
+    app = getattr(editor, 'application', None)
+    if app is None:
+        return []
+
+    clipboard = getattr(app, 'clipboard', None)
+    if clipboard is not None:
+        unnamed = clipboard.get_data()
+        if unnamed is not None and unnamed.text:
+            rtype = _format_register_type(getattr(unnamed, 'type', SelectionType.CHARACTERS))
+            rows.append(f'  {rtype}  ""   {_format_register_preview(unnamed.text)}')
+
+    vi_state = getattr(app, 'vi_state', None)
+    named_registers = getattr(vi_state, 'named_registers', None) or {}
+    for name in sorted(named_registers.keys(), key=_register_sort_key):
+        data = named_registers[name]
+        if data is not None and data.text:
+            rtype = _format_register_type(getattr(data, 'type', SelectionType.CHARACTERS))
+            rows.append(f'  {rtype}  "{name}   {_format_register_preview(data.text)}')
+
+    if not rows:
+        return []
+    return ['Type Name Content', *rows]
+
+
+@cmd('registers')
+@cmd('reg')
+def show_registers(editor: Any) -> None:
+    """
+    Display non-empty registers in a read-only split inside vith
+    (`:reg` / `:registers`).
+    """
+    lines = registers_lines(editor)
+    if not lines:
+        editor.show_message('No registers', record=False)
+        return
+    editor.show_info('\n'.join(lines), title='[Registers]')
+
+
+def marks_lines(editor: Any) -> list[str]:
+    """
+    Build Vim-style `:marks` lines from buffer-local marks and `'<` / `'>`
+    visual line marks on the active buffer.
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return []
+
+    doc = eb.buffer.document
+    doc_lines = doc.lines
+    line_count = len(doc_lines)
+    collected: list[tuple[str, int, int]] = []
+
+    raw_marks: dict[str, Any] = {}
+    buf_marks = getattr(eb.buffer, 'marks', None)
+    if isinstance(buf_marks, dict):
+        raw_marks.update(buf_marks)
+    eb_marks = getattr(eb, 'marks', None)
+    if isinstance(eb_marks, dict):
+        raw_marks.update(eb_marks)
+
+    for name in sorted(raw_marks.keys()):
+        pos = raw_marks[name]
+        if isinstance(pos, tuple) and len(pos) == 2:
+            row, col = int(pos[0]), int(pos[1])
+        elif isinstance(pos, int):
+            clamped = max(0, min(pos, len(doc.text)))
+            row, col = doc.translate_index_to_position(clamped)
+        else:
+            continue
+        collected.append((str(name), row, col))
+
+    visual_marks = getattr(eb, 'visual_marks', None)
+    if visual_marks is not None:
+        start_row, end_row = visual_marks
+        collected.append(('<', int(start_row), 0))
+        collected.append(('>', int(end_row), 0))
+
+    if not collected:
+        return []
+
+    rows = ['mark line  col file/text']
+    for name, row, col in collected:
+        line_text = doc_lines[row] if 0 <= row < line_count else ''
+        rows.append(f' {name:<3} {row + 1:>4} {col:>4} {line_text}')
+    return rows
+
+
+@cmd('marks')
+def show_marks(editor: Any) -> None:
+    """
+    Display marks recorded on the active buffer (including `'<` / `'>`) in a
+    read-only split inside vith (`:marks`).
+    """
+    lines = marks_lines(editor)
+    if not lines:
+        editor.show_message('No marks', record=False)
+        return
+    editor.show_info('\n'.join(lines), title='[Marks]')
+
+
 @cmd('h')
 @cmd('help')
 def help(editor):
