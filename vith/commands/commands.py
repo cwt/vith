@@ -1875,3 +1875,180 @@ def join_lines(editor, variables):
 
     new_lines = lines[:start_row] + [joined] + lines[end_row + 1 :]
     replace_buffer_lines(editor, eb, new_lines, start_row, first_non_blank=True)
+
+
+_FIRST_INT_RE = re.compile(r'-?\d+')
+
+
+@_cmd('sort')
+def sort_lines(editor: Any, variables: Any) -> None:
+    """
+    Sort lines in range (`:[range]sort[!] [i][u][r][n]`, default range `%`).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    bounds, err = resolve_range_str(variables.get('cmd_range'), eb, default_range='%')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    reverse = bool(variables.get('force'))
+    ignore_case = False
+    unique = False
+    numeric = False
+    flags_text = variables.get('cmd_arg') or ''
+    for ch in flags_text:
+        match ch:
+            case 'i':
+                ignore_case = True
+            case 'u':
+                unique = True
+            case 'r':
+                reverse = True
+            case 'n':
+                numeric = True
+            case _:
+                editor.show_message(f'E488: Trailing characters: {ch}')
+                return
+
+    start_row, end_row = bounds
+    lines = list(eb.buffer.document.lines)
+    segment = lines[start_row : end_row + 1]
+
+    def sort_key(line: str) -> Any:
+        text_part = line.casefold() if ignore_case else line
+        if numeric:
+            m = _FIRST_INT_RE.search(line)
+            if m is None:
+                return (0, 0, text_part)
+            return (1, int(m.group(0)), text_part)
+        return text_part
+
+    sorted_segment = sorted(segment, key=sort_key, reverse=reverse)
+
+    if unique:
+        deduped: list[str] = []
+        seen: set[Any] = set()
+        for line in sorted_segment:
+            if numeric:
+                m = _FIRST_INT_RE.search(line)
+                if m is None:
+                    dedup_key: Any = (0, line.casefold() if ignore_case else line)
+                else:
+                    dedup_key = (1, int(m.group(0)))
+            else:
+                dedup_key = line.casefold() if ignore_case else line
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                deduped.append(line)
+        sorted_segment = deduped
+
+    new_lines = lines[:start_row] + sorted_segment + lines[end_row + 1 :]
+    replace_buffer_lines(editor, eb, new_lines, start_row, first_non_blank=True)
+
+
+def _encode_retab_ws(start_col: int, end_col: int, new_ts: int, expand_tab: bool) -> str:
+    width = end_col - start_col
+    if width <= 0:
+        return ''
+    if expand_tab:
+        return ' ' * width
+    out: list[str] = []
+    col = start_col
+    while col < end_col:
+        next_stop = col + (new_ts - (col % new_ts))
+        if next_stop <= end_col:
+            out.append('\t')
+            col = next_stop
+        else:
+            out.append(' ' * (end_col - col))
+            col = end_col
+    return ''.join(out)
+
+
+def _retab_line(line: str, old_ts: int, new_ts: int, expand_tab: bool, force: bool) -> str:
+    from prompt_toolkit.utils import get_cwidth
+
+    out: list[str] = []
+    col = 0
+    i = 0
+    length = len(line)
+
+    while i < length:
+        if line[i] in (' ', '\t'):
+            start_col = col
+            start_i = i
+            has_tab = False
+            while i < length and line[i] in (' ', '\t'):
+                if line[i] == '\t':
+                    has_tab = True
+                    col += old_ts - (col % old_ts)
+                else:
+                    col += 1
+                i += 1
+            run = line[start_i:i]
+            if expand_tab:
+                if has_tab:
+                    out.append(_encode_retab_ws(start_col, col, new_ts, True))
+                else:
+                    out.append(run)
+            elif start_col == 0 or has_tab or (force and len(run) >= 2):
+                out.append(_encode_retab_ws(start_col, col, new_ts, False))
+            else:
+                out.append(run)
+        else:
+            ch = line[i]
+            out.append(ch)
+            col += max(0, get_cwidth(ch))
+            i += 1
+
+    return ''.join(out)
+
+
+@_cmd('retab')
+def retab_lines(editor, variables):
+    """
+    Re-expand tabs and spaces in range (`:[range]retab[!] [N]`, default `%`).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    bounds, err = resolve_range_str(variables.get('cmd_range'), eb, default_range='%')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    old_ts = eb.tabstop
+    cmd_arg = variables.get('cmd_arg')
+    if cmd_arg is not None:
+        try:
+            new_ts = int(cmd_arg)
+        except ValueError:
+            editor.show_message(f'E474: Invalid argument: {cmd_arg}')
+            return
+        if new_ts < 1:
+            editor.show_message(f'E474: Invalid argument: {cmd_arg}')
+            return
+    else:
+        new_ts = old_ts
+
+    force = bool(variables.get('force'))
+    expand_tab = bool(getattr(editor, 'expand_tab', True))
+    start_row, end_row = bounds
+    lines = list(eb.buffer.document.lines)
+    for row in range(start_row, end_row + 1):
+        lines[row] = _retab_line(lines[row], old_ts, new_ts, expand_tab, force)
+
+    if cmd_arg is not None:
+        eb.tabstop = new_ts
+
+    replace_buffer_lines(editor, eb, lines, start_row, first_non_blank=True)

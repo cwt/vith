@@ -33,6 +33,9 @@ COMMAND_GRAMMAR = compile(
         # Range move/copy commands (:m, :t, :co with destination address).
         (?P<cmd_range>%(range)s)? \s* (?P<command>move|copy|co|m|t) (\s* (?P<dest_addr>%(addr)s) | \s+ (?P<dest_addr>[^\s]+))?   |
 
+        # Range sort and retab commands.
+        (?P<cmd_range>%(range)s)? \s* (?P<command>sort|retab)(?P<force>!?) (\s+ (?P<cmd_arg>[^\s]+))?   |
+
         # Commands accepting a location.
         (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>[^\s]+)   |
 

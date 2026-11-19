@@ -246,6 +246,9 @@ def test_range_line_editing_grammar_and_non_collisions():
         (':1,3t $', '1,3', 't', None, None, '$'),
         (':co.', None, 'co', None, None, '.'),
         (':t0', None, 't', None, None, '0'),
+        (':sort', None, 'sort', '', None, None),
+        (':2,5sort! iu', '2,5', 'sort', '!', 'iu', None),
+        (':%retab! 4', '%', 'retab', '!', '4', None),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line

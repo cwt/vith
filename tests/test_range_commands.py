@@ -255,3 +255,93 @@ def test_move_copy_and_join_range_commands(editor):
         editor.message = None
         handle_command(editor, cmd_str)
         assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
+
+
+def test_sort_command_flags_ranges_unicode_thai_and_undo(editor):
+    # Empty arrangement guard.
+    handle_command(editor, ':sort')
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'cherry\nApple\nbanana\napple'
+
+    # Default range `%` sorts ascending case-sensitively.
+    handle_command(editor, ':sort')
+    assert eb.buffer.document.lines == ['Apple', 'apple', 'banana', 'cherry']
+    handle_command(editor, ':u')
+
+    # Case-insensitive unique reverse (`:sort! iu`).
+    handle_command(editor, ':sort! iu')
+    assert eb.buffer.document.lines == ['cherry', 'banana', 'Apple']
+    handle_command(editor, ':u')
+
+    # Numeric sort (`:sort n`) + reverse flag `r`.
+    eb.buffer.text = 'item 10\nitem 2\nheader\nitem -3\nitem 2 dup'
+    handle_command(editor, ':sort n')
+    assert eb.buffer.document.lines == ['header', 'item -3', 'item 2', 'item 2 dup', 'item 10']
+    handle_command(editor, ':sort nr')
+    assert eb.buffer.document.lines == ['item 10', 'item 2 dup', 'item 2', 'item -3', 'header']
+    handle_command(editor, ':sort nu')
+    assert eb.buffer.document.lines == ['header', 'item -3', 'item 2', 'item 10']
+
+    # Sub-range sort leaves lines outside range untouched; supports Thai lines.
+    reset_thai_text_gate()
+    eb.buffer.text = 'HEADER\nฮูก\nกบ\nขวด\nFOOTER'
+    handle_command(editor, ':2,4sort')
+    assert eb.buffer.document.lines == ['HEADER', 'กบ', 'ขวด', 'ฮูก', 'FOOTER']
+    assert _THAI_GATE.value
+
+    # Invalid flag reports E488; read-only reports E21.
+    handle_command(editor, ':sort z')
+    assert editor.message == 'E488: Trailing characters: z'
+
+    eb.buffer.read_only = to_filter(True)
+    handle_command(editor, ':sort')
+    assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
+
+
+def test_retab_command_expand_and_unexpand_with_tabstop(editor):
+    # Empty arrangement guard.
+    handle_command(editor, ':retab')
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.tabstop = 4
+
+    # With expandtab=True, `:retab` expands tabs to visual tabstops.
+    editor.expand_tab = True
+    eb.buffer.text = '\thello\n  \tworld\n\tkeep'
+    handle_command(editor, ':1,2retab')
+    assert eb.buffer.document.lines == ['    hello', '    world', '\tkeep']
+    handle_command(editor, ':u')
+    assert eb.buffer.document.lines == ['\thello', '  \tworld', '\tkeep']
+
+    # With expandtab=False, `:retab` converts leading indent only; `:retab!` converts interior runs too.
+    editor.expand_tab = False
+    eb.buffer.text = '    a   b'
+    handle_command(editor, ':retab')
+    assert eb.buffer.text == '\ta   b'
+
+    eb.buffer.text = '    a   b'
+    handle_command(editor, ':retab! 4')
+    assert eb.buffer.text == '\ta\tb'
+    assert eb.tabstop == 4
+
+    # Explicit new tabstop updates buffer tabstop and re-aligns visual columns.
+    eb.tabstop = 4
+    eb.buffer.text = '\tfoo'
+    editor.expand_tab = False
+    handle_command(editor, ':retab 2')
+    assert eb.tabstop == 2
+    assert eb.buffer.text == '\t\tfoo'
+
+    # Invalid argument reports E474; read-only reports E21 without altering tabstop.
+    handle_command(editor, ':retab 0')
+    assert editor.message == 'E474: Invalid argument: 0'
+    handle_command(editor, ':retab abc')
+    assert editor.message == 'E474: Invalid argument: abc'
+
+    eb.buffer.read_only = to_filter(True)
+    handle_command(editor, ':retab 8')
+    assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
+    assert eb.tabstop == 2
