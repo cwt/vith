@@ -1,18 +1,18 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 129 machine-verified findings across 7 audit rounds and 3 addenda (001–129, all 129 closed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 150 machine-verified findings across 8 audit rounds and 3 addenda (001–150; 129 closed, 21 open in Round 8)."
 status: stable
 sources:
   - docs/bugs/
   - docs/
 verified: machine-confirmed
-stale_after: 2027-01-01T00:00:00Z
-tags: [bugs, findings, audit, round-6, round-7]
+stale_after: 2027-05-19T00:00:00Z
+tags: [bugs, findings, audit, round-6, round-7, round-8]
 generated:
   by: "OpenCode"
-  at: "2026-11-10T00:00:00Z"
-timestamp: "2026-11-10T00:00:00Z"
+  at: "2026-11-19T19:15:00Z"
+timestamp: "2026-11-19T19:15:00Z"
 ---
 
 # vith Findings Bundle
@@ -30,6 +30,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 5 (2026-11-09, hg rev 256 / `v0.11.1` — [093](093.md)–[109](109.md), `fix_status: fixed`)**: 17 machine-confirmed findings from a fresh full-project re-audit of the *fully-fixed* tree (4 parallel auditors + dynamic probes: 6 000 random command strings, 4 000 random window/tab ops, end-to-end preview/substitute/paste/undo flows). Two documented fixes are **regressed** — [093](093.md) (091 previewer still leaks `ignore_case`) and [102](102.md) (090's lazy-import hoist was never applied) — plus new Vim-semantics defects ([094](094.md)–[096](096.md)), an incomplete [081](081.md) gate fix ([097](097.md)), a renderer state leak ([098](098.md)), tooling/test-quality gaps ([099](099.md)–[101](101.md)), and cleanup inventories ([103](103.md)–[109](109.md)). All 17 findings fixed finding-by-finding across hg rev 258–275 (217 passed / 1 skipped, `mypy .` 56 files clean, ruff clean, Python 3.10 floor intact).
 * **Round 6 (2026-11-09, hg rev 283+ — [110](110.md)–[115](115.md), `fix_status: fixed`)**: 6 deep-audit inventories covering wrong-logic bugs ([110](110.md)), robustness and `None`-safety ([111](111.md)), dead code ([112](112.md)), duplicate logic ([113](113.md)), unoptimized algorithms and memory growth ([114](114.md)), and low readability ([115](115.md)). All items across all 6 inventories resolved with regression tests (247 passed, `mypy .` 57 files clean, ruff clean).
 * **Round 7 addendum (2026-11-09–10, user field reports — [124](124.md)–[126](126.md), `fix_status: fixed`)**: missing `:next` / `:previous` file cycling ([124](124.md)), a tab-bar click crash from a two-argument mouse handler ([125](125.md)), and `:next` duplicating the tab-bar entry in multi-tab sessions ([126](126.md), 124 follow-up). Each fixed one-by-one with regression tests (279 passed, `mypy .` 57 files clean, ruff clean).
+* **Round 8 (2026-11-19, hg rev 358 — [130](130.md)–[150](150.md), `fix_status: open`)**: 17 defects and 4 inventories from a fresh full-project re-audit focused on the post-`v0.14.0` Ex command work. Highlights: `:w %`/`:sav <current>` same-file rejection ([130](130.md)); `:wq`/`ZZ` exiting the app and discarding other windows ([131](131.md)); `:only`/`:tabonly`/`:tabclose` scope and dirty-guard gaps ([132](132.md)); `:e` crashes on read-only/directory buffers ([133](133.md)); mouse-focus dispatch to the wrong buffer ([134](134.md)); `:g` substitute bookkeeping ([135](135.md)); search-buffer Tab ([136](136.md)); non-UTF-8 shell crashes ([137](137.md)); TOML validation/detection ([138](138.md)); Vim `&`/`~` replacement semantics ([139](139.md)); CRLF loss ([140](140.md)); CJK visual-column drift ([141](141.md)); ReDoS guard bypass ([142](142.md)); plus `:normal` range, `:retab`, `:cq`, Thai-gate, and cleanup/perf/readability inventories. All 21 are open pending fixes.
 * **Round 7 (2026-11-09, upstream triage — [116](116.md)–[123](123.md), `fix_status: fixed`)**: 8 worth-fixing upstream `prompt-toolkit/pyvim` issues that still reproduced in `vith`, filed as new findings and fixed one-by-one with regression tests (274 passed, `mypy .` 57 files clean, ruff clean): `ZZ`/`ZQ` ([116](116.md)), `:w!` read-only ([117](117.md)), `>>`/`<<` vs `tabstop` ([118](118.md)), `Ctrl-[` ([119](119.md)), counted `i`/`a` ([120](120.md)), extensionless highlight ([121](121.md)), `*` history ([122](122.md)), `:s` ReDoS guard ([123](123.md)).
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
@@ -291,7 +292,7 @@ findings were merged and the open set renumbered into contiguous 063–075
 
 ## Round 7 Addendum Findings (2026-11-09–12 field reports & improvements → `fix_status: fixed`)
 
-**Resolution note (2026-11-09–12):** six user-reported field bugs and improvements fixed one-by-one with regression tests (one commit per item). Gates: **338 passed**, `mypy .` 61 files clean, ruff clean. All 129 bundle findings are now closed.
+**Resolution note (2026-11-09–12):** six user-reported field bugs and improvements fixed one-by-one with regression tests (one commit per item). Gates: **338 passed**, `mypy .` 61 files clean, ruff clean. All 129 pre-Round-8 bundle findings are closed; Round 8 adds 21 open findings.
 
 ### Defects & Improvements (`fix_status: fixed`)
 
@@ -320,6 +321,45 @@ findings were merged and the open set renumbered into contiguous 063–075
 | [121](121.md) | Extensionless Python files get no highlighting (upstream #74) | lexer | low |
 | [122](122.md) | `*` search does not enter search history (upstream #89) | search/history | low |
 | [123](123.md) | `:s` regex has no catastrophic-backtracking guard (upstream #159, CWE-1333) | commands/security | medium |
+
+## Round 8 Findings (2026-11-19 full re-audit, hg rev 358 → `fix_status: open`)
+
+**Scope and method:** a fresh read-only full-project re-audit after the `v0.14.0`
+Ex-command work (hg rev 358 `ff583fcf26ba`, 424 tests passing). Source, tests,
+tools, examples, and docs were inspected; every finding below was reproduced
+with a focused probe (Python-level command dispatch, key-processor feeds, or a
+`vim -Nu NONE -n -es` comparison). No source files were changed by this audit.
+
+### Defects (`type: bug`, `fix_status: open`)
+
+| ID | Finding | Area | Priority |
+| :--- | :--- | :--- | :--- |
+| [130](130.md) | `:w %` / `:w <current>` / `:wq %` / `:up %` / `:x %` / `:sav <current>` rejected by the overwrite guard | commands/write | **high** |
+| [131](131.md) | `:wq`/`ZZ` exit the app and discard other windows; `ZZ` is not `:x`; `:q` over-blocks shared dirty buffers | commands/quit | **high** |
+| [132](132.md) | `:only` closes other tab pages; `:tabonly`/`:tabclose` ignore dirty buffers and `!` | commands/tabs | medium |
+| [133](133.md) | `:e`/`:e!` crash with `EditReadOnlyBuffer` on read-only/directory buffers; reload keeps stale pyflakes state | commands/edit | **high** |
+| [134](134.md) | Mouse focus does not update `WindowArrangement.active_window`; Ex commands mutate the wrong buffer | layout/windows | **high** |
+| [135](135.md) | `:g/.../s/.../` loses last-search/last-replacement bookkeeping; bare `:s` uses the global pattern | commands/global | medium |
+| [136](136.md) | Tab in the `/` search buffer inserts indentation into the search pattern | key-bindings/search | medium |
+| [137](137.md) | Non-UTF-8 shell output crashes `:r !`, `:[range]!`, and `:w !` | commands/shell | medium |
+| [138](138.md) | TOML config bypasses type/bounds validation; `.vithrc` detection ignores top-level `colorscheme`/`colorcolumn` | config/toml | medium |
+| [139](139.md) | `:s` replacement uses Python semantics (`&`, `\&`, `\n`) instead of Vim `&`/`~`/`\r` | commands/substitute | medium |
+| [140](140.md) | CRLF files are silently saved as LF (no `fileformat` tracking) | io/editor-buffer | medium |
+| [141](141.md) | Double-width CJK/emoji break `j`/`k` visual columns and visual-block rectangles | thai/unicode/layout | medium |
+| [142](142.md) | ReDoS guard misses overlapping alternations/counted quantifiers (`(a|aa)+$`) | commands/security | medium |
+| [143](143.md) | `:[range]normal` skips rows after line-count changes instead of clamping | commands/normal | low |
+| [144](144.md) | `:retab` without `!` rewrites leading spaces when `noexpandtab` | commands/retab | low |
+| [145](145.md) | `:cq` exits with status 0 despite the documented error code | commands/cli | low |
+| [146](146.md) | Thai gate is not latched by `show_message`, so Thai toolbar text can skip SARA-AM sanitization | thai/renderer | low |
+
+### Improvements & inventories (`type: improvement`, `fix_status: open`)
+
+| ID | Finding | Category | Priority |
+| :-- | :--- | :--- | :--- |
+| [147](147.md) | Low-severity Vim-semantics deviations (`:colorscheme`, `:f`, `:w >>`, register args, `:setlocal`, smartcase) | wrong logic | low |
+| [148](148.md) | Dead-code and duplicate-logic inventory (write guards, substitute pipelines, option catalogs, backend lookup, cleanups) | dead code/duplication | low |
+| [149](149.md) | Unoptimized algorithms/state loss (`:g` move/copy O(m·n), full-document rebuilds, cache keys, tab frames) | performance/memory | low |
+| [150](150.md) | Readability, missing regression tests, and help/docs drift (3,213-line `commands.py`, stale docstrings, bundle counts) | readability/docs | low |
 
 ## Meta
 
