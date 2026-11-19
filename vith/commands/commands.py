@@ -201,36 +201,55 @@ def set_cmd(name, accepts_value=False):
 # Actual command implementations
 
 
+def parse_set_tokens(variables: Any) -> list[tuple[str, str | None]]:
+    """
+    Extract `(option, value)` tokens from matched `:set` / `:setlocal`
+    grammar variables (supporting bare `:set` and multi-argument `:set`).
+    """
+    first_opt = variables.get('set_option')
+    if first_opt is None:
+        return []
+    tokens: list[tuple[str, str | None]] = [(first_opt, variables.get('set_value'))]
+    rest = variables.get('set_rest')
+    if rest:
+        for raw_tok in rest.split():
+            if '=' in raw_tok:
+                opt_name, opt_val = raw_tok.split('=', 1)
+                tokens.append((opt_name, opt_val))
+            else:
+                tokens.append((raw_tok, None))
+    return tokens
+
+
 @_cmd('set')
 @_cmd('setlocal')
 @_cmd('setl')
-def set_command_execute(editor, variables):
+def set_command_execute(editor: Any, variables: Any) -> None:
     """
-    Execute a ':set' or ':setlocal' command.
+    Execute a `:set` / `:setlocal` / `:setl` command (supporting bare `:set`,
+    `:set all`, queries `opt?`, toggles `opt!` / `invopt`, and multi-argument
+    option lists).
     """
-    option = variables.get('set_option')
-    value = variables.get('set_value')
+    if variables.get('force'):
+        editor.show_message('No ! allowed')
+        return
+
     command = variables.get('command')
     is_local = command in ('setlocal', 'setl')
+    tokens = parse_set_tokens(variables)
 
-    if option in SET_COMMANDS:
-        # Call the correct handler.
-        if option in SET_COMMANDS_TAKING_VALUE:
-            if is_local and option in ('tabstop', 'ts'):
-                _set_int_option(editor, value, 'tabstop', 'tabstop', 1, is_local=True)
-            elif is_local and option in ('filetype', 'ft'):
-                set_filetype(editor, value)
-            else:
-                SET_COMMANDS[option](editor, value)
-        else:
-            if is_local and option in ('tabstop', 'ts'):
-                _set_int_option(editor, None, 'tabstop', 'tabstop', 1, is_local=True)
-            elif is_local and option in ('filetype', 'ft'):
-                set_filetype(editor, None)
-            else:
-                SET_COMMANDS[option](editor)
-    else:
-        editor.show_message('Unknown option: %s' % option)
+    if not tokens:
+        lines = set_options_lines(editor, show_all=False)
+        editor.show_info('\n'.join(lines), title='[Options]')
+        return
+
+    queries: list[str] = []
+    for opt, value in tokens:
+        if not _apply_set_token(editor, opt, value, is_local=is_local, queries=queries):
+            return
+
+    if queries:
+        editor.show_message('  '.join(queries))
 
 
 @cmd('bnext', accepts_force=True)
@@ -1363,12 +1382,13 @@ def color_scheme(editor, variables):
         editor.use_colorscheme(colorscheme)
 
 
-def _set_int_option(editor, value, attribute, display_name, minimum, is_local=False):
+def _set_int_option(editor, value, attribute, display_name, minimum, is_local=False) -> bool:
     """
     Shared implementation of the integer-valued `:set` handlers.
 
     `value is None` displays the current value; invalid input shows vim-like
     error messages; otherwise the attribute is set when `value >= minimum`.
+    Returns `True` on success, `False` on validation/state error.
     """
     if value is None:
         if attribute == 'tabstop':
@@ -1377,35 +1397,55 @@ def _set_int_option(editor, value, attribute, display_name, minimum, is_local=Fa
         else:
             current_value = getattr(editor, attribute)
         editor.show_message('%s=%i' % (display_name, current_value))
-        return
+        return True
     try:
         number = int(value)
     except ValueError:
         editor.show_message('Number required after =')
-        return
+        return False
     if number < minimum:
         editor.show_message('Argument must be positive')
-    else:
-        if attribute == 'tabstop':
-            eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
-            if is_local:
-                if eb is not None:
-                    eb.tabstop = number
-                else:
-                    editor.show_message('No buffer')
-                    return
+        return False
+    if attribute == 'tabstop':
+        eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+        if is_local:
+            if eb is not None:
+                eb.tabstop = number
             else:
-                setattr(editor, attribute, number)
-                if eb is not None:
-                    eb.tabstop = number
+                editor.show_message('No buffer')
+                return False
         else:
             setattr(editor, attribute, number)
-        try:
-            from prompt_toolkit.application.current import get_app
+            if eb is not None:
+                eb.tabstop = number
+    else:
+        setattr(editor, attribute, number)
+    try:
+        from prompt_toolkit.application.current import get_app
 
-            get_app().invalidate()
-        except Exception:
-            pass
+        get_app().invalidate()
+    except Exception:
+        pass
+    return True
+
+
+def _set_list_option(editor: Any, value: str | None, attribute: str, display_name: str) -> bool:
+    """Set or display a comma-separated integer list option (e.g. `colorcolumn`)."""
+    if value is None:
+        current = getattr(editor, attribute)
+        formatted = ','.join(str(v) for v in current)
+        editor.show_message(f'{display_name}={formatted}')
+        return True
+    try:
+        if value:
+            numbers = [int(val) for val in value.split(',')]
+        else:
+            numbers = []
+    except ValueError:
+        editor.show_message('Invalid value. Expecting comma separated list of integers')
+        return False
+    setattr(editor, attribute, numbers)
+    return True
 
 
 #: Canonical `:set` option catalog — the single source of truth for option
@@ -1442,10 +1482,15 @@ SET_INT_OPTIONS = (
 #: (display name, editor attribute, aliases) — comma-separated integer list.
 SET_LIST_OPTIONS = (('colorcolumn', 'colorcolumn', ('colorcolumn', 'cc')),)
 
+_TOGGLE_ON_MAP: dict[str, tuple[str, str]] = {}
+_TOGGLE_OFF_MAP: dict[str, tuple[str, str]] = {}
+_INT_OPTION_MAP: dict[str, tuple[str, str, int]] = {}
+_LIST_OPTION_MAP: dict[str, tuple[str, str]] = {}
+
 
 def _register_generated_set_options() -> None:
     """Materialize the `:set` catalog into `SET_COMMANDS` (docs/bugs/073.md)."""
-    for _display, attribute, on_names, off_names in SET_TOGGLE_GROUPS:
+    for display, attribute, on_names, off_names in SET_TOGGLE_GROUPS:
 
         def _on(editor, _attribute=attribute):
             setattr(editor, _attribute, True)
@@ -1457,8 +1502,10 @@ def _register_generated_set_options() -> None:
 
         for name in on_names:
             SET_COMMANDS[name] = _on
+            _TOGGLE_ON_MAP[name] = (display, attribute)
         for name in off_names:
             SET_COMMANDS[name] = _off
+            _TOGGLE_OFF_MAP[name] = (display, attribute)
 
     for display, attribute, names, minimum in SET_INT_OPTIONS:
 
@@ -1468,43 +1515,261 @@ def _register_generated_set_options() -> None:
         for name in names:
             SET_COMMANDS[name] = _int_option
             SET_COMMANDS_TAKING_VALUE.add(name)
+            _INT_OPTION_MAP[name] = (display, attribute, minimum)
 
-    for _display, attribute, names in SET_LIST_OPTIONS:
+    for display, attribute, names in SET_LIST_OPTIONS:
 
-        def _list_option(editor, value, _attribute=attribute):
-            try:
-                if value:
-                    numbers = [int(val) for val in value.split(',')]
-                else:
-                    numbers = []
-            except ValueError:
-                editor.show_message('Invalid value. Expecting comma separated list of integers')
-            else:
-                setattr(editor, _attribute, numbers)
+        def _list_option(editor, value, _attribute=attribute, _display=display):
+            _set_list_option(editor, value, _attribute, _display)
 
         for name in names:
             SET_COMMANDS[name] = _list_option
             SET_COMMANDS_TAKING_VALUE.add(name)
+            _LIST_OPTION_MAP[name] = (display, attribute)
 
 
 _register_generated_set_options()
 
 
+def _format_toggle_value(display: str, enabled: bool) -> str:
+    return display if enabled else f'no{display}'
+
+
+def _query_set_option(editor: Any, name: str) -> tuple[str | None, str | None]:
+    """
+    Format the current value of option `name` for `:set {opt}?` (or bare
+    value-option query). Returns `(formatted, None)` or `(None, error)`.
+    """
+    toggle_info = _TOGGLE_ON_MAP.get(name) or _TOGGLE_OFF_MAP.get(name)
+    if toggle_info is not None:
+        display, attr = toggle_info
+        return _format_toggle_value(display, bool(getattr(editor, attr))), None
+
+    if name in ('tildeop', 'top', 'notildeop', 'notop'):
+        enabled = bool(editor.application.vi_state.tilde_operator)
+        return _format_toggle_value('tildeop', enabled), None
+
+    int_info = _INT_OPTION_MAP.get(name)
+    if int_info is not None:
+        display, attr, _min = int_info
+        if attr == 'tabstop':
+            eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+            val = eb.tabstop if eb is not None else getattr(editor, attr)
+        else:
+            val = getattr(editor, attr)
+        return f'{display}={val}', None
+
+    list_info = _LIST_OPTION_MAP.get(name)
+    if list_info is not None:
+        display, attr = list_info
+        val = getattr(editor, attr)
+        return f"{display}={','.join(str(v) for v in val)}", None
+
+    if name in ('filetype', 'ft'):
+        eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+        if eb is None:
+            return None, 'No buffer'
+        return f'filetype={eb.filetype or ""}', None
+
+    return None, f'Unknown option: {name}'
+
+
+def _toggle_boolean_option(editor: Any, base_name: str) -> bool:
+    """Invert boolean option `base_name` (used by `opt!` and `invopt`)."""
+    toggle_info = _TOGGLE_ON_MAP.get(base_name)
+    if toggle_info is not None:
+        _display, attr = toggle_info
+        new_value = not bool(getattr(editor, attr))
+        setattr(editor, attr, new_value)
+        if attr == 'highlight_search' and new_value:
+            editor.clear_hlsearch_suppression()
+        return True
+    if base_name in ('tildeop', 'top'):
+        vi_state = editor.application.vi_state
+        vi_state.tilde_operator = not bool(vi_state.tilde_operator)
+        return True
+    return False
+
+
+def set_options_lines(editor: Any, show_all: bool = False) -> list[str]:
+    """
+    Build formatted option lines for bare `:set` (changed from defaults) and
+    `:set all` (all options), for display inside vith via `Editor.show_info`.
+    """
+    defaults = getattr(editor, '_default_options', {})
+    eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+    entries: list[str] = []
+
+    for display, attr, _on, _off in SET_TOGGLE_GROUPS:
+        cur = bool(getattr(editor, attr))
+        default_val = bool(defaults.get(attr, cur))
+        if show_all or cur != default_val:
+            entries.append(_format_toggle_value(display, cur))
+
+    tilde_cur = bool(editor.application.vi_state.tilde_operator)
+    if show_all or tilde_cur is not False:
+        entries.append(_format_toggle_value('tildeop', tilde_cur))
+
+    for display, attr, _names, _min in SET_INT_OPTIONS:
+        if attr == 'tabstop' and eb is not None:
+            cur_int = eb.tabstop
+        else:
+            cur_int = int(getattr(editor, attr))
+        default_int = int(defaults.get(attr, cur_int))
+        if show_all or cur_int != default_int:
+            entries.append(f'{display}={cur_int}')
+
+    for display, attr, _names in SET_LIST_OPTIONS:
+        cur_list = list(getattr(editor, attr))
+        default_list = list(defaults.get(attr, []))
+        if show_all or cur_list != default_list:
+            entries.append(f"{display}={','.join(str(v) for v in cur_list)}")
+
+    cur_ft = (eb.filetype or '') if eb is not None else ''
+    if show_all or cur_ft != '':
+        entries.append(f'filetype={cur_ft}')
+
+    entries.sort()
+    lines = ['--- Options ---']
+    if entries:
+        lines.extend(entries)
+    else:
+        lines.append('(all options at default values)')
+    return lines
+
+
+def _apply_set_token(
+    editor: Any,
+    opt: str,
+    value: str | None,
+    *,
+    is_local: bool,
+    queries: list[str],
+) -> bool:
+    """Apply a single `:set` / `:setlocal` token; returns `False` on error."""
+    if opt == 'all':
+        if value is not None:
+            editor.show_message(f'E474: Invalid argument: {opt}={value}')
+            return False
+        lines = set_options_lines(editor, show_all=True)
+        editor.show_info('\n'.join(lines), title='[Options]')
+        return True
+
+    if opt.endswith('?'):
+        if value is not None:
+            editor.show_message(f'E474: Invalid argument: {opt}={value}')
+            return False
+        text, err = _query_set_option(editor, opt[:-1])
+        if err is not None or text is None:
+            editor.show_message(err or f'Unknown option: {opt[:-1]}')
+            return False
+        queries.append(text)
+        return True
+
+    if opt.endswith('!'):
+        if value is not None:
+            editor.show_message(f'E474: Invalid argument: {opt}={value}')
+            return False
+        base = opt[:-1]
+        if _toggle_boolean_option(editor, base):
+            return True
+        if base in _INT_OPTION_MAP or base in _LIST_OPTION_MAP or base in ('filetype', 'ft'):
+            editor.show_message(f'E474: Invalid argument: {opt}')
+            return False
+        editor.show_message(f'Unknown option: {opt}')
+        return False
+
+    if opt.startswith('inv') and opt not in SET_COMMANDS:
+        base = opt[3:]
+        if base in _TOGGLE_ON_MAP or base in ('tildeop', 'top'):
+            if value is not None:
+                editor.show_message(f'E474: Invalid argument: {opt}={value}')
+                return False
+            _toggle_boolean_option(editor, base)
+            return True
+        editor.show_message(f'Unknown option: {opt}')
+        return False
+
+    if (
+        opt in _TOGGLE_ON_MAP
+        or opt in _TOGGLE_OFF_MAP
+        or opt
+        in (
+            'tildeop',
+            'top',
+            'notildeop',
+            'notop',
+        )
+    ):
+        if value is not None:
+            editor.show_message(f'E474: Invalid argument: {opt}={value}')
+            return False
+        SET_COMMANDS[opt](editor)
+        return True
+
+    int_info = _INT_OPTION_MAP.get(opt)
+    if int_info is not None:
+        display, attr, minimum = int_info
+        if value is None:
+            text, err = _query_set_option(editor, opt)
+            if err is not None or text is None:
+                editor.show_message(err or f'Unknown option: {opt}')
+                return False
+            queries.append(text)
+            return True
+        return _set_int_option(editor, value, attr, display, minimum, is_local=is_local)
+
+    list_info = _LIST_OPTION_MAP.get(opt)
+    if list_info is not None:
+        display, attr = list_info
+        if value is None:
+            text, err = _query_set_option(editor, opt)
+            if err is not None or text is None:
+                editor.show_message(err or f'Unknown option: {opt}')
+                return False
+            queries.append(text)
+            return True
+        return _set_list_option(editor, value, attr, display)
+
+    if opt in ('filetype', 'ft'):
+        if value is None:
+            text, err = _query_set_option(editor, opt)
+            if err is not None or text is None:
+                editor.show_message(err or f'Unknown option: {opt}')
+                return False
+            queries.append(text)
+            return True
+        return bool(set_filetype(editor, value))
+
+    if opt in SET_COMMANDS:
+        if opt in SET_COMMANDS_TAKING_VALUE:
+            SET_COMMANDS[opt](editor, value)
+        else:
+            if value is not None:
+                editor.show_message(f'E474: Invalid argument: {opt}={value}')
+                return False
+            SET_COMMANDS[opt](editor)
+        return True
+
+    editor.show_message('Unknown option: %s' % opt)
+    return False
+
+
 @set_cmd('filetype', accepts_value=True)
 @set_cmd('ft', accepts_value=True)
-def set_filetype(editor, value):
+def set_filetype(editor, value) -> bool:
     """Override the Pygments lexer for the active buffer (`:set ft=python`)."""
     eb = editor.window_arrangement.active_editor_buffer
     if eb is None:
         editor.show_message('No buffer')
-        return
+        return False
     if value is None:
         ft = eb.filetype
         if ft:
             editor.show_message('filetype=%s' % ft)
         else:
             editor.show_message('filetype=')
-        return
+        return True
     text = value.strip()
     if text == '' or text.lower() in ('off', 'none', 'auto'):
         eb.filetype_override = None
@@ -1515,14 +1780,14 @@ def set_filetype(editor, value):
             get_app().invalidate()
         except Exception:
             pass
-        return
+        return True
     try:
         from pygments.lexers import get_lexer_by_name
 
         lexer = get_lexer_by_name(text)
     except Exception:
         editor.show_message('Unknown filetype: %s' % value)
-        return
+        return False
     aliases = getattr(lexer, 'aliases', None)
     eb.filetype_override = aliases[0] if aliases else text
     eb.tabstop = None
@@ -1532,6 +1797,7 @@ def set_filetype(editor, value):
         get_app().invalidate()
     except Exception:
         pass
+    return True
 
 
 @set_cmd('tildeop')

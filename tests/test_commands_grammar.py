@@ -345,3 +345,23 @@ def test_normal_command_grammar():
         assert v.get('command') == exp_cmd, line
         assert v.get('force') == exp_force, line
         assert v.get('norm_keys') == exp_keys, line
+
+
+def test_set_grammar_bare_all_query_toggle_and_multi():
+    for line, exp_cmd, exp_opt, exp_val, exp_rest in (
+        (':set', 'set', None, None, None),
+        (':setlocal', 'setlocal', None, None, None),
+        (':set all', 'set', 'all', None, None),
+        (':set nu?', 'set', 'nu?', None, None),
+        (':set nu!', 'set', 'nu!', None, None),
+        (':set invnu', 'set', 'invnu', None, None),
+        (':set nu rnu ts=4 et', 'set', 'nu', None, 'rnu ts=4 et'),
+        (':setl ts=2 ft=python', 'setl', 'ts', '2', 'ft=python'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('command') == exp_cmd, line
+        assert v.get('set_option') == exp_opt, line
+        assert v.get('set_value') == exp_val, line
+        assert v.get('set_rest') == exp_rest, line

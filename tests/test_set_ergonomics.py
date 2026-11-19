@@ -193,3 +193,136 @@ def test_expand_error_on_empty_editor_shows_message(editor):
     # Active buffer is None (no files loaded): `:r %` shows E499 cleanly.
     handle_command(editor, ':r %')
     assert editor.message == "E499: Empty file name for '%'"
+
+
+def test_set_query_toggle_and_multi_argument(editor, tmp_path):
+    from vith.commands.commands import set_options_lines
+
+    f = tmp_path / 'sample.py'
+    f.write_text('x = 1\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+
+    # Boolean query `?`:
+    editor.show_line_numbers = True
+    handle_command(editor, ':set nu?')
+    assert editor.message == 'number'
+    editor.show_line_numbers = False
+    handle_command(editor, ':set number?')
+    assert editor.message == 'nonumber'
+
+    # Toggle via `!` and `inv`:
+    handle_command(editor, ':set nu!')
+    assert editor.show_line_numbers is True
+    handle_command(editor, ':set invnu')
+    assert editor.show_line_numbers is False
+    handle_command(editor, ':set invnumber')
+    assert editor.show_line_numbers is True
+
+    # Toggle `hls!` clears hlsearch suppression when turning on:
+    editor.highlight_search = False
+    editor._hlsearch_suppressed = True
+    handle_command(editor, ':set hls!')
+    assert editor.highlight_search is True
+    assert editor._hlsearch_suppressed is False
+
+    # Toggle `tildeop` via `!` and `inv` and query via `?`:
+    handle_command(editor, ':set top!')
+    assert editor.application.vi_state.tilde_operator is True
+    handle_command(editor, ':set top?')
+    assert editor.message == 'tildeop'
+    handle_command(editor, ':set invtildeop')
+    assert editor.application.vi_state.tilde_operator is False
+    handle_command(editor, ':set tildeop?')
+    assert editor.message == 'notildeop'
+
+    # Value queries (`?` and bare):
+    handle_command(editor, ':set ts=4 cc=80,100')
+    handle_command(editor, ':set ts?')
+    assert editor.message == 'tabstop=4'
+    handle_command(editor, ':set cc?')
+    assert editor.message == 'colorcolumn=80,100'
+    handle_command(editor, ':set cc')
+    assert editor.message == 'colorcolumn=80,100'
+    handle_command(editor, ':set cc=')
+    assert editor.colorcolumn == []
+    handle_command(editor, ':set ft?')
+    assert editor.message == 'filetype=python'
+
+    # Multi-argument `:set` applies left-to-right:
+    handle_command(editor, ':set nonu rnu ts=2 noet so=5')
+    assert editor.show_line_numbers is False
+    assert editor.relative_number is True
+    assert editor.tabstop == 2
+    assert editor.expand_tab is False
+    assert editor.scroll_offset == 5
+
+    # Multiple queries combined:
+    handle_command(editor, ':set nu? rnu? ts?')
+    assert editor.message == 'nonumber  relativenumber  tabstop=2'
+
+    # Error handling:
+    handle_command(editor, ':set ts!')
+    assert 'E474' in editor.message
+    handle_command(editor, ':set nu=1')
+    assert 'E474' in editor.message
+    handle_command(editor, ':set bogus?')
+    assert editor.message == 'Unknown option: bogus'
+    handle_command(editor, ':set invbogus')
+    assert editor.message == 'Unknown option: invbogus'
+    handle_command(editor, ':set!')
+    assert editor.message == 'No ! allowed'
+
+    # Bare `:set` and `:set all` open inside vith as `[Options]` read-only splits:
+    changed_lines = set_options_lines(editor, show_all=False)
+    assert changed_lines[0] == '--- Options ---'
+    assert 'nonumber' in changed_lines
+    assert 'relativenumber' in changed_lines
+    assert 'tabstop=2' in changed_lines
+
+    all_lines = set_options_lines(editor, show_all=True)
+    assert len(all_lines) > len(changed_lines)
+    assert 'filetype=python' in all_lines
+
+    handle_command(editor, ':set')
+    info_eb = editor.window_arrangement.active_editor_buffer
+    assert info_eb.is_scratch is True
+    assert info_eb.scratch_title == '[Options]'
+    assert 'nonumber' in info_eb.buffer.text
+    handle_command(editor, ':q')
+
+    handle_command(editor, ':set all')
+    all_eb = editor.window_arrangement.active_editor_buffer
+    assert all_eb.is_scratch is True
+    assert all_eb.scratch_title == '[Options]'
+    assert 'wrap' in all_eb.buffer.text
+    handle_command(editor, ':q')
+
+
+def test_bare_set_when_all_defaults(editor):
+    from vith.commands.commands import set_options_lines
+
+    _open_files(editor, [None])
+    lines = set_options_lines(editor, show_all=False)
+    assert lines == ['--- Options ---', '(all options at default values)']
+
+
+def test_set_completion_multi_arg_all_and_inv(editor):
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+
+    from vith.commands.completer import create_command_completer
+
+    completer = create_command_completer(editor)
+
+    def complete(text):
+        doc = Document(text, len(text))
+        return [c.text for c in completer.get_completions(doc, CompleteEvent())]
+
+    assert 'all' in complete('set a')
+    assert 'number' in complete('set nu ')
+    assert 'relativenumber' in complete('set nu r')
+    assert 'invnumber' in complete('set invn')
+    assert 'invnu' in complete('set invn')
+    assert 'invtildeop' in complete('set invt')
+    assert 'python' in complete('set nu ft=py')
+    assert complete('set nu tabstop=') == []

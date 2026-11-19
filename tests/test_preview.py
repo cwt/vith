@@ -145,3 +145,33 @@ def test_preview_list_value_uses_catalog_attribute(editor):
     previewer = CommandPreviewer(editor)
     previewer._preview_list_value(editor, 'colorcolumn', {'set_value': '4,8'})
     assert editor.colorcolumn == [4, 8]
+
+
+def test_preview_multi_option_toggle_and_side_effect_free_queries(editor):
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    previewer = get_previewer(editor)
+
+    # Multi-argument preview applies all options and restores all on abort.
+    previewer.preview(':set nu rnu tabstop=8 cc=80')
+    assert editor.show_line_numbers is True
+    assert editor.relative_number is True
+    assert editor.tabstop == 8
+    assert editor.colorcolumn == [80]
+
+    # Toggle preview (`!` and `inv`):
+    previewer.preview(':set nu! invrnu')
+    assert editor.show_line_numbers is True
+    assert editor.relative_number is True
+
+    # Bare `:set`, `:set all`, and `:set nu?` have zero side effects (no split, no message).
+    window_count_before = editor.window_arrangement.active_tab.window_count()
+    editor.message = None
+    for cmd_str in (':set', ':set all', ':set nu?', ':set cc'):
+        previewer.preview(cmd_str)
+        assert editor.window_arrangement.active_tab.window_count() == window_count_before
+        assert editor.message is None
+
+    previewer.restore()
+    for attribute, value in SAMPLE_STATE.items():
+        assert getattr(editor, attribute) == value, attribute

@@ -6,15 +6,33 @@ from prompt_toolkit.contrib.completers.system import SystemCompleter
 from prompt_toolkit.contrib.regular_languages.completion import GrammarCompleter
 from prompt_toolkit.document import Document
 
-from .commands import SET_COMMANDS, get_commands
+from .commands import SET_COMMANDS, SET_TOGGLE_GROUPS, get_commands
 from .grammar import COMMAND_GRAMMAR
 
 __all__ = ('create_command_completer', 'FiletypeCompleter')
 
-#: Matches the value part of `:set filetype=<prefix>` (and the `ft` alias),
+#: Matches the value part of `:set ... filetype=<prefix>` (and the `ft` alias),
 #: with optional leading colon/whitespace (command-line buffer omits the
 #: `:` prompt, `handle_command` strings include it).
-_FILETYPE_VALUE_RE = re.compile(r'^\s*:?\s*(?:set|setlocal|setl)\s+(?:filetype|ft)=([^\s]*)$')
+_FILETYPE_VALUE_RE = re.compile(
+    r'^\s*:?\s*(?:set|setlocal|setl)\s+(?:.*\s)?(?:filetype|ft)=([^\s]*)$'
+)
+#: Matches the trailing option token of `:set` / `:setlocal` / `:setl` (single
+#: or multi-argument).
+_SET_TOKEN_RE = re.compile(r'^\s*:?\s*(?:set|setlocal|setl)\s+(?:.*\s)?([^\s]*)$')
+
+
+def _set_option_candidates(prefix: str) -> list[str]:
+    """Return sorted `:set` option completion candidates for `prefix`."""
+    candidates: set[str] = set(SET_COMMANDS.keys())
+    candidates.add('all')
+    if prefix.startswith('inv'):
+        for _display, _attr, on_names, _off in SET_TOGGLE_GROUPS:
+            for name in on_names:
+                candidates.add('inv' + name)
+        candidates.add('invtildeop')
+        candidates.add('invtop')
+    return sorted(name for name in candidates if name.startswith(prefix))
 
 
 @lru_cache(maxsize=1)
@@ -65,9 +83,9 @@ class FiletypeCompleter(Completer):
 
 class CommandCompleter(Completer):
     """
-    Dispatch `:set filetype=<tab>` to `FiletypeCompleter`, everything else
-    to the grammar completer (which only sees the value fragment, not the
-    option name, so it cannot dispatch itself).
+    Dispatch `:set filetype=<tab>` to `FiletypeCompleter` and multi-argument
+    `:set` option tokens (including `all` and `inv*`) before delegating
+    everything else to the grammar completer.
     """
 
     def __init__(self, inner):
@@ -75,12 +93,24 @@ class CommandCompleter(Completer):
         self.filetype_completer = FiletypeCompleter()
 
     def get_completions(self, document, complete_event):
-        m = _FILETYPE_VALUE_RE.match(document.text_before_cursor)
+        text = document.text_before_cursor
+        m = _FILETYPE_VALUE_RE.match(text)
         if m is not None:
             prefix = m.group(1)
             sub_document = Document(prefix, len(prefix))
             yield from self.filetype_completer.get_completions(sub_document, complete_event)
             return
+
+        set_match = _SET_TOKEN_RE.match(text)
+        if set_match is not None:
+            token = set_match.group(1)
+            if '=' in token:
+                return
+            start_pos = -len(token)
+            for candidate in _set_option_candidates(token):
+                yield Completion(candidate, start_position=start_pos, display=candidate)
+            return
+
         yield from self.inner.get_completions(document, complete_event)
 
 

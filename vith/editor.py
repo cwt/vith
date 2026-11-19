@@ -200,6 +200,29 @@ class Editor:
         self.cursorcolumn = False  # ':set cursorcolumn'
         self.colorcolumn = []  # ':set colorcolumn'. List of integers.
 
+        # Snapshot factory defaults for bare `:set` (changed-from-default display).
+        self._default_options = {
+            'show_line_numbers': self.show_line_numbers,
+            'highlight_search': self.highlight_search,
+            'paste_mode': self.paste_mode,
+            'show_ruler': self.show_ruler,
+            'show_wildmenu': self.show_wildmenu,
+            'expand_tab': self.expand_tab,
+            'tabstop': self.tabstop,
+            'incsearch': self.incsearch,
+            'ignore_case': self.ignore_case,
+            'enable_mouse_support': self.enable_mouse_support,
+            'display_unprintable_characters': self.display_unprintable_characters,
+            'enable_jedi': self.enable_jedi,
+            'scroll_offset': self.scroll_offset,
+            'relative_number': self.relative_number,
+            'wrap_lines': self.wrap_lines,
+            'break_indent': self.break_indent,
+            'cursorline': self.cursorline,
+            'cursorcolumn': self.cursorcolumn,
+            'colorcolumn': list(self.colorcolumn),
+        }
+
         # Ensure config directory exists (with legacy fallback).
         target_dir = os.path.abspath(os.path.expanduser(config_directory))
         if os.path.expanduser(config_directory) == os.path.expanduser(

@@ -1,4 +1,4 @@
-from .commands import SET_INT_OPTIONS, SET_LIST_OPTIONS, SET_TOGGLE_GROUPS
+from .commands import SET_INT_OPTIONS, SET_LIST_OPTIONS, SET_TOGGLE_GROUPS, parse_set_tokens
 from .grammar import COMMAND_GRAMMAR
 
 __all__ = ('CommandPreviewer',)
@@ -11,9 +11,11 @@ def _build_preview_maps():
     (docs/bugs/073.md, closing the 028 two-tables drift).
     """
     toggles = {}
+    toggle_on_attrs = {}
     for _display, attribute, on_names, off_names in SET_TOGGLE_GROUPS:
         for name in on_names:
             toggles[name] = (attribute, True)
+            toggle_on_attrs[name] = attribute
         for name in off_names:
             toggles[name] = (attribute, False)
 
@@ -27,10 +29,12 @@ def _build_preview_maps():
         for name in names:
             lists[name] = attribute
 
-    return toggles, ints, lists
+    return toggles, toggle_on_attrs, ints, lists
 
 
-_TOGGLE_PREVIEWS, _INT_VALUE_PREVIEWS, _LIST_VALUE_PREVIEWS = _build_preview_maps()
+_TOGGLE_PREVIEWS, _TOGGLE_ON_ATTRS, _INT_VALUE_PREVIEWS, _LIST_VALUE_PREVIEWS = (
+    _build_preview_maps()
+)
 
 
 class CommandPreviewer:
@@ -141,7 +145,6 @@ class CommandPreviewer:
         variables = m.variables()
 
         command = variables.get('command')
-        set_option = variables.get('set_option')
 
         match command:
             # Preview colorschemes.
@@ -152,29 +155,60 @@ class CommandPreviewer:
 
             # Preview `:set` commands through the shared catalog above (the
             # same table the `:set` handlers are generated from, docs/bugs/
-            # 073.md). Options that mutate vi_state (tildeop) are not
-            # preview-restorable and stay ignored, as before.
+            # 073.md). Supports multi-argument `:set` and `!`/`inv` toggles;
+            # bare `:set`, `:set all`, queries (`?`), and non-restorable
+            # options stay side-effect free.
             case 'set' | 'setlocal' | 'setl':
                 is_local = command in ('setlocal', 'setl')
-                if set_option in ('filetype', 'ft'):
-                    self._preview_filetype_value(e, variables)
-                    return
+                for set_option, set_value in parse_set_tokens(variables):
+                    self._preview_set_token(e, set_option, set_value, is_local=is_local)
 
-                spec = _TOGGLE_PREVIEWS.get(set_option)
-                if spec is not None:
-                    setattr(e, spec[0], spec[1])
-                    if spec[0] == 'highlight_search' and spec[1]:
-                        e._hlsearch_suppressed = False
-                    return
+    def _preview_set_token(self, e, set_option, set_value, *, is_local=False):
+        if set_option == 'all' or set_option.endswith('?'):
+            return
 
-                spec = _INT_VALUE_PREVIEWS.get(set_option)
-                if spec is not None:
-                    self._preview_int_value(e, spec[0], spec[1], variables, is_local=is_local)
-                    return
+        if set_option.endswith('!'):
+            if set_value is not None:
+                return
+            attr = _TOGGLE_ON_ATTRS.get(set_option[:-1])
+            if attr is not None:
+                new_val = not bool(getattr(e, attr))
+                setattr(e, attr, new_val)
+                if attr == 'highlight_search' and new_val:
+                    e._hlsearch_suppressed = False
+            return
 
-                attribute = _LIST_VALUE_PREVIEWS.get(set_option)
-                if attribute is not None:
-                    self._preview_list_value(e, attribute, variables)
+        if set_option.startswith('inv') and set_option not in _TOGGLE_PREVIEWS:
+            if set_value is not None:
+                return
+            attr = _TOGGLE_ON_ATTRS.get(set_option[3:])
+            if attr is not None:
+                new_val = not bool(getattr(e, attr))
+                setattr(e, attr, new_val)
+                if attr == 'highlight_search' and new_val:
+                    e._hlsearch_suppressed = False
+            return
+
+        token_vars = {'set_value': set_value}
+        if set_option in ('filetype', 'ft'):
+            self._preview_filetype_value(e, token_vars)
+            return
+
+        spec = _TOGGLE_PREVIEWS.get(set_option)
+        if spec is not None and set_value is None:
+            setattr(e, spec[0], spec[1])
+            if spec[0] == 'highlight_search' and spec[1]:
+                e._hlsearch_suppressed = False
+            return
+
+        spec = _INT_VALUE_PREVIEWS.get(set_option)
+        if spec is not None:
+            self._preview_int_value(e, spec[0], spec[1], token_vars, is_local=is_local)
+            return
+
+        attribute = _LIST_VALUE_PREVIEWS.get(set_option)
+        if attribute is not None and set_value is not None:
+            self._preview_list_value(e, attribute, token_vars)
 
     @staticmethod
     def _preview_int_value(e, attribute, minimum, variables, is_local=False):

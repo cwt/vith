@@ -60,9 +60,9 @@ COMMAND_GRAMMAR = compile(
         # Bare line-address jump (:<N>, :$, :., :+N, :-N, :'<, :'>).
         (?P<go_to_line>%(addr)s)                                |
 
-        # Set operation
-        (?P<command>set|setlocal|setl) \s+ (?P<set_option>[^\s=]+)
-                                       (=(?P<set_value>[^\s]*))?           |
+        # Set operation (bare `:set`, `:set all`, single or multiple options,
+        # queries `opt?`, and toggles `opt!` / `invopt`).
+        (?P<command>set|setlocal|setl) (\s+ (?P<set_option>[^\s=]+)(=(?P<set_value>[^\s]*))? (\s+ (?P<set_rest>\S.*))?)?   |
 
         # Colorscheme command
         (?P<command>colorscheme|colo) \s+ (?P<colorscheme>[^\s]+)    |
