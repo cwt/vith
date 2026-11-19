@@ -619,3 +619,100 @@ def test_version_and_ver_commands_use_pager_and_report_runtime_info(editor, monk
     # `:ver!` is rejected.
     handle_command(editor, ':ver!')
     assert editor.message == 'No ! allowed'
+
+
+def test_messages_and_mes_commands_bounded_history_and_pager(editor, monkeypatch):
+    from vith.commands.commands import messages_lines
+
+    captured = _capture_pager(monkeypatch)
+
+    # Empty message log shows 'No messages' without self-recording.
+    handle_command(editor, ':messages')
+    assert editor.message == 'No messages'
+    assert messages_lines(editor) == []
+    assert captured == []
+
+    # Empty/None messages are ignored; non-empty messages are recorded.
+    editor.show_message('')
+    editor.show_message(None)
+    assert messages_lines(editor) == []
+
+    editor.show_message('first message')
+    editor.show_message('second message')
+
+    handle_command(editor, ':mes')
+    handle_command(editor, ':messages')
+    assert len(captured) == 2
+    assert captured[0] == 'first message\nsecond message\n'
+    assert captured[0] == captured[1]
+
+    # Bounded to 200 entries (oldest messages evicted).
+    for i in range(210):
+        editor.show_message(f'msg-{i}')
+    history = messages_lines(editor)
+    assert len(history) == 200
+    assert history[0] == 'msg-10'
+    assert history[-1] == 'msg-209'
+
+    # `:mes!` is rejected.
+    handle_command(editor, ':mes!')
+    assert editor.message == 'No ! allowed'
+
+
+def test_phase1_commands_appear_in_command_completer(editor):
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+
+    from vith.commands.commands import get_commands
+    from vith.commands.completer import create_command_completer
+
+    registered = set(get_commands())
+    expected = {
+        'ls',
+        'files',
+        'bnext',
+        'bprev',
+        'bprevious',
+        'bdelete',
+        'bwipeout',
+        'on',
+        'clo',
+        'close',
+        'wqall',
+        'u',
+        'undo',
+        'red',
+        'redo',
+        'noh',
+        'nohlsearch',
+        'up',
+        'update',
+        'x',
+        'xit',
+        'exit',
+        'wa',
+        'wall',
+        'xa',
+        'xall',
+        'enew',
+        'ene',
+        'f',
+        'file',
+        'ver',
+        'version',
+        'mes',
+        'messages',
+    }
+    assert expected.issubset(registered)
+
+    completer = create_command_completer(editor)
+    event = CompleteEvent()
+    for prefix, must_contain in (
+        ('nohl', 'nohlsearch '),
+        ('mess', 'messages '),
+        ('vers', 'version '),
+        ('bdel', 'bdelete '),
+        ('enew', 'enew '),
+    ):
+        completions = [c.text for c in completer.get_completions(Document(prefix), event)]
+        assert must_contain in completions, (prefix, completions)

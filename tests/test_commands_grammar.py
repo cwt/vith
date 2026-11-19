@@ -105,6 +105,8 @@ def test_phase1_aliases_match_without_collisions():
         (':file', 'file', ''),
         (':ver', 'ver', ''),
         (':version', 'version', ''),
+        (':mes', 'mes', ''),
+        (':messages', 'messages', ''),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line

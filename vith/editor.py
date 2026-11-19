@@ -11,6 +11,7 @@ Usage::
 from __future__ import annotations
 
 import os
+from collections import deque
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
@@ -214,6 +215,7 @@ class Editor:
 
         self.window_arrangement = WindowArrangement(self)
         self.message = None
+        self._messages = deque(maxlen=200)
 
         # Load styles. (Mapping from name to Style class.)
         self.styles = generate_built_in_styles()
@@ -422,12 +424,14 @@ class Editor:
         """
         return self.key_bindings.add
 
-    def show_message(self, message):
+    def show_message(self, message, *, record: bool = True):
         """
         Set a warning message. The layout will render it as a "pop-up" at the
-        bottom.
+        bottom, and record non-empty messages in the bounded history log.
         """
         self.message = message
+        if record and message:
+            self._messages.append(str(message))
 
     def suppress_hlsearch(self) -> None:
         """

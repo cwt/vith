@@ -774,6 +774,31 @@ def show_version(editor):
     _run_pager(handler)
 
 
+def messages_lines(editor) -> list[str]:
+    """
+    Return the recorded editor message history for `:messages`.
+    """
+    return list(getattr(editor, '_messages', ()))
+
+
+@cmd('mes')
+@cmd('messages')
+def show_messages(editor):
+    """
+    Display recorded editor messages via pager (`:mes` / `:messages`).
+    """
+    lines = messages_lines(editor)
+    if not lines:
+        editor.show_message('No messages', record=False)
+        return
+
+    def handler():
+        for line in lines:
+            print(line)
+
+    _run_pager(handler)
+
+
 @cmd('h')
 @cmd('help')
 def help(editor):
