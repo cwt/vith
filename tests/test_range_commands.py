@@ -345,3 +345,76 @@ def test_retab_command_expand_and_unexpand_with_tabstop(editor):
     handle_command(editor, ':retab 8')
     assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
     assert eb.tabstop == 2
+
+
+def test_global_and_vglobal_commands_redos_two_pass_and_undo(editor):
+    # Empty arrangement guard and missing regex error.
+    handle_command(editor, ':g/foo/d')
+    handle_command(editor, ':g')
+    assert editor.message == 'E148: Regular expression missing from global'
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'keep 1\nDROP 2\nkeep 3\nDROP 4\nkeep 5'
+
+    # `:g/DROP/d` deletes all matching lines in a single undo step and sets clipboard.
+    handle_command(editor, ':g/DROP/d')
+    assert eb.buffer.document.lines == ['keep 1', 'keep 3', 'keep 5']
+    assert editor.application.clipboard.get_data().text == 'DROP 2\nDROP 4'
+    assert editor.message == '2 fewer lines'
+
+    handle_command(editor, ':u')
+    assert eb.buffer.document.lines == ['keep 1', 'DROP 2', 'keep 3', 'DROP 4', 'keep 5']
+
+    # `:v/DROP/d` (and `:g!/DROP/d`) deletes all NON-matching lines.
+    handle_command(editor, ':v/DROP/d')
+    assert eb.buffer.document.lines == ['DROP 2', 'DROP 4']
+    handle_command(editor, ':u')
+
+    handle_command(editor, ':g!/keep/d')
+    assert eb.buffer.document.lines == ['keep 1', 'keep 3', 'keep 5']
+    handle_command(editor, ':u')
+
+    # `:g/DROP/y` yanks matching lines without mutating.
+    handle_command(editor, ':g/DROP/y')
+    assert editor.application.clipboard.get_data().text == 'DROP 2\nDROP 4'
+    assert editor.message == '2 lines yanked'
+
+    # `:g/DROP/p` (and omitted sub-command `:g/DROP/`) opens read-only `[Global]` split.
+    handle_command(editor, ':g/DROP/')
+    wa = editor.window_arrangement
+    assert wa.active_editor_buffer.get_display_name() == '[Global]'
+    assert wa.active_editor_buffer.buffer.text == 'DROP 2\nDROP 4'
+    assert wa.active_editor_buffer.buffer.read_only() is True
+    handle_command(editor, ':q')
+    assert wa.active_editor_buffer is eb
+
+    # `:g/DROP/s/DROP/FIXED/` runs substitute only on matching lines (single undo).
+    handle_command(editor, ':g#DROP#s/DROP/FIXED/')
+    assert eb.buffer.document.lines == ['keep 1', 'FIXED 2', 'keep 3', 'FIXED 4', 'keep 5']
+    handle_command(editor, ':u')
+
+    # Classic Vim two-pass `:g/^/m 0` reverses the buffer in a single undo step.
+    eb.buffer.text = 'A\nB\nC'
+    handle_command(editor, ':g/^/m 0')
+    assert eb.buffer.document.lines == ['C', 'B', 'A']
+    handle_command(editor, ':u')
+    assert eb.buffer.document.lines == ['A', 'B', 'C']
+
+    # `:g/B/t $` copies matching lines to end of buffer.
+    handle_command(editor, ':g/B/t $')
+    assert eb.buffer.document.lines == ['A', 'B', 'C', 'B']
+    handle_command(editor, ':u')
+
+    # ReDoS guard rejects nested quantifier patterns before compiling.
+    handle_command(editor, ':g/(a+)+/d')
+    assert 'Unsafe pattern' in editor.message
+    assert eb.buffer.document.lines == ['A', 'B', 'C']
+
+    # `:v!` is rejected; read-only blocks `:g/.../d`.
+    handle_command(editor, ':v!/A/d')
+    assert editor.message == 'No ! allowed'
+
+    eb.buffer.read_only = to_filter(True)
+    handle_command(editor, ':g/A/d')
+    assert editor.message == "E21: Cannot make changes, 'modifiable' is off"

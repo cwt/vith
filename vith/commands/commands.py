@@ -2052,3 +2052,247 @@ def retab_lines(editor, variables):
         eb.tabstop = new_ts
 
     replace_buffer_lines(editor, eb, lines, start_row, first_non_blank=True)
+
+
+_GLOBAL_SUB_RE = re.compile(r'^(?P<name>substitute|s)(?P<args>\s*[^a-zA-Z0-9_\\\s"].*)?$')
+_GLOBAL_MOVE_COPY_RE = re.compile(r'^(?P<name>move|copy|co|m|t)\s*(?P<dest>.+)?$')
+
+
+def _parse_global_args(global_args: str) -> tuple[str, str]:
+    """
+    Parse `/<pattern>/<sub_cmd>` (supporting arbitrary non-alphanumeric
+    delimiters with `\\<delim>` unescaping) into `(pattern_text, sub_cmd)`.
+    """
+    stripped = global_args.lstrip()
+    delim = stripped[0]
+    pattern_chars: list[str] = []
+    i = 1
+    length = len(stripped)
+    while i < length:
+        ch = stripped[i]
+        if ch == '\\' and i + 1 < length:
+            next_ch = stripped[i + 1]
+            if next_ch == delim:
+                pattern_chars.append(delim)
+            else:
+                pattern_chars.append(ch)
+                pattern_chars.append(next_ch)
+            i += 2
+            continue
+        if ch == delim:
+            return ''.join(pattern_chars), stripped[i + 1 :].strip()
+        pattern_chars.append(ch)
+        i += 1
+    return ''.join(pattern_chars), ''
+
+
+def _global_execute_substitute(
+    editor: Any, eb: Any, lines: list[str], marked_rows: list[int], sub_args: str | None
+) -> None:
+    search, replace, flags = parse_substitute_args(sub_args)
+    search_state = editor.application.current_search_state
+    if not search:
+        search = search_state.text
+    if not search:
+        editor.show_message('No previous regular expression')
+        return
+    if replace is None:
+        replace = editor.last_substitute_text
+    if _UNSAFE_NESTED_QUANTIFIER.search(_strip_regex_literals(search)):
+        editor.show_message('Unsafe pattern (nested quantifier): %s' % search)
+        return
+
+    options, flag_err = _parse_substitute_flags(
+        flags,
+        default_ignore_case=bool(getattr(editor, 'ignore_case', False)),
+    )
+    if flag_err is not None or options is None:
+        editor.show_message(flag_err)
+        return
+
+    regex_flags = re.IGNORECASE if options.ignore_case else 0
+    try:
+        sub_pat = re.compile(search, flags=regex_flags)
+    except re.error as exc:
+        editor.show_message('Invalid regex: %s' % exc)
+        return
+
+    new_lines = list(lines)
+    total_matches = 0
+    matched_lines = 0
+    last_row = marked_rows[-1]
+    for row in marked_rows:
+        try:
+            result, count = sub_pat.subn(replace, new_lines[row], count=options.sub_count)
+        except re.error as exc:
+            editor.show_message('Invalid regex: %s' % exc)
+            return
+        if count > 0:
+            new_lines[row] = result
+            total_matches += count
+            matched_lines += 1
+            last_row = row
+
+    if total_matches == 0:
+        editor.show_message('Pattern not found')
+        return
+    if options.report_only:
+        match_word = 'match' if total_matches == 1 else 'matches'
+        line_word = 'line' if matched_lines == 1 else 'lines'
+        editor.show_message(f'{total_matches} {match_word} on {matched_lines} {line_word}')
+        return
+    if not replace_buffer_lines(editor, eb, new_lines, last_row, first_non_blank=True):
+        return
+    editor.last_substitute_text = replace
+    if options.print_last:
+        editor.show_message(eb.buffer.document.lines[last_row])
+
+
+def _global_execute_move_or_copy(
+    editor: Any,
+    eb: Any,
+    lines: list[str],
+    marked_rows: list[int],
+    is_move: bool,
+    dest_addr: str | None,
+) -> None:
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+    if not dest_addr or not dest_addr.strip():
+        editor.show_message('E14: Invalid address')
+        return
+
+    visual_marks = getattr(eb, 'visual_marks', None)
+    tagged: list[tuple[int | None, str]] = [(idx, text) for idx, text in enumerate(lines)]
+    last_row = marked_rows[0]
+
+    for line_id in marked_rows:
+        cur_pos = next(pos for pos, (tid, _) in enumerate(tagged) if tid == line_id)
+        dest, err = resolve_insert_address(dest_addr, cur_pos, len(tagged), visual_marks)
+        if err is not None or dest is None:
+            editor.show_message(err)
+            return
+        if is_move:
+            item = tagged.pop(cur_pos)
+            insert_at = dest if dest <= cur_pos else dest - 1
+            tagged.insert(insert_at, item)
+            last_row = insert_at
+        else:
+            tagged.insert(dest, (None, tagged[cur_pos][1]))
+            last_row = dest
+
+    result_lines = [text for _, text in tagged]
+    replace_buffer_lines(editor, eb, result_lines, last_row, first_non_blank=True)
+
+
+@_cmd('vglobal')
+@_cmd('global')
+@_cmd('g')
+@_cmd('v')
+def global_command(editor: Any, variables: Any) -> None:
+    """
+    Execute an Ex sub-command on lines matching (`:g` / `:global`) or not
+    matching (`:g!` / `:v` / `:vglobal`) a regex pattern (`:[range]g[!]/pat/[cmd]`).
+    """
+    command = variables.get('command')
+    force = bool(variables.get('force'))
+    if command in ('v', 'vglobal') and force:
+        editor.show_message('No ! allowed')
+        return
+
+    global_args = variables.get('global_args')
+    if not global_args:
+        editor.show_message('E148: Regular expression missing from global')
+        return
+
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+
+    bounds, err = resolve_range_str(variables.get('cmd_range'), eb, default_range='%')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    pattern_text, sub_cmd = _parse_global_args(global_args)
+    search_state = editor.application.current_search_state
+    if not pattern_text:
+        pattern_text = search_state.text
+    if not pattern_text:
+        editor.show_message('No previous regular expression')
+        return
+
+    if _UNSAFE_NESTED_QUANTIFIER.search(_strip_regex_literals(pattern_text)):
+        editor.show_message('Unsafe pattern (nested quantifier): %s' % pattern_text)
+        return
+
+    regex_flags = re.IGNORECASE if bool(getattr(editor, 'ignore_case', False)) else 0
+    try:
+        pattern = re.compile(pattern_text, flags=regex_flags)
+    except re.error as exc:
+        editor.show_message('Invalid regex: %s' % exc)
+        return
+
+    invert = command in ('v', 'vglobal') or force
+    start_row, end_row = bounds
+    lines = list(eb.buffer.document.lines)
+    marked_rows = [
+        row
+        for row in range(start_row, end_row + 1)
+        if (pattern.search(lines[row]) is None) == invert
+    ]
+
+    if not marked_rows:
+        editor.show_message('Pattern not found')
+        return
+
+    search_state.text = pattern_text
+    editor.clear_hlsearch_suppression()
+
+    sub = sub_cmd.strip() or 'p'
+    if sub in ('p', 'print'):
+        output = '\n'.join(lines[row] for row in marked_rows)
+        editor.show_info(output, title='[Global]')
+        return
+
+    if sub in ('d', 'delete'):
+        if _is_buffer_read_only(eb.buffer):
+            editor.show_message(_MODIFIABLE_OFF_TEXT)
+            return
+        marked_set = set(marked_rows)
+        deleted = [lines[row] for row in marked_rows]
+        editor.application.clipboard.set_data(
+            ClipboardData('\n'.join(deleted), SelectionType.LINES)
+        )
+        remaining = [line for idx, line in enumerate(lines) if idx not in marked_set]
+        if not remaining:
+            remaining = ['']
+        cursor_row = min(marked_rows[0], len(remaining) - 1)
+        if not replace_buffer_lines(editor, eb, remaining, cursor_row, first_non_blank=True):
+            return
+        if len(deleted) >= 2:
+            editor.show_message(f'{len(deleted)} fewer lines')
+        return
+
+    if sub in ('y', 'yank'):
+        yanked = [lines[row] for row in marked_rows]
+        editor.application.clipboard.set_data(ClipboardData('\n'.join(yanked), SelectionType.LINES))
+        line_word = 'line' if len(yanked) == 1 else 'lines'
+        editor.show_message(f'{len(yanked)} {line_word} yanked')
+        return
+
+    sub_match = _GLOBAL_SUB_RE.match(sub)
+    if sub_match is not None:
+        _global_execute_substitute(editor, eb, lines, marked_rows, sub_match.group('args'))
+        return
+
+    mc_match = _GLOBAL_MOVE_COPY_RE.match(sub)
+    if mc_match is not None:
+        is_move = mc_match.group('name') in ('m', 'move')
+        _global_execute_move_or_copy(
+            editor, eb, lines, marked_rows, is_move, mc_match.group('dest')
+        )
+        return
+
+    editor.show_message(f'Not an editor command: {sub}')

@@ -267,7 +267,28 @@ def test_range_line_editing_grammar_and_non_collisions():
         (':messages', 'messages'),
         (':tabe foo.py', 'tabe'),
         (':tabs', 'tabs'),
+        (':ver', 'ver'),
+        (':version', 'version'),
+        (':vsp a.py', 'vsp'),
+        (':vnew', 'vnew'),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
         assert m.variables().get('command') == expected_cmd, line
+
+
+def test_global_and_vglobal_grammar():
+    for line, exp_range, exp_cmd, exp_force, exp_args in (
+        (':g/foo/d', None, 'g', '', '/foo/d'),
+        (':g!/foo/d', None, 'g', '!', '/foo/d'),
+        (':2,5global#a/b#s/a/b/g', '2,5', 'global', '', '#a/b#s/a/b/g'),
+        (':v/bar/p', None, 'v', '', '/bar/p'),
+        (':%vglobal/baz/y', '%', 'vglobal', '', '/baz/y'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('cmd_range') == exp_range, line
+        assert v.get('command') == exp_cmd, line
+        assert v.get('force') == exp_force, line
+        assert v.get('global_args') == exp_args, line
