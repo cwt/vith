@@ -490,3 +490,43 @@ def test_wall_and_xall_write_dirty_buffers_and_abort_on_error(editor, tmp_path, 
     assert exits == [1]
     assert f2.read_text() == 'two edited\n'
     assert f3.read_text() == 'unnamed work\n'
+
+
+def test_enew_and_ene_create_untitled_buffer_in_current_window(editor, tmp_path):
+    f1 = tmp_path / 'existing.txt'
+    f1.write_text('hello\n')
+    editor.load_initial_files([str(f1)])
+    wa = editor.window_arrangement
+    orig_eb = wa.active_editor_buffer
+
+    # Split so we verify `:enew` replaces only the current window, without new splits.
+    handle_command(editor, ':sp')
+    assert wa.active_tab.window_count() == 2
+
+    handle_command(editor, ':enew')
+    assert wa.active_tab.window_count() == 2
+    new_eb = wa.active_editor_buffer
+    assert new_eb is not orig_eb
+    assert new_eb.location is None
+    assert new_eb.buffer.text == ''
+    assert orig_eb in wa.editor_buffers
+
+    # Dirty buffer blocks `:ene` without `!`, succeeds with `:ene!`.
+    new_eb.buffer.text = 'unsaved scratch'
+    handle_command(editor, ':ene')
+    assert wa.active_editor_buffer is new_eb
+    assert editor.message == 'No write since last change (add ! to override)'
+
+    handle_command(editor, ':ene!')
+    assert wa.active_editor_buffer is not new_eb
+    assert wa.active_editor_buffer.location is None
+    assert wa.active_editor_buffer.buffer.text == ''
+
+
+def test_enew_on_empty_arrangement_creates_initial_buffer(editor):
+    assert editor.window_arrangement.active_editor_buffer is None
+    handle_command(editor, ':enew')
+    eb = editor.window_arrangement.active_editor_buffer
+    assert eb is not None
+    assert eb.location is None
+    assert eb.buffer.text == ''

@@ -442,6 +442,16 @@ def buffer_wipe(editor, force=False):
         editor.window_arrangement.close_buffer()
 
 
+@cmd('enew', accepts_force=True)
+@cmd('ene', accepts_force=True)
+def buffer_new_empty(editor, force=False):
+    """
+    Open a new untitled buffer in the current window (`:enew` / `:ene`).
+    """
+    if _confirm_unsaved_changes(editor, force):
+        editor.window_arrangement.open_buffer(None, show_in_current_window=True)
+
+
 @location_cmd('o', accepts_force=True)
 @location_cmd('open', accepts_force=True)
 @location_cmd('e', accepts_force=True)

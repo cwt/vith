@@ -97,6 +97,10 @@ def test_phase1_aliases_match_without_collisions():
         (':wall!', 'wall', '!'),
         (':xa', 'xa', ''),
         (':xall!', 'xall', '!'),
+        (':enew', 'enew', ''),
+        (':enew!', 'enew', '!'),
+        (':ene', 'ene', ''),
+        (':ene!', 'ene', '!'),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
