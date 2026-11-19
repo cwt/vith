@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import traceback
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from .commands.commands import press_enter_to_continue
 from .editor import Editor
@@ -149,7 +149,32 @@ def _resolve_hook_path(
     return None
 
 
-def run_hook_file(editor: Editor, hook_path: str | os.PathLike) -> bool:
+def _report_rc_error(
+    message: str,
+    error_handler: Callable[[str], None] | None = None,
+    *,
+    exc_info: bool = False,
+) -> None:
+    """
+    Report a configuration/hook error either via `error_handler` (in-TUI `:source`
+    path, never invoking `input()`) or to stdout + `Press ENTER` at CLI startup.
+    """
+    if error_handler is not None:
+        error_handler(message)
+        return
+    if exc_info:
+        traceback.print_exc()
+    else:
+        print(message)
+    _press_enter_to_continue()
+
+
+def run_hook_file(
+    editor: Editor,
+    hook_path: str | os.PathLike,
+    *,
+    error_handler: Callable[[str], None] | None = None,
+) -> bool:
     """
     Execute a Python hook file for custom keybindings or callbacks.
 
@@ -158,8 +183,7 @@ def run_hook_file(editor: Editor, hook_path: str | os.PathLike) -> bool:
     """
     resolved = os.path.expanduser(os.fspath(hook_path))
     if not os.path.exists(resolved):
-        print('Hook file not found: %r' % resolved)
-        _press_enter_to_continue()
+        _report_rc_error('Hook file not found: %r' % resolved, error_handler)
         return False
 
     try:
@@ -171,15 +195,20 @@ def run_hook_file(editor: Editor, hook_path: str | os.PathLike) -> bool:
         if 'configure' in namespace and callable(namespace['configure']):
             namespace['configure'](editor)
         return True
-    except Exception:
-        traceback.print_exc()
-        _press_enter_to_continue()
+    except Exception as exc:
+        _report_rc_error(
+            'Error in hook file %r: %s' % (resolved, exc), error_handler, exc_info=True
+        )
         return False
 
 
 def apply_toml_config(
-    editor: Editor, toml_data: dict[str, Any], config_path: str | None = None
-) -> None:
+    editor: Editor,
+    toml_data: dict[str, Any],
+    config_path: str | None = None,
+    *,
+    error_handler: Callable[[str], None] | None = None,
+) -> bool:
     """
     Apply parsed TOML configuration to an Editor instance.
 
@@ -239,16 +268,25 @@ def apply_toml_config(
     elif isinstance(hooks_section, list):
         enabled_hooks.extend(str(h) for h in hooks_section)
 
+    all_ok = True
     for hook_name in enabled_hooks:
         hook_path = _resolve_hook_path(hook_name, config_path=config_path, custom_dir=custom_dir)
         if hook_path:
-            run_hook_file(editor, hook_path)
+            if not run_hook_file(editor, hook_path, error_handler=error_handler):
+                all_ok = False
         else:
-            print('Hook file %r not found' % hook_name)
-            _press_enter_to_continue()
+            _report_rc_error('Hook file %r not found' % hook_name, error_handler)
+            all_ok = False
+    return all_ok
 
 
-def _run_python_rc_file(editor: Editor, rc_file: str, content: str) -> None:
+def _run_python_rc_file(
+    editor: Editor,
+    rc_file: str,
+    content: str,
+    *,
+    error_handler: Callable[[str], None] | None = None,
+) -> bool:
     """Execute a legacy Python configuration file defining `configure(editor)`."""
     try:
         namespace: dict[str, Any] = {'editor': editor}
@@ -257,18 +295,31 @@ def _run_python_rc_file(editor: Editor, rc_file: str, content: str) -> None:
 
         if 'configure' in namespace and callable(namespace['configure']):
             namespace['configure'](editor)
-    except Exception:
-        traceback.print_exc()
-        _press_enter_to_continue()
+        return True
+    except Exception as exc:
+        _report_rc_error(
+            'Error in configuration file %r: %s' % (rc_file, exc),
+            error_handler,
+            exc_info=True,
+        )
+        return False
 
 
-def run_rc_file(editor: Editor, rc_file: str | os.PathLike) -> None:
+def run_rc_file(
+    editor: Editor,
+    rc_file: str | os.PathLike,
+    *,
+    error_handler: Callable[[str], None] | None = None,
+) -> bool:
     """
     Run configuration file.
 
     Automatically detects TOML format vs legacy Python script. When the file
     ends in `.toml` or contains TOML table declarations, it is parsed and applied
     declaratively; otherwise it falls back to Python execution.
+
+    When `error_handler` is provided (e.g. from `:source`), errors are passed
+    to it instead of printing to stdout and prompting via `input()`.
     """
     assert isinstance(editor, Editor)
     assert isinstance(rc_file, (str, os.PathLike))
@@ -276,33 +327,34 @@ def run_rc_file(editor: Editor, rc_file: str | os.PathLike) -> None:
     rc_file_str = os.path.expanduser(os.fspath(rc_file))
 
     if not os.path.exists(rc_file_str):
-        print('Impossible to read %r' % rc_file_str)
-        _press_enter_to_continue()
-        return
+        _report_rc_error('Impossible to read %r' % rc_file_str, error_handler)
+        return False
 
     try:
         with open(rc_file_str, 'r', encoding='utf-8') as f:
             content = f.read()
     except Exception as e:
-        print('Error reading %r: %s' % (rc_file_str, e))
-        _press_enter_to_continue()
-        return
+        _report_rc_error('Error reading %r: %s' % (rc_file_str, e), error_handler)
+        return False
 
     is_toml_file = rc_file_str.endswith('.toml')
 
     if is_toml_file:
         if tomllib is None:
-            print('Error: tomllib is required to parse TOML configuration files.')
-            _press_enter_to_continue()
-            return
+            _report_rc_error(
+                'Error: tomllib is required to parse TOML configuration files.',
+                error_handler,
+            )
+            return False
         try:
             data = tomllib.loads(content)
         except Exception as e:
-            print('Error in TOML configuration file %r: %s' % (rc_file_str, e))
-            _press_enter_to_continue()
-            return
-        apply_toml_config(editor, data, config_path=rc_file_str)
-        return
+            _report_rc_error(
+                'Error in TOML configuration file %r: %s' % (rc_file_str, e),
+                error_handler,
+            )
+            return False
+        return apply_toml_config(editor, data, config_path=rc_file_str, error_handler=error_handler)
 
     # For non-.toml files (e.g. ~/.vithrc): try parsing as TOML first:
     if tomllib is not None and content.strip():
@@ -316,11 +368,12 @@ def run_rc_file(editor: Editor, rc_file: str | os.PathLike) -> None:
                 or 'hooks' in data
                 or any(k in _CONFIG_OPTION_MAP for k in data)
             ):
-                apply_toml_config(editor, data, config_path=rc_file_str)
-                return
+                return apply_toml_config(
+                    editor, data, config_path=rc_file_str, error_handler=error_handler
+                )
         except Exception:
             # Not valid TOML; fall through to Python
             pass
 
     # Fall back to legacy Python execution:
-    _run_python_rc_file(editor, rc_file_str, content)
+    return _run_python_rc_file(editor, rc_file_str, content, error_handler=error_handler)

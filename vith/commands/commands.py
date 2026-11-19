@@ -1017,6 +1017,30 @@ def pwd(editor):
     editor.show_message('{}'.format(directory))
 
 
+@location_cmd('so', accepts_force=False)
+@location_cmd('source', accepts_force=False)
+def source_file(editor: Any, location: str | None) -> None:
+    """
+    Reload a TOML or Python vith configuration file without leaving the TUI
+    (`:so [file]` / `:source [file]`).
+    """
+    from vith.rc_file import find_config_file, run_rc_file
+
+    target = location or find_config_file()
+    if not target:
+        editor.show_message('E484: Cannot find config file')
+        return
+
+    errors: list[str] = []
+
+    def record_error(message: str) -> None:
+        errors.append(message)
+
+    run_rc_file(editor, target, error_handler=record_error)
+    if errors:
+        editor.show_message(errors[-1])
+
+
 @location_cmd('cd', accepts_force=False)
 def cd(editor, location):
     "Change working directory."

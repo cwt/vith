@@ -302,3 +302,65 @@ def test_write_names_untitled_buffer_and_saveas_empty_arrangement_guard(editor, 
     assert eb.has_unsaved_changes is False
     assert eb.filetype == 'python'
     assert editor.get_title() == 'vith - first_name.py'
+
+
+def test_source_reloads_toml_and_python_rc_without_prompting(editor, tmp_path, monkeypatch):
+    import builtins
+
+    from vith import rc_file
+
+    def fail_on_input(*args, **kwargs):
+        raise AssertionError(':source must never invoke input() inside the TUI')
+
+    monkeypatch.setattr(builtins, 'input', fail_on_input)
+
+    # 1. Explicit TOML config file.
+    toml_cfg = tmp_path / 'config.toml'
+    toml_cfg.write_text('[editor]\nrelativenumber = true\ntabstop = 2\n')
+    handle_command(editor, f':so {toml_cfg}')
+    assert editor.relative_number is True
+    assert editor.tabstop == 2
+    assert editor.message is None
+
+    # 2. Explicit Python rc file.
+    py_rc = tmp_path / 'custom_rc.py'
+    py_rc.write_text('def configure(e):\n    e.scroll_offset = 7\n')
+    handle_command(editor, f':source {py_rc}')
+    assert editor.scroll_offset == 7
+    assert editor.message is None
+
+    # 3. Bare `:so` reloads `find_config_file()` when present.
+    def fake_find_present():
+        return str(toml_cfg)
+
+    editor.tabstop = 8
+    monkeypatch.setattr(rc_file, 'find_config_file', fake_find_present)
+    handle_command(editor, ':so')
+    assert editor.tabstop == 2
+
+    # 4. Bare `:source` when no config exists reports E484 cleanly.
+    def fake_find_none():
+        return None
+
+    monkeypatch.setattr(rc_file, 'find_config_file', fake_find_none)
+    handle_command(editor, ':source')
+    assert editor.message == 'E484: Cannot find config file'
+
+    # 5. Missing file, malformed TOML, and raising Python rc report via show_message.
+    missing = tmp_path / 'missing.toml'
+    handle_command(editor, f':so {missing}')
+    assert 'Impossible to read' in editor.message
+
+    bad_toml = tmp_path / 'broken.toml'
+    bad_toml.write_text('[editor\nbroken = ')
+    handle_command(editor, f':so {bad_toml}')
+    assert 'Error in TOML configuration file' in editor.message
+
+    bad_py = tmp_path / 'broken_rc.py'
+    bad_py.write_text('def configure(e):\n    raise RuntimeError("boom")\n')
+    handle_command(editor, f':source {bad_py}')
+    assert 'boom' in editor.message
+
+    # 6. `:so!` is rejected.
+    handle_command(editor, ':so!')
+    assert editor.message == 'No ! allowed'

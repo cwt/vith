@@ -107,6 +107,8 @@ def test_phase1_aliases_match_without_collisions():
         (':version', 'version', ''),
         (':mes', 'mes', ''),
         (':messages', 'messages', ''),
+        (':so', 'so', ''),
+        (':source', 'source', ''),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
@@ -126,6 +128,8 @@ def test_phase1_aliases_match_without_collisions():
         (':sav! copy.py', 'sav', 'copy.py'),
         (':saveas copy.py', 'saveas', 'copy.py'),
         (':saveas! copy.py', 'saveas', 'copy.py'),
+        (':so ~/.vithrc', 'so', '~/.vithrc'),
+        (':source config.toml', 'source', 'config.toml'),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
