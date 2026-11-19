@@ -1,6 +1,7 @@
 from prompt_toolkit.contrib.regular_languages.compiler import compile
 
 from .commands import get_commands_taking_locations
+from .ranges import ADDR_GRAMMAR, RANGE_GRAMMAR
 
 
 def _longest_first(name: str) -> tuple[int, str]:
@@ -21,10 +22,10 @@ COMMAND_GRAMMAR = compile(
     \s*
     (
         # Substitute command
-        (?P<sub_range>(%%|(\d+|\.|\$|'<|'>)([+-]\d+)?(,(\d+|\.|\$|'<|'>)([+-]\d+)?)?)?) \s* (?P<command>s|substitute) (?P<sub_args>\s*[^a-zA-Z0-9_\\\s"].*)?   |
+        (?P<sub_range>%(range)s?) \s* (?P<command>s|substitute) (?P<sub_args>\s*[^a-zA-Z0-9_\\\s"].*)?   |
 
         # Read command (file or shell output insertion with optional line address).
-        (?P<read_addr>(\d+|\.|\$|'<|'>)([+-]\d+)?)? \s* (?P<command>read|r) (\s* ! (?P<read_shell>.*) | \s+ (?P<location>[^\s]+))?   |
+        (?P<read_addr>%(addr)s)? \s* (?P<command>read|r) (\s* ! (?P<read_shell>.*) | \s+ (?P<location>[^\s]+))?   |
 
         # Commands accepting a location.
         (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>[^\s]+)   |
@@ -35,8 +36,8 @@ COMMAND_GRAMMAR = compile(
         # Tab move command with position argument.
         (?P<command>tabmove|tabm) \s+ (?P<tab_arg>[^\s]+)    |
 
-        # Jump to line numbers.
-        (?P<go_to_line>\d+)                                     |
+        # Bare line-address jump (:<N>, :$, :., :+N, :-N, :'<, :'>).
+        (?P<go_to_line>%(addr)s)                                |
 
         # Set operation
         (?P<command>set|setlocal|setl) \s+ (?P<set_option>[^\s=]+)
@@ -58,6 +59,8 @@ COMMAND_GRAMMAR = compile(
     \s*
 """
     % {
+        'addr': ADDR_GRAMMAR,
+        'range': RANGE_GRAMMAR,
         # Longest-first alternation for commands taking locations: the
         # longest command name is matched directly instead of relying on
         # generic-branch backtracking (deterministic ordering is retained;

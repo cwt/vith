@@ -4,14 +4,28 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any
 
-from prompt_toolkit.document import Document
-
 from vith.thai import note_document_text
+
+from .ranges import (
+    MODIFIABLE_OFF_TEXT as _MODIFIABLE_OFF_TEXT,
+)
+from .ranges import (
+    is_buffer_read_only as _is_buffer_read_only,
+)
+from .ranges import (
+    parse_range as parse_substitute_range,
+)
+from .ranges import (
+    replace_buffer_lines,
+    resolve_insert_address,
+    resolve_range,
+)
 
 __all__ = (
     'has_command_handler',
     'call_command_handler',
     'press_enter_to_continue',
+    'parse_substitute_range',
 )
 
 
@@ -23,7 +37,6 @@ SET_COMMANDS_TAKING_VALUE: set[str] = set()
 
 _NO_WRITE_SINCE_LAST_CHANGE_TEXT = 'No write since last change (add ! to override)'
 _NO_FILE_NAME = 'No file name'
-_MODIFIABLE_OFF_TEXT = "E21: Cannot make changes, 'modifiable' is off"
 
 # Heuristic guard against catastrophic backtracking (docs/bugs/123.md): a
 # group that contains a quantifier and is itself quantified, e.g. `(a+)+`,
@@ -506,45 +519,6 @@ def _format_file_status(eb) -> str:
     return f'"{display_name}"{flag_part} {line_count} {line_word} --{percent}%--'
 
 
-def _resolve_read_address(
-    address: str | None,
-    cursor_row: int,
-    line_count: int,
-    visual_marks: tuple[int, int] | None,
-) -> tuple[int | None, str | None]:
-    """
-    Resolve an optional `:[addr]read` line address to a 0-based insertion index
-    in `0..line_count` (0 inserts before line 1; `line_count` appends at EOF).
-    """
-    if not address:
-        return cursor_row + 1, None
-
-    match = _LINE_ADDRESS_RE.match(address)
-    if match is None:
-        return None, 'E19: No such line in current buffer'
-
-    base = match.group('base')
-    offset_text = match.group('offset')
-    offset = int(offset_text) if offset_text else 0
-
-    if base == '.':
-        base_1based = cursor_row + 1
-    elif base == '$':
-        base_1based = line_count
-    elif base in ("'<", "'>"):
-        if visual_marks is None:
-            return None, 'E20: Mark not set'
-        base_1based = (visual_marks[0] if base == "'<" else visual_marks[1]) + 1
-    else:
-        base_1based = int(base)
-
-    target = base_1based + offset
-    if not 0 <= target <= line_count:
-        return None, 'E19: No such line in current buffer'
-
-    return target, None
-
-
 def _read_location_text(editor, location: str) -> str | None:
     """
     Read text from `location` through `editor.io_backends` without mutating any
@@ -609,7 +583,7 @@ def read_command(editor, variables):
         return
 
     doc = eb.buffer.document
-    insert_index, addr_err = _resolve_read_address(
+    insert_index, addr_err = resolve_insert_address(
         variables.get('read_addr'),
         doc.cursor_position_row,
         len(doc.lines),
@@ -652,7 +626,6 @@ def read_command(editor, variables):
         normalized = normalized[:-1]
     inserted_lines = normalized.split('\n')
 
-    eb.buffer.save_to_undo_stack()
     if eb.buffer.text == '':
         new_lines = inserted_lines
         first_row = 0
@@ -661,13 +634,15 @@ def read_command(editor, variables):
         new_lines[insert_index:insert_index] = inserted_lines
         first_row = insert_index
 
-    new_doc = Document('\n'.join(new_lines))
-    eb.buffer.document = new_doc
-    note_document_text(normalized)
-
-    first_line = new_doc.lines[first_row]
-    first_non_blank = len(first_line) - len(first_line.lstrip())
-    eb.buffer.cursor_position = new_doc.translate_row_col_to_index(first_row, first_non_blank)
+    if not replace_buffer_lines(
+        editor,
+        eb,
+        new_lines,
+        first_row,
+        first_non_blank=True,
+        inserted_text=normalized,
+    ):
+        return
 
     if returncode != 0:
         editor.show_message(f'shell returned {returncode}')
@@ -884,17 +859,6 @@ def write_and_quit_all(editor, force=False):
     """
     if write_all(editor, force=force):
         editor.application.exit()
-
-
-def _is_buffer_read_only(buff) -> bool:
-    """
-    Evaluate `buff.read_only`, which prompt_toolkit stores as a `Filter`
-    callable (`Always` / `Never`), while also tolerating plain booleans.
-    """
-    read_only = getattr(buff, 'read_only', False)
-    if callable(read_only):
-        return bool(read_only())
-    return bool(read_only)
 
 
 @cmd('u')
@@ -1375,9 +1339,6 @@ def disable_tildeop(editor):
     editor.application.vi_state.tilde_operator = False
 
 
-_LINE_ADDRESS_RE = re.compile(r"^(?P<base>\d+|\.|\$|'<|'>)(?P<offset>[+-]\d+)?$")
-
-
 @dataclass(frozen=True)
 class _SubstituteOptions:
     """Parsed execution options for `:substitute`."""
@@ -1386,19 +1347,6 @@ class _SubstituteOptions:
     ignore_case: bool
     report_only: bool
     print_last: bool
-
-
-def parse_substitute_range(sub_range: str | None) -> tuple[str | None, str | None]:
-    """
-    Split a raw substitute range expression (e.g. `'%'`, `'1,3'`, `"'<,'>"`)
-    into `(range_start, range_end)`.
-    """
-    if not sub_range:
-        return None, None
-    if ',' in sub_range:
-        range_start, range_end = sub_range.split(',', 1)
-        return range_start, range_end
-    return sub_range, None
 
 
 def _split_delimited_fields(text: str, delim: str) -> list[str]:
@@ -1495,41 +1443,6 @@ def _parse_substitute_flags(
     )
 
 
-def _resolve_line_address(
-    address: str,
-    cursor_row: int,
-    line_count: int,
-    visual_marks: tuple[int, int] | None,
-) -> tuple[int | None, str | None]:
-    """
-    Resolve a single line address (`N`, `0`, `.`, `$`, `'<`, `'>`, with optional
-    `+/-N` offset) to a 0-based row index, or return an error message.
-    """
-    match = _LINE_ADDRESS_RE.match(address)
-    if match is None:
-        return None, 'E19: No such line in current buffer'
-
-    base = match.group('base')
-    offset_text = match.group('offset')
-    offset = int(offset_text) if offset_text else 0
-
-    if base == '.':
-        base_row = cursor_row
-    elif base == '$':
-        base_row = line_count - 1
-    elif base in ("'<", "'>"):
-        if visual_marks is None:
-            return None, 'E20: Mark not set'
-        base_row = visual_marks[0] if base == "'<" else visual_marks[1]
-    elif base == '0' and offset_text is None:
-        # `:0s` / `:0,1s` maps line 0 to the first line, matching Vim (docs/bugs/083.md).
-        return 0, None
-    else:
-        base_row = int(base) - 1
-
-    return base_row + offset, None
-
-
 def _resolve_substitute_range(
     range_start: str | None,
     range_end: str | None,
@@ -1541,29 +1454,17 @@ def _resolve_substitute_range(
     Resolve substitute range bounds to an ordered list of 0-based row indices,
     or return an error message when a mark is unset or the range is invalid.
     """
-    if not range_start:
-        assert not range_end
-        return [cursor_row], None
-
-    if range_start == '%':
-        if range_end:
-            return None, 'E19: No such line in current buffer'
-        return list(range(line_count)), None
-
-    start_row, start_err = _resolve_line_address(range_start, cursor_row, line_count, visual_marks)
-    if start_err is not None or start_row is None:
-        return None, start_err
-
-    if range_end:
-        end_row, end_err = _resolve_line_address(range_end, cursor_row, line_count, visual_marks)
-        if end_err is not None or end_row is None:
-            return None, end_err
-    else:
-        end_row = start_row
-
-    if not 0 <= start_row <= end_row < line_count:
-        return None, 'E19: No such line in current buffer'
-
+    bounds, err = resolve_range(
+        range_start,
+        range_end,
+        cursor_row,
+        line_count,
+        visual_marks,
+        default_range='.',
+    )
+    if err is not None or bounds is None:
+        return None, err
+    start_row, end_row = bounds
     return list(range(start_row, end_row + 1)), None
 
 
@@ -1655,31 +1556,13 @@ def substitute(editor, range_start, range_end, search, replace, flags):
         return
 
     # Apply substitution.
-    buffer.save_to_undo_stack()
-    # Reuse the already-split lines: only the shallow per-row list copy is
-    # needed (ptk caches `Document.lines` per document; docs/bugs/072.md row
-    # 5 as corrected in 090's audit).
     lines = list(buffer_lines)
     for row in line_numbers:
         lines[row] = substituted[row]
-    new_text = "\n".join(lines)
-
-    doc = Document(new_text)
-    buffer.document = doc
-    # The renderer gate: `_on_text_changed` notes only the *cursor line*,
-    # and at `document =` time the synthetic Document cursor is still at the
-    # end of `new_text` — substitute/paste-class mass edits introducing Thai
-    # on other rows could leave the 002/062-era sanitizer disarmed while the
-    # screen shows Thai (docs/bugs/081.md). Note the full replaced text.
-    note_document_text(new_text)
     assert last_substituted_row is not None
     row = last_substituted_row
-    buffer.cursor_position = doc.translate_row_col_to_index(row, 0) + (
-        len(doc.lines[row]) - len(doc.lines[row].lstrip())
-    )
-    # (The former private `buffer._search(...)` call here discarded its
-    # result and did nothing; the cursor targets the last substituted row
-    # directly. docs/bugs/071.md)
+    if not replace_buffer_lines(editor, eb, lines, row, first_non_blank=True):
+        return
 
     # update editor state
     editor.last_substitute_text = replace
@@ -1687,4 +1570,4 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     editor.clear_hlsearch_suppression()
 
     if options.print_last:
-        editor.show_message(doc.lines[row])
+        editor.show_message(eb.buffer.document.lines[row])

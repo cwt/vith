@@ -210,3 +210,22 @@ def test_read_command_grammar_and_non_collision_with_redo():
         v = m.variables()
         assert v.get('command') == expected_cmd, line
         assert v.get('read_shell') is None, line
+
+
+def test_bare_address_jump_grammar():
+    for line, expected_addr in (
+        (':42', '42'),
+        (':$', '$'),
+        (':.', '.'),
+        (':+3', '+3'),
+        (':-2', '-2'),
+        (':+', '+'),
+        (':-', '-'),
+        (':$-1', '$-1'),
+        (':.+2', '.+2'),
+        (":'<", "'<"),
+        (":'>", "'>"),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        assert m.variables().get('go_to_line') == expected_addr, line

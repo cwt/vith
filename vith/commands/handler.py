@@ -6,6 +6,7 @@ from .commands import (
     substitute,
 )
 from .grammar import COMMAND_GRAMMAR
+from .ranges import NO_SUCH_LINE_TEXT, resolve_line_address
 
 __all__ = ('handle_command',)
 
@@ -63,11 +64,43 @@ def handle_command(editor, input_string):
     editor.sync_with_prompt_toolkit()
 
 
-def _go_to_line(editor, line):
+def _go_to_line(editor, address):
     """
-    Move cursor to this line in the current buffer.
+    Move cursor to the addressed line (`:<N>`, `:$`, `:.`, `:+N`, `:-N`, `:'<`,
+    `:'>`) in the active buffer.
     """
-    b = editor.application.current_buffer
-    if b is None:
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is not None:
+        buff = eb.buffer
+        visual_marks = getattr(eb, 'visual_marks', None)
+    else:
+        buff = editor.application.current_buffer
+        visual_marks = None
+    if buff is None:
         return
-    b.cursor_position = b.document.translate_row_col_to_index(max(0, int(line) - 1), 0)
+
+    doc = buff.document
+    line_count = len(doc.lines)
+    row, err = resolve_line_address(
+        str(address),
+        doc.cursor_position_row,
+        line_count,
+        visual_marks,
+    )
+    if err is not None or row is None:
+        editor.show_message(err or NO_SUCH_LINE_TEXT)
+        return
+
+    addr_text = str(address).strip()
+    if addr_text.isdigit():
+        # Bare numeric line jump (`:999`, `:0`) clamps to [0, line_count - 1] like Vim.
+        target_row = max(0, min(row, line_count - 1))
+    elif 0 <= row < line_count:
+        target_row = row
+    else:
+        editor.show_message(NO_SUCH_LINE_TEXT)
+        return
+
+    line_text = doc.lines[target_row]
+    first_non_blank = len(line_text) - len(line_text.lstrip())
+    buff.cursor_position = doc.translate_row_col_to_index(target_row, first_non_blank)
