@@ -32,6 +32,8 @@ def _set_option_candidates(prefix: str) -> list[str]:
                 candidates.add('inv' + name)
         candidates.add('invtildeop')
         candidates.add('invtop')
+        candidates.add('invreadonly')
+        candidates.add('invro')
     return sorted(name for name in candidates if name.startswith(prefix))
 
 

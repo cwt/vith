@@ -563,7 +563,14 @@ class EditorLayout:
             return editor.show_wildmenu
 
         def _ignore_case_enabled():
-            return editor.ignore_case
+            app = getattr(editor, 'application', None)
+            if app is not None and app.layout.has_focus(editor.search_buffer):
+                pattern = editor.search_buffer.text
+            elif app is not None:
+                pattern = app.current_search_state.text or editor.search_buffer.text
+            else:
+                pattern = editor.search_buffer.text
+            return editor.should_ignore_case(pattern)
 
         # Mapping from (`window_arrangement.Window`, `EditorBuffer`) to a frame
         # (Layout instance).

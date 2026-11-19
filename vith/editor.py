@@ -182,9 +182,12 @@ class Editor:
         self.show_wildmenu = True
         self.expand_tab = True  # Insert spaces instead of tab characters.
         self.tabstop = 8  # Number of spaces that a tab character represents (Vim default: 8).
+        self.shiftwidth = 0  # ':set shiftwidth' (0 follows buffer tabstop, Vim convention).
         self._filetype_tabstops = FiletypeTabstops(DEFAULT_FILETYPE_TABSTOPS)
         self.incsearch = True  # Show matches while typing search string.
         self.ignore_case = False  # Ignore case while searching.
+        self.smartcase = False  # ':set smartcase': override ignorecase if pattern has uppercase.
+        self.autoindent = True  # ':set autoindent': copy previous line indent on Enter/o/O.
         self.enable_mouse_support = True
         self.display_unprintable_characters = True  # ':set list'
         self.enable_jedi = True  # ':set jedi', for Python Jedi completion.
@@ -209,8 +212,11 @@ class Editor:
             'show_wildmenu': self.show_wildmenu,
             'expand_tab': self.expand_tab,
             'tabstop': self.tabstop,
+            'shiftwidth': self.shiftwidth,
             'incsearch': self.incsearch,
             'ignore_case': self.ignore_case,
+            'smartcase': self.smartcase,
+            'autoindent': self.autoindent,
             'enable_mouse_support': self.enable_mouse_support,
             'display_unprintable_characters': self.display_unprintable_characters,
             'enable_jedi': self.enable_jedi,
@@ -478,6 +484,19 @@ class Editor:
                 self.application.invalidate()
             except Exception:
                 pass
+
+    def should_ignore_case(self, pattern: str | None) -> bool:
+        """
+        Return whether search/substitute should fold case for `pattern`,
+        honoring both `ignore_case` and `smartcase` (when both are enabled,
+        any uppercase character in `pattern` switches the match to
+        case-sensitive, matching Vim).
+        """
+        if not self.ignore_case:
+            return False
+        if self.smartcase and pattern and any(ch.isupper() for ch in pattern):
+            return False
+        return True
 
     def use_colorscheme(self, name='default'):
         """

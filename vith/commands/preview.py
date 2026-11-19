@@ -62,6 +62,7 @@ class CommandPreviewer:
         self._cursorline = e.cursorline
         self._colorcolumn = e.colorcolumn
         self._tabstop = e.tabstop
+        self._shiftwidth = e.shiftwidth
         self._scroll_offset = e.scroll_offset
         # The full `:set` catalog is previewable, so the whole state must be
         # restorable — a preview abort (Esc) used to leak inverted values for
@@ -71,16 +72,19 @@ class CommandPreviewer:
         self._expand_tab = e.expand_tab
         self._incsearch = e.incsearch
         self._ignore_case = e.ignore_case
+        self._smartcase = e.smartcase
+        self._autoindent = e.autoindent
         self._display_unprintable_characters = e.display_unprintable_characters
         self._enable_jedi = e.enable_jedi
         self._wrap_lines = e.wrap_lines
         self._break_indent = e.break_indent
         self._enable_mouse_support = e.enable_mouse_support
-        # Buffer-local `:set filetype` and `tabstop` preview state (lives on
-        # the active EditorBuffer, not on the Editor).
+        # Buffer-local `:set filetype`, `tabstop`, and `shiftwidth` preview state
+        # (lives on the active EditorBuffer, not on the Editor).
         self._filetype_buffer = None
         self._filetype_override = None
         self._buffer_tabstop_override = None
+        self._buffer_shiftwidth_override = None
         try:
             eb = e.window_arrangement.active_editor_buffer
         except Exception:
@@ -89,6 +93,7 @@ class CommandPreviewer:
             self._filetype_buffer = eb
             self._filetype_override = getattr(eb, 'filetype_override', None)
             self._buffer_tabstop_override = getattr(eb, '_tabstop_override', None)
+            self._buffer_shiftwidth_override = getattr(eb, '_shiftwidth_override', None)
 
     def restore(self):
         """
@@ -106,12 +111,15 @@ class CommandPreviewer:
         e.cursorline = self._cursorline
         e.colorcolumn = self._colorcolumn
         e.tabstop = self._tabstop
+        e.shiftwidth = self._shiftwidth
         e.scroll_offset = self._scroll_offset
         e.paste_mode = self._paste_mode
         e.show_wildmenu = self._show_wildmenu
         e.expand_tab = self._expand_tab
         e.incsearch = self._incsearch
         e.ignore_case = self._ignore_case
+        e.smartcase = self._smartcase
+        e.autoindent = self._autoindent
         e.display_unprintable_characters = self._display_unprintable_characters
         e.enable_jedi = self._enable_jedi
         e.wrap_lines = self._wrap_lines
@@ -122,6 +130,7 @@ class CommandPreviewer:
             try:
                 eb.filetype_override = self._filetype_override
                 eb._tabstop_override = self._buffer_tabstop_override
+                eb._shiftwidth_override = self._buffer_shiftwidth_override
             except Exception:
                 pass
 
@@ -215,10 +224,10 @@ class CommandPreviewer:
         raw_value = variables.get('set_value')
         if raw_value and raw_value.isdigit() and int(raw_value) >= minimum:
             val = int(raw_value)
-            if attribute == 'tabstop':
+            if attribute in ('tabstop', 'shiftwidth'):
                 eb = getattr(e.window_arrangement, 'active_editor_buffer', None)
                 if eb is not None:
-                    eb._tabstop_override = val
+                    setattr(eb, f'_{attribute}_override', val)
                 if not is_local:
                     setattr(e, attribute, val)
             else:

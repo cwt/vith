@@ -1,3 +1,4 @@
+import codecs
 import os
 import re
 import subprocess
@@ -5,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from prompt_toolkit.clipboard import ClipboardData
+from prompt_toolkit.filters import to_filter
 from prompt_toolkit.selection import SelectionType
 
 from vith.thai import note_document_text
@@ -1394,6 +1396,10 @@ def _set_int_option(editor, value, attribute, display_name, minimum, is_local=Fa
         if attribute == 'tabstop':
             eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
             current_value = eb.tabstop if eb is not None else getattr(editor, attribute)
+        elif attribute == 'shiftwidth':
+            eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+            override = getattr(eb, '_shiftwidth_override', None) if eb is not None else None
+            current_value = override if override is not None else getattr(editor, attribute)
         else:
             current_value = getattr(editor, attribute)
         editor.show_message('%s=%i' % (display_name, current_value))
@@ -1406,18 +1412,18 @@ def _set_int_option(editor, value, attribute, display_name, minimum, is_local=Fa
     if number < minimum:
         editor.show_message('Argument must be positive')
         return False
-    if attribute == 'tabstop':
+    if attribute in ('tabstop', 'shiftwidth'):
         eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
         if is_local:
             if eb is not None:
-                eb.tabstop = number
+                setattr(eb, attribute, number)
             else:
                 editor.show_message('No buffer')
                 return False
         else:
             setattr(editor, attribute, number)
             if eb is not None:
-                eb.tabstop = number
+                setattr(eb, attribute, number)
     else:
         setattr(editor, attribute, number)
     try:
@@ -1463,6 +1469,8 @@ SET_TOGGLE_GROUPS = (
     ('expandtab', 'expand_tab', ('expandtab', 'et'), ('noexpandtab', 'noet')),
     ('incsearch', 'incsearch', ('incsearch', 'is'), ('noincsearch', 'nois')),
     ('ignorecase', 'ignore_case', ('ignorecase', 'ic'), ('noignorecase', 'noic')),
+    ('smartcase', 'smartcase', ('smartcase', 'scs'), ('nosmartcase', 'noscs')),
+    ('autoindent', 'autoindent', ('autoindent', 'ai'), ('noautoindent', 'noai')),
     ('list', 'display_unprintable_characters', ('list',), ('nolist',)),
     ('jedi', 'enable_jedi', ('jedi',), ('nojedi',)),
     ('relativenumber', 'relative_number', ('relativenumber', 'rnu'), ('norelativenumber', 'nornu')),
@@ -1476,6 +1484,7 @@ SET_TOGGLE_GROUPS = (
 #: (display name, editor attribute, aliases, minimum)
 SET_INT_OPTIONS = (
     ('tabstop', 'tabstop', ('tabstop', 'ts'), 1),
+    ('shiftwidth', 'shiftwidth', ('shiftwidth', 'sw'), 0),
     ('scrolloff', 'scroll_offset', ('scrolloff', 'so'), 0),
 )
 
@@ -1549,12 +1558,22 @@ def _query_set_option(editor: Any, name: str) -> tuple[str | None, str | None]:
         enabled = bool(editor.application.vi_state.tilde_operator)
         return _format_toggle_value('tildeop', enabled), None
 
+    if name in ('readonly', 'ro', 'noreadonly', 'noro'):
+        eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+        if eb is None:
+            return None, 'No buffer'
+        return _format_toggle_value('readonly', _is_buffer_read_only(eb.buffer)), None
+
     int_info = _INT_OPTION_MAP.get(name)
     if int_info is not None:
         display, attr, _min = int_info
         if attr == 'tabstop':
             eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
             val = eb.tabstop if eb is not None else getattr(editor, attr)
+        elif attr == 'shiftwidth':
+            eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+            override = getattr(eb, '_shiftwidth_override', None) if eb is not None else None
+            val = override if override is not None else getattr(editor, attr)
         else:
             val = getattr(editor, attr)
         return f'{display}={val}', None
@@ -1571,11 +1590,20 @@ def _query_set_option(editor: Any, name: str) -> tuple[str | None, str | None]:
             return None, 'No buffer'
         return f'filetype={eb.filetype or ""}', None
 
+    if name in ('fileencoding', 'fenc'):
+        eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+        if eb is None:
+            return None, 'No buffer'
+        return f'fileencoding={eb.encoding or ""}', None
+
     return None, f'Unknown option: {name}'
 
 
-def _toggle_boolean_option(editor: Any, base_name: str) -> bool:
-    """Invert boolean option `base_name` (used by `opt!` and `invopt`)."""
+def _toggle_boolean_option(editor: Any, base_name: str) -> tuple[bool, bool]:
+    """
+    Invert boolean option `base_name` (used by `opt!` and `invopt`).
+    Returns `(handled, ok)` where `ok=False` means an error was shown.
+    """
     toggle_info = _TOGGLE_ON_MAP.get(base_name)
     if toggle_info is not None:
         _display, attr = toggle_info
@@ -1583,12 +1611,19 @@ def _toggle_boolean_option(editor: Any, base_name: str) -> bool:
         setattr(editor, attr, new_value)
         if attr == 'highlight_search' and new_value:
             editor.clear_hlsearch_suppression()
-        return True
+        return True, True
     if base_name in ('tildeop', 'top'):
         vi_state = editor.application.vi_state
         vi_state.tilde_operator = not bool(vi_state.tilde_operator)
-        return True
-    return False
+        return True, True
+    if base_name in ('readonly', 'ro'):
+        eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+        if eb is None:
+            editor.show_message('No buffer')
+            return True, False
+        eb.buffer.read_only = to_filter(not _is_buffer_read_only(eb.buffer))
+        return True, True
+    return False, False
 
 
 def set_options_lines(editor: Any, show_all: bool = False) -> list[str]:
@@ -1610,9 +1645,16 @@ def set_options_lines(editor: Any, show_all: bool = False) -> list[str]:
     if show_all or tilde_cur is not False:
         entries.append(_format_toggle_value('tildeop', tilde_cur))
 
+    ro_cur = _is_buffer_read_only(eb.buffer) if eb is not None else False
+    if show_all or ro_cur is not False:
+        entries.append(_format_toggle_value('readonly', ro_cur))
+
     for display, attr, _names, _min in SET_INT_OPTIONS:
         if attr == 'tabstop' and eb is not None:
             cur_int = eb.tabstop
+        elif attr == 'shiftwidth' and eb is not None:
+            override = getattr(eb, '_shiftwidth_override', None)
+            cur_int = override if override is not None else int(getattr(editor, attr))
         else:
             cur_int = int(getattr(editor, attr))
         default_int = int(defaults.get(attr, cur_int))
@@ -1628,6 +1670,10 @@ def set_options_lines(editor: Any, show_all: bool = False) -> list[str]:
     cur_ft = (eb.filetype or '') if eb is not None else ''
     if show_all or cur_ft != '':
         entries.append(f'filetype={cur_ft}')
+
+    cur_fenc = (eb.encoding or 'utf-8') if eb is not None else 'utf-8'
+    if show_all or cur_fenc != 'utf-8':
+        entries.append(f'fileencoding={cur_fenc}')
 
     entries.sort()
     lines = ['--- Options ---']
@@ -1671,9 +1717,14 @@ def _apply_set_token(
             editor.show_message(f'E474: Invalid argument: {opt}={value}')
             return False
         base = opt[:-1]
-        if _toggle_boolean_option(editor, base):
-            return True
-        if base in _INT_OPTION_MAP or base in _LIST_OPTION_MAP or base in ('filetype', 'ft'):
+        handled, ok = _toggle_boolean_option(editor, base)
+        if handled:
+            return ok
+        if (
+            base in _INT_OPTION_MAP
+            or base in _LIST_OPTION_MAP
+            or base in ('filetype', 'ft', 'fileencoding', 'fenc')
+        ):
             editor.show_message(f'E474: Invalid argument: {opt}')
             return False
         editor.show_message(f'Unknown option: {opt}')
@@ -1681,12 +1732,12 @@ def _apply_set_token(
 
     if opt.startswith('inv') and opt not in SET_COMMANDS:
         base = opt[3:]
-        if base in _TOGGLE_ON_MAP or base in ('tildeop', 'top'):
+        if base in _TOGGLE_ON_MAP or base in ('tildeop', 'top', 'readonly', 'ro'):
             if value is not None:
                 editor.show_message(f'E474: Invalid argument: {opt}={value}')
                 return False
-            _toggle_boolean_option(editor, base)
-            return True
+            _handled, ok = _toggle_boolean_option(editor, base)
+            return ok
         editor.show_message(f'Unknown option: {opt}')
         return False
 
@@ -1699,13 +1750,17 @@ def _apply_set_token(
             'top',
             'notildeop',
             'notop',
+            'readonly',
+            'ro',
+            'noreadonly',
+            'noro',
         )
     ):
         if value is not None:
             editor.show_message(f'E474: Invalid argument: {opt}={value}')
             return False
-        SET_COMMANDS[opt](editor)
-        return True
+        result = SET_COMMANDS[opt](editor)
+        return True if result is None else bool(result)
 
     int_info = _INT_OPTION_MAP.get(opt)
     if int_info is not None:
@@ -1741,6 +1796,16 @@ def _apply_set_token(
             return True
         return bool(set_filetype(editor, value))
 
+    if opt in ('fileencoding', 'fenc'):
+        if value is None:
+            text, err = _query_set_option(editor, opt)
+            if err is not None or text is None:
+                editor.show_message(err or f'Unknown option: {opt}')
+                return False
+            queries.append(text)
+            return True
+        return bool(set_fileencoding(editor, value))
+
     if opt in SET_COMMANDS:
         if opt in SET_COMMANDS_TAKING_VALUE:
             SET_COMMANDS[opt](editor, value)
@@ -1753,6 +1818,54 @@ def _apply_set_token(
 
     editor.show_message('Unknown option: %s' % opt)
     return False
+
+
+@set_cmd('readonly')
+@set_cmd('ro')
+def enable_readonly(editor: Any) -> bool:
+    """Mark the active buffer read-only (`:set ro`)."""
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        editor.show_message('No buffer')
+        return False
+    eb.buffer.read_only = to_filter(True)
+    return True
+
+
+@set_cmd('noreadonly')
+@set_cmd('noro')
+def disable_readonly(editor: Any) -> bool:
+    """Mark the active buffer writable (`:set noro`)."""
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        editor.show_message('No buffer')
+        return False
+    eb.buffer.read_only = to_filter(False)
+    return True
+
+
+@set_cmd('fileencoding', accepts_value=True)
+@set_cmd('fenc', accepts_value=True)
+def set_fileencoding(editor: Any, value: str | None) -> bool:
+    """Get or set the active buffer's file encoding (`:set fenc=utf-8`)."""
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        editor.show_message('No buffer')
+        return False
+    if value is None:
+        editor.show_message(f'fileencoding={eb.encoding or ""}')
+        return True
+    name = value.strip()
+    if not name:
+        editor.show_message(f'E474: Invalid argument: {value}')
+        return False
+    try:
+        codecs.lookup(name)
+    except LookupError:
+        editor.show_message(f'E474: Invalid argument: {value}')
+        return False
+    eb.encoding = name.lower()
+    return True
 
 
 @set_cmd('filetype', accepts_value=True)
@@ -1943,6 +2056,22 @@ def _resolve_substitute_range(
     return list(range(start_row, end_row + 1)), None
 
 
+def _should_ignore_case(editor: Any, pattern: str | None) -> bool:
+    """Resolve effective case-folding honoring `ignorecase` and `smartcase`."""
+    checker = getattr(editor, 'should_ignore_case', None)
+    if callable(checker):
+        return bool(checker(pattern))
+    if not bool(getattr(editor, 'ignore_case', False)):
+        return False
+    if (
+        bool(getattr(editor, 'smartcase', False))
+        and pattern
+        and any(ch.isupper() for ch in pattern)
+    ):
+        return False
+    return True
+
+
 def substitute(editor, range_start, range_end, search, replace, flags):
     """Substitute /search/ with /replace/ over a range of text."""
 
@@ -1973,7 +2102,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     # Parse and validate flags (docs/bugs/083.md, docs/bugs/094.md).
     options, flag_error = _parse_substitute_flags(
         flags,
-        default_ignore_case=bool(getattr(editor, 'ignore_case', False)),
+        default_ignore_case=_should_ignore_case(editor, search),
     )
     if flag_error is not None or options is None:
         editor.show_message(flag_error)
@@ -2576,7 +2705,7 @@ def _global_execute_substitute(
 
     options, flag_err = _parse_substitute_flags(
         flags,
-        default_ignore_case=bool(getattr(editor, 'ignore_case', False)),
+        default_ignore_case=_should_ignore_case(editor, search),
     )
     if flag_err is not None or options is None:
         editor.show_message(flag_err)
@@ -2699,7 +2828,7 @@ def global_command(editor: Any, variables: Any) -> None:
         editor.show_message('Unsafe pattern (nested quantifier): %s' % pattern_text)
         return
 
-    regex_flags = re.IGNORECASE if bool(getattr(editor, 'ignore_case', False)) else 0
+    regex_flags = re.IGNORECASE if _should_ignore_case(editor, pattern_text) else 0
     try:
         pattern = re.compile(pattern_text, flags=regex_flags)
     except re.error as exc:
@@ -2799,7 +2928,7 @@ def _parse_normal_keys(keys_str: str) -> list[Any]:
         elif ch in ('\x7f', '\x08'):
             key_presses.append(KeyPress(Keys.ControlH, ch))
         elif 1 <= code <= 26:
-            key_presses.append(KeyPress(f'c-{chr(code + 96)}', ch))
+            key_presses.append(KeyPress(Keys(f'c-{chr(code + 96)}'), ch))
         else:
             key_presses.append(KeyPress(ch, ch))
     return key_presses

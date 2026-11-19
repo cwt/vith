@@ -37,6 +37,7 @@ class EditorBuffer:
         self.filetype_override: str | None = None
         self._detected_filetype: str | None = None
         self._tabstop_override: int | None = None
+        self._shiftwidth_override: int | None = None
         # Last visual selection 0-based line bounds `(start_row, end_row)`
         # recorded when entering command mode from selection (`'<`, `'>`).
         self.visual_marks: tuple[int, int] | None = None
@@ -177,6 +178,28 @@ class EditorBuffer:
         if value is not None and value < 1:
             raise ValueError('tabstop must be at least 1')
         self._tabstop_override = value
+
+    @property
+    def shiftwidth(self) -> int:
+        """
+        Effective indentation width for `>>`, `<<`, and `<C-t>`.
+
+        Follows Vim's `shiftwidth=0` convention: when the configured shiftwidth
+        (buffer-local override or global `editor.shiftwidth`) is `0`, returns
+        the buffer's effective `tabstop`.
+        """
+        if self._shiftwidth_override is not None:
+            raw = self._shiftwidth_override
+        else:
+            editor = self.editor
+            raw = getattr(editor, 'shiftwidth', 0) if editor is not None else 0
+        return self.tabstop if raw == 0 else raw
+
+    @shiftwidth.setter
+    def shiftwidth(self, value: int | None) -> None:
+        if value is not None and value < 0:
+            raise ValueError('shiftwidth must be non-negative')
+        self._shiftwidth_override = value
 
     def _on_text_changed(self, *args):
         "Buffer text changed."
@@ -359,6 +382,17 @@ class EditorBuffer:
         target_location = location if location is not None else self.location
         if not target_location:
             self.editor.show_message('Unknown location: %r' % location)
+            return False
+
+        # Guard buffer-local `readonly` option (`:set ro`) unless forced (`:w!`).
+        read_only = self.buffer.read_only
+        is_ro = bool(read_only()) if callable(read_only) else bool(read_only)
+        if (
+            is_ro
+            and not force
+            and (location is None or target_location == self.location or self.location is None)
+        ):
+            self.editor.show_message("E45: 'readonly' option is set (add ! to override)")
             return False
 
         # Find I/O backend that handles this location.

@@ -326,3 +326,232 @@ def test_set_completion_multi_arg_all_and_inv(editor):
     assert 'invtildeop' in complete('set invt')
     assert 'python' in complete('set nu ft=py')
     assert complete('set nu tabstop=') == []
+
+
+def test_smartcase_option_in_search_substitute_and_global(editor, tmp_path):
+    f = tmp_path / 'case.txt'
+    f.write_text('foo\nFoo\nFOO\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    # Default: ignorecase=False, smartcase=False -> case-sensitive.
+    assert editor.should_ignore_case('foo') is False
+    handle_command(editor, ':set ic scs')
+    assert editor.ignore_case is True
+    assert editor.smartcase is True
+    assert editor.should_ignore_case('foo') is True
+    assert editor.should_ignore_case('Foo') is False
+
+    # SearchToolbar ignore_case filter follows smartcase dynamically:
+    search_state = editor.editor_layout.search_control.searcher_search_state
+    editor.search_buffer.text = 'foo'
+    assert search_state.ignore_case() is True
+    editor.search_buffer.text = 'Foo'
+    assert search_state.ignore_case() is False
+
+    # `:s` honors smartcase (uppercase pattern is case-sensitive, lowercase folds case):
+    handle_command(editor, ':%s/Foo/Bar/g')
+    assert eb.buffer.document.lines == ['foo', 'Bar', 'FOO']
+    handle_command(editor, ':%s/foo/baz/g')
+    assert eb.buffer.document.lines == ['baz', 'Bar', 'baz']
+
+    # Explicit `/i` overrides smartcase even on uppercase pattern:
+    handle_command(editor, ':%s/BAZ/qux/gi')
+    assert eb.buffer.document.lines == ['qux', 'Bar', 'qux']
+
+    # `:g` honors smartcase too:
+    handle_command(editor, ':g/Bar/d')
+    assert eb.buffer.document.lines == ['qux', 'qux']
+
+    handle_command(editor, ':set noscs')
+    assert editor.smartcase is False
+    handle_command(editor, ':set scs?')
+    assert editor.message == 'nosmartcase'
+
+
+def test_shiftwidth_option_and_indent_bindings(editor, tmp_path):
+    from vith.commands.preview import CommandPreviewer
+    from vith.key_bindings import _get_buffer_shiftwidth, _shift_lines
+
+    f = tmp_path / 'indent.txt'
+    f.write_text('alpha\nbeta\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    # Default shiftwidth=0 follows buffer tabstop (8 for .txt):
+    assert editor.shiftwidth == 0
+    assert _get_buffer_shiftwidth(editor, eb.buffer) == 8
+
+    # Setting shiftwidth=2 decouples >> / << / <C-t> from tabstop=8:
+    handle_command(editor, ':set ts=8 sw=2 et')
+    assert editor.shiftwidth == 2
+    assert eb.shiftwidth == 2
+    assert _get_buffer_shiftwidth(editor, eb.buffer) == 2
+
+    _shift_lines(editor, eb.buffer, 1, indent=True)
+    assert eb.buffer.document.lines[0] == '  alpha'
+    _shift_lines(editor, eb.buffer, 1, indent=False)
+    assert eb.buffer.document.lines[0] == 'alpha'
+
+    # `<C-t>` in Insert mode indents by shiftwidth (2), not tabstop (8):
+    handle_command(editor, ':1norm! i\x14')
+    assert eb.buffer.document.lines[0] == '  alpha'
+
+    # `:setlocal sw=3` overrides only current buffer; `sw=0` falls back to tabstop:
+    handle_command(editor, ':setlocal sw=3')
+    assert eb.shiftwidth == 3
+    assert editor.shiftwidth == 2
+    handle_command(editor, ':setlocal sw?')
+    assert editor.message == 'shiftwidth=3'
+
+    handle_command(editor, ':set sw=0')
+    assert eb.shiftwidth == 8
+
+    # Validation rejects negative values:
+    handle_command(editor, ':set sw=-1')
+    assert editor.message == 'Argument must be positive'
+
+    # Live preview restores both global and buffer-local shiftwidth:
+    previewer = CommandPreviewer(editor)
+    previewer.preview(':set sw=6')
+    assert editor.shiftwidth == 6
+    assert eb.shiftwidth == 6
+    previewer.restore()
+    assert editor.shiftwidth == 0
+    assert eb.shiftwidth == 8
+
+
+def test_readonly_option_toggles_and_write_guard(editor, tmp_path):
+    from vith.commands.commands import set_options_lines
+    from vith.commands.preview import CommandPreviewer
+
+    f = tmp_path / 'locked.txt'
+    f.write_text('initial\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    # Default is writable:
+    handle_command(editor, ':set ro?')
+    assert editor.message == 'noreadonly'
+
+    # `:set ro` locks edits and blocks `:w` without `!`:
+    handle_command(editor, ':set ro')
+    assert eb.buffer.read_only() is True
+    handle_command(editor, ':set ro?')
+    assert editor.message == 'readonly'
+    assert 'readonly' in set_options_lines(editor, show_all=False)
+
+    handle_command(editor, ':w')
+    assert editor.message == "E45: 'readonly' option is set (add ! to override)"
+
+    # `:w!` overrides E45 and writes:
+    assert eb.write(force=True) is True
+
+    # `:set ro!` / `:set invro` toggle read-only:
+    handle_command(editor, ':set ro!')
+    assert eb.buffer.read_only() is False
+    handle_command(editor, ':set invro')
+    assert eb.buffer.read_only() is True
+    handle_command(editor, ':set noro')
+    assert eb.buffer.read_only() is False
+
+    # Previewing `:set ro` has zero side effects:
+    previewer = CommandPreviewer(editor)
+    previewer.preview(':set ro')
+    assert eb.buffer.read_only() is False
+
+
+def test_autoindent_option_enter_and_open_lines(editor, tmp_path):
+    from vith.commands.preview import CommandPreviewer
+
+    f = tmp_path / 'code.py'
+    f.write_text('    def greet():\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    # Default autoindent=True copies leading whitespace on `o`, `O`, and Enter:
+    assert editor.autoindent is True
+    handle_command(editor, ':1norm! opass')
+    assert eb.buffer.document.lines == ['    def greet():', '    pass']
+
+    handle_command(editor, ':1norm! O# header')
+    assert eb.buffer.document.lines[0] == '    # header'
+
+    # Turning off autoindent (`:set noai`) suppresses indent copying on `o`, `O`, and Enter:
+    handle_command(editor, ':set noai')
+    assert editor.autoindent is False
+    handle_command(editor, ':set ai?')
+    assert editor.message == 'noautoindent'
+
+    handle_command(editor, ':2norm! oreturn')
+    assert eb.buffer.document.lines[2] == 'return'
+
+    handle_command(editor, ':2norm! O# top')
+    assert eb.buffer.document.lines[1] == '# top'
+
+    # Insert-mode Enter honors autoindent toggle:
+    eb.buffer.text = '    hello'
+    handle_command(editor, ':set ai')
+    handle_command(editor, ':1norm! A\rworld')
+    assert eb.buffer.document.lines == ['    hello', '    world']
+
+    eb.buffer.text = '    hello'
+    handle_command(editor, ':set noai')
+    handle_command(editor, ':1norm! A\rworld')
+    assert eb.buffer.document.lines == ['    hello', 'world']
+
+    # `paste_mode` also suppresses autoindent even when `autoindent=True`:
+    eb.buffer.text = '    hello'
+    handle_command(editor, ':set ai paste')
+    handle_command(editor, ':1norm! opaste_line')
+    assert eb.buffer.document.lines == ['    hello', 'paste_line']
+
+    # Preview save/restore covers autoindent:
+    previewer = CommandPreviewer(editor)
+    previewer.preview(':set noai')
+    assert editor.autoindent is False
+    previewer.restore()
+    assert editor.autoindent is True
+
+
+def test_fileencoding_option_validation_and_write(editor, tmp_path):
+    from vith.commands.commands import set_options_lines
+
+    f = tmp_path / 'encoded.txt'
+    f.write_text('caf\u00e9\n', encoding='utf-8')
+    _open_files(editor, [str(f)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    handle_command(editor, ':set fenc?')
+    assert editor.message == 'fileencoding=utf-8'
+
+    # Invalid codec is rejected without mutating encoding:
+    handle_command(editor, ':set fenc=not_a_real_codec_xyz')
+    assert 'E474' in editor.message
+    assert eb.encoding == 'utf-8'
+
+    # Valid encoding updates `eb.encoding`, appears in bare `:set`, and writes bytes in that encoding:
+    handle_command(editor, ':set fenc=latin-1')
+    assert eb.encoding == 'latin-1'
+    assert 'fileencoding=latin-1' in set_options_lines(editor, show_all=False)
+    handle_command(editor, ':w')
+    assert f.read_bytes() == 'caf\u00e9\n'.encode('latin-1')
+
+
+def test_buffer_local_options_handle_empty_editor(editor):
+    handle_command(editor, ':set ro')
+    assert editor.message == 'No buffer'
+    handle_command(editor, ':set fenc=utf-8')
+    assert editor.message == 'No buffer'
+
+
+def test_toml_config_supports_phase4_options(editor):
+    from vith.rc_file import apply_toml_config
+
+    apply_toml_config(
+        editor,
+        {'editor': {'smartcase': True, 'shiftwidth': 2, 'autoindent': False}},
+    )
+    assert editor.smartcase is True
+    assert editor.shiftwidth == 2
+    assert editor.autoindent is False

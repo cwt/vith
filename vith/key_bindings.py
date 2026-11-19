@@ -5,6 +5,7 @@ from prompt_toolkit.application import get_app
 from prompt_toolkit.filters import (
     Condition,
     has_focus,
+    is_multiline,
     is_read_only,
     vi_insert_mode,
     vi_navigation_mode,
@@ -132,15 +133,37 @@ def _get_buffer_tabstop(editor, buff=None) -> int:
     return getattr(editor, 'tabstop', 8)
 
 
-def _insert_indentation(editor, buffer_):
+def _get_buffer_shiftwidth(editor, buff=None) -> int:
     """
-    Insert one indentation step at `buffer_`'s cursor (tabstop spaces with
-    `editor.expand_tab`, otherwise a literal tab). Shared by the `<C-t>`
-    indent binding and the Insert-mode `tab` binding (docs/bugs/073.md).
+    Return effective shiftwidth for `buff` (or active buffer), following Vim's
+    `shiftwidth=0` convention (fall back to effective `tabstop`).
     """
-    tabstop = _get_buffer_tabstop(editor, buffer_)
+    if buff is not None:
+        eb_ref = getattr(buff, '_vith_editor_buffer_ref', None)
+        if eb_ref is not None:
+            eb = eb_ref()
+            if eb is not None:
+                return eb.shiftwidth
+    try:
+        active_eb = editor.window_arrangement.active_editor_buffer
+        if active_eb is not None:
+            return active_eb.shiftwidth
+    except Exception:
+        pass
+    sw = getattr(editor, 'shiftwidth', 0)
+    return sw if sw > 0 else _get_buffer_tabstop(editor, buff)
+
+
+def _insert_indentation(editor, buffer_, width=None):
+    """
+    Insert one indentation step at `buffer_`'s cursor (`width` or buffer
+    tabstop spaces with `editor.expand_tab`, otherwise a literal tab). Shared
+    by the `<C-t>` indent binding and the Insert-mode `tab` binding
+    (docs/bugs/073.md).
+    """
+    indent_width = width if width is not None else _get_buffer_tabstop(editor, buffer_)
     if editor.expand_tab:
-        buffer_.insert_text(' ' * tabstop)
+        buffer_.insert_text(' ' * indent_width)
     else:
         buffer_.insert_text('\t')
 
@@ -204,11 +227,12 @@ def _record_word_search(editor, event, direction):
 def _shift_lines(editor, buff, count, indent):
     """
     Indent (`>>`) or unindent (`<<`) `count` lines from the cursor row,
-    using buffer's `tabstop` / `editor.expand_tab` (docs/bugs/118.md).
+    using buffer's effective `shiftwidth` (falling back to `tabstop` when `0`)
+    and `editor.expand_tab` (docs/bugs/118.md).
     """
     from prompt_toolkit.document import Document
 
-    tabstop = _get_buffer_tabstop(editor, buff)
+    width = _get_buffer_shiftwidth(editor, buff)
     doc = buff.document
     first_row = doc.cursor_position_row
     last_row = min(len(doc.lines) - 1, first_row + _positive_count(count) - 1)
@@ -216,11 +240,11 @@ def _shift_lines(editor, buff, count, indent):
     for row in range(first_row, last_row + 1):
         line = lines[row]
         if indent:
-            lines[row] = (' ' * tabstop if editor.expand_tab else '\t') + line
+            lines[row] = (' ' * width if editor.expand_tab else '\t') + line
         elif line.startswith('\t'):
             lines[row] = line[1:]
         else:
-            lines[row] = line[min(len(line) - len(line.lstrip(' ')), tabstop) :]
+            lines[row] = line[min(len(line) - len(line.lstrip(' ')), width) :]
     buff.save_to_undo_stack()
     new_text = '\n'.join(lines)
     buff.document = Document(new_text)
@@ -292,7 +316,7 @@ def create_key_bindings(editor):
     @kb.add('c-t', filter=in_insert_mode)
     def indent_line(event):
         """
-        Indent current line.
+        Indent current line by one `shiftwidth` (falling back to `tabstop` when 0).
         """
         b = event.current_buffer
 
@@ -300,8 +324,8 @@ def create_key_bindings(editor):
         pos = b.document.get_start_of_line_position(after_whitespace=True)
         b.cursor_position += pos
 
-        # Insert tab (shared with the Insert-mode `tab` binding).
-        _insert_indentation(editor, b)
+        # Insert indentation honoring shiftwidth/expandtab.
+        _insert_indentation(editor, b, width=_get_buffer_shiftwidth(editor, b))
 
         # Restore cursor.
         b.cursor_position -= pos
@@ -588,6 +612,38 @@ def create_key_bindings(editor):
         Unindent `event.arg` lines from the cursor row by one tabstop.
         """
         _shift_lines(editor, event.current_buffer, event.arg, indent=False)
+
+    # Autoindent-aware newline / open-line bindings (`:set [no]autoindent`,
+    # honoring `:set paste` just like Vim).
+    @kb.add('enter', filter=in_insert_mode & is_multiline & ~is_read_only & ~in_file_explorer_mode)
+    def insert_newline(event):
+        """
+        Insert a newline, copying leading whitespace when `autoindent` is
+        enabled and `paste_mode` is off.
+        """
+        event.current_buffer.newline(copy_margin=editor.autoindent and not editor.paste_mode)
+
+    @kb.add('o', filter=in_navigation_mode & ~is_read_only)
+    def open_line_below(event):
+        """
+        Open a line below and enter Insert mode, honoring `autoindent` and
+        `paste_mode`.
+        """
+        event.current_buffer.insert_line_below(
+            copy_margin=editor.autoindent and not editor.paste_mode
+        )
+        event.app.vi_state.input_mode = InputMode.INSERT
+
+    @kb.add('O', filter=in_navigation_mode & ~is_read_only)
+    def open_line_above(event):
+        """
+        Open a line above and enter Insert mode, honoring `autoindent` and
+        `paste_mode`.
+        """
+        event.current_buffer.insert_line_above(
+            copy_margin=editor.autoindent and not editor.paste_mode
+        )
+        event.app.vi_state.input_mode = InputMode.INSERT
 
     # Word-occurrence search with history (docs/bugs/122.md): like the
     # prompt_toolkit `*` / `#` defaults, plus a search-history entry so
