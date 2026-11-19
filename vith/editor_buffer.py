@@ -43,6 +43,8 @@ class EditorBuffer:
 
         #: is_new: True when this file does not yet exist in the storage.
         self.is_new = True
+        self.is_scratch = False
+        self.scratch_title: str | None = None
 
         # Empty if not in file explorer mode, directory path otherwise.
         self.isdir = False
@@ -397,7 +399,7 @@ class EditorBuffer:
         Return name as displayed.
         """
         if self.location is None:
-            return UNTITLED_LABEL
+            return self.scratch_title or UNTITLED_LABEL
         elif short:
             return os.path.basename(self.location)
         else:

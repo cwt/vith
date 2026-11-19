@@ -29,7 +29,7 @@ stale_after: 2027-05-19T00:00:00Z
 tags: [commands, ex-mode, vim-parity, grammar, completer, preview, planning]
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-19T10:10:00Z"
+  at: "2026-11-19T16:00:00Z"
 ---
 
 # Ex Command Completeness Plan for `vith`
@@ -135,10 +135,10 @@ All new commands MUST uphold the invariants established across `vith`'s audit ro
   * With no argument: formats `"<display_name>" [Modified][New file] <N> lines --<P>%--` via `editor.show_message()`.
   * With a location argument: updates `eb.location = location`, resets `eb._detected_filetype = None`, refreshes `editor.update_title()`, and shows the updated file status.
 * **`:ver` / `:version`** (`cmd`):
-  * Displays `vith` version (`importlib.metadata.version('vith')` with fallback), Python version, `prompt_toolkit` version, Thai word-segmentation backend (`libthai` vs orthographic fallback), and default cold-text compressor via `_run_pager` (with a pure `version_lines(editor)` helper for tests; **D2**).
+  * Displays `vith` version (`vith.__version__`), Python version, `prompt_toolkit` version, Thai word-segmentation backend (`libthai` vs orthographic fallback), and cold-text compressor inside `vith` via `Editor.show_info(..., title='[Version]')` (read-only scratch split, closeable with `:q`, backed by `version_lines(editor)`; **D2**).
 * **`:messages` / `:mes`** (`cmd`):
   * Record non-empty messages in a bounded `collections.deque(maxlen=200)` inside `Editor.show_message()`[^src-editor].
-  * `:messages` prints the recorded history via `_run_pager` (using a pure `messages_lines(editor)` helper; **D2**), or shows `No messages` when empty.
+  * `:messages` displays the recorded history inside `vith` via `Editor.show_info(..., title='[Messages]')` (using a pure `messages_lines(editor)` helper; **D2**), or shows `No messages` (unrecorded) when empty.
 
 ---
 
@@ -198,7 +198,7 @@ Behavioral contract:
   * `:tabo` / `:tabonly`: close all tab pages except `active_tab`.
   * `:tabfir` / `:tabfirst`, `:tabl` / `:tablast`: jump to tab `0` / `-1`.
   * `:tabm [N|+N|-N]` / `:tabmove`: move active tab to position `N` (default end), or relative `±N`.
-  * `:tabs`: list all tab pages and their windows/buffers via `_run_pager` (with a pure `tabs_lines(editor)` helper; highlighting active tab/window; **D2**).
+  * `:tabs`: list all tab pages and their windows/buffers inside `vith` via `Editor.show_info(..., title='[Tabs]')` (with a pure `tabs_lines(editor)` helper; highlighting active tab/window; **D2**).
 
 ---
 
@@ -253,8 +253,8 @@ Currently, range parsing (`%`, `.`, `$`, `'<`, `'>`, `N`, `±offset`) is hardcod
 Upgrade `:set` / `:setlocal` / `:setl` across `grammar.py`[^src-grammar], `commands.py`[^src-commands], and `preview.py`[^src-preview] (preserving existing validation semantics pinned in `tests/test_set_int_options.py`[^src-test-set]):
 
 1. **Syntax upgrades**:
-   * **Bare `:set`**: lists options whose current values differ from defaults via `_run_pager` (with a pure `set_options_lines(editor, show_all=False)` helper; **D2**).
-   * **`:set all`**: lists all options and their current values via `_run_pager` (**D2**).
+   * **Bare `:set`**: lists options whose current values differ from defaults inside `vith` via `Editor.show_info(..., title='[Options]')` (with a pure `set_options_lines(editor, show_all=False)` helper; **D2**).
+   * **`:set all`**: lists all options and their current values inside `vith` via `Editor.show_info(..., title='[Options]')` (**D2**).
    * **Query (`?`)**: `:set {opt}?` displays `{opt}` / `no{opt}` for boolean toggles and `{opt}={val}` for int/list/filetype options.
    * **Toggle (`!` / `inv`)**: `:set {opt}!` and `:set inv{opt}` flip any boolean option in `SET_TOGGLE_GROUPS` (plus `tildeop`).
    * **Multiple arguments**: `:set nu rnu ts=4 et` parses space-separated tokens left-to-right and validates/previews cleanly.
@@ -270,8 +270,8 @@ Upgrade `:set` / `:setlocal` / `:setl` across `grammar.py`[^src-grammar], `comma
 
 #### 3.4.3 Inspection Commands & Command-Line Polish
 
-* **`:reg` / `:registers`**: lists non-empty registers from `editor.application.vi_state.named_registers` and the unnamed clipboard (`"`) via `_run_pager` (with a pure `registers_lines(editor)` helper; **D2**).
-* **`:marks`**: lists marks recorded on `eb.buffer` plus `'<` / `'>` visual line marks via `_run_pager` (with a pure `marks_lines(editor)` helper; **D2**).
+* **`:reg` / `:registers`**: lists non-empty registers from `editor.application.vi_state.named_registers` and the unnamed clipboard (`"`) inside `vith` via `Editor.show_info(..., title='[Registers]')` (with a pure `registers_lines(editor)` helper; **D2**).
+* **`:marks`**: lists marks recorded on `eb.buffer` plus `'<` / `'>` visual line marks inside `vith` via `Editor.show_info(..., title='[Marks]')` (with a pure `marks_lines(editor)` helper; **D2**).
 * **Completer & Lexer updates** (`completer.py`[^src-completer], `lexer.py`[^src-lexer]):
   * Ensure all newly registered commands appear in command completion, `:r`/`:sav`/`:so` complete paths via `PathCompleter`, `:r !` completes executables via `SystemCompleter`, `:bd`/`:sb` complete open buffers via `BufferNameCompleter`, and `:set` completes `inv*` / `?` / `!` forms gracefully.
 * **Documentation refresh**:
@@ -325,7 +325,7 @@ Every phase MUST land with dedicated unit tests and pass all repository gates be
 | ID | Topic | Confirmed Behavior (Vim Parity) |
 | :--- | :--- | :--- |
 | **D1** | `:w {file}` vs `:saveas {file}` location mutation | **Strict Vim (Option B)**: `:w {file}` on a named buffer writes a copy without mutating `eb.location`, `is_new`, filetype, or clearing `has_unsaved_changes` (it names the buffer only when untitled); `:sav[!] {file}` always writes, renames `eb.location`, clears `has_unsaved_changes`, and refreshes filetype/title (preserving existing write guards in `tests/test_write_commands.py`[^src-test-write]). |
-| **D2** | Output UI for `:messages`, `:tabs`, `:reg`, `:marks`, `:set` / `:set all`, `:ver` | **Strict Vim pager (Option A)**: All multi-line inspection commands use `_run_pager` (`Press ENTER to continue...`, matching Vim's hit-enter pager and `:ls`/`:buffers`), backed by pure `*_lines(editor)` helpers for clean unit testing. Split windows remain reserved for `:help` (and `:compression`). |
+| **D2** | Output UI for informational commands (`:ls`/`:files`/`:buffers`, `:ver`, `:messages`, `:tabs`, `:reg`, `:marks`, `:set` / `:set all`, `:compression`, `:help`) | **In-editor read-only scratch split (`Editor.show_info`)**: All multi-line informational commands open a read-only horizontal scratch split inside `vith` (matching `:compression` and `:help`, scrollable/searchable/yankable, closeable with `:q` with automatic buffer cleanup), backed by pure `*_lines(editor)` helpers for clean unit testing. |
 | **D3** | `:r !cmd` / `:[range]!cmd` non-zero exit code | **Strict Vim filter/read (Option B)**: Both `:r !cmd` and `:[range]!cmd` capture combined output (`stderr=subprocess.STDOUT`, matching Unix Vim's `shellredir`), insert/replace the buffer inside a single undoable step even on non-zero exit (so `u` restores original lines cleanly), and report `shell returned {N}`. Mutation aborts only on launch/timeout errors (`OSError`, `TimeoutExpired`). |
 | **D4** | `:normal` (`:norm`) scope | **Included in Phase 3 (Option A)**: Ship `:[range]norm[!] {keys}` / `:normal` directly in Phase 3 via `KeyProcessor.feed()` with column-0 start per line, automatic return to Normal mode after each line, single undo snapshot for the range, `!` to ignore user mappings, and recursion/read-only/Thai-gate guards. |
 

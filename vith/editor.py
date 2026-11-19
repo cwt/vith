@@ -20,7 +20,7 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.filters import Condition
+from prompt_toolkit.filters import Condition, to_filter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.styles import DynamicStyle
@@ -542,12 +542,29 @@ class Editor:
         except Exception:
             pass
 
+    def show_info(self, text: str, title: str | None = None) -> None:
+        """
+        Display read-only informational text in a new horizontal split inside
+        vith (like `:help` and `:compression`, close with `:q`).
+        """
+        if self.window_arrangement.active_tab is None:
+            eb = self.window_arrangement._get_or_create_editor_buffer(text=text)
+        else:
+            self.window_arrangement.hsplit(text=text)
+            eb = self.window_arrangement.active_editor_buffer
+
+        if eb is not None:
+            eb.is_scratch = True
+            eb.scratch_title = title
+            eb.buffer.read_only = to_filter(True)
+
+        self.sync_with_prompt_toolkit()
+
     def show_help(self):
         """
         Show help in new window.
         """
-        self.window_arrangement.hsplit(text=HELP_TEXT)
-        self.sync_with_prompt_toolkit()  # Show new window.
+        self.show_info(HELP_TEXT, title='[Help]')
 
     def show_compression(self):
         """
@@ -563,8 +580,7 @@ class Editor:
             return
 
         text = '\n'.join(format_cold_text_stats(stats_getter()))
-        self.window_arrangement.hsplit(text=text)
-        self.sync_with_prompt_toolkit()  # Show new window.
+        self.show_info(text, title='[Compression]')
 
     def run(self):
         """

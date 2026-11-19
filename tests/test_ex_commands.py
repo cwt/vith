@@ -6,7 +6,6 @@ and buffer/info/diagnostics (`:enew`, `:file`, `:version`, `:messages`).
 
 from __future__ import annotations
 
-from vith.commands import commands as commands_mod
 from vith.commands.handler import handle_command
 from vith.editor_buffer import EditorBuffer
 
@@ -21,34 +20,40 @@ def _record_exits(editor, monkeypatch):
     return exits
 
 
-def _capture_pager(monkeypatch):
-    captured = []
+def test_ls_and_files_aliases_open_read_only_info_split(editor, tmp_path):
+    # Empty arrangement shows a message without creating a split.
+    handle_command(editor, ':ls')
+    assert editor.message == 'No open buffers'
+    assert editor.window_arrangement.active_editor_buffer is None
 
-    def fake_run_pager(print_handler):
-        import io
-        from contextlib import redirect_stdout
-
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            print_handler()
-        captured.append(buf.getvalue())
-
-    monkeypatch.setattr(commands_mod, '_run_pager', fake_run_pager)
-    return captured
-
-
-def test_ls_and_files_aliases_invoke_buffer_list_pager(editor, tmp_path, monkeypatch):
     target = tmp_path / 'sample.txt'
     target.write_text('hello\n')
     editor.load_initial_files([str(target)])
-    captured = _capture_pager(monkeypatch)
+    wa = editor.window_arrangement
+    orig_eb = wa.active_editor_buffer
 
     handle_command(editor, ':ls')
-    handle_command(editor, ':files')
+    assert wa.active_tab.window_count() == 2
+    ls_eb = wa.active_editor_buffer
+    assert ls_eb is not orig_eb
+    assert ls_eb.is_scratch is True
+    assert ls_eb.get_display_name() == '[Buffers]'
+    assert ls_eb.buffer.read_only() is True
+    assert 'sample.txt' in ls_eb.buffer.text
+    first_output = ls_eb.buffer.text
 
-    assert len(captured) == 2
-    assert 'sample.txt' in captured[0]
-    assert captured[0] == captured[1]
+    # Closing the info split with `:q` restores the original buffer and drops the scratch buffer.
+    handle_command(editor, ':q')
+    assert wa.active_tab.window_count() == 1
+    assert wa.active_editor_buffer is orig_eb
+    assert ls_eb not in wa.editor_buffers
+
+    # `:files` produces identical split content.
+    handle_command(editor, ':files')
+    assert wa.active_tab.window_count() == 2
+    assert wa.active_editor_buffer.buffer.text == first_output
+    handle_command(editor, ':q')
+    assert len(wa.editor_buffers) == 1
 
 
 def test_bnext_bprev_bprevious_aliases_and_force_guard(editor, tmp_path):
@@ -591,13 +596,11 @@ def test_file_command_untitled_and_new_named_flags(editor, tmp_path):
     assert editor.message == f'"{fresh}" [New file] 1 line --100%--'
 
 
-def test_version_and_ver_commands_use_pager_and_report_runtime_info(editor, monkeypatch):
+def test_version_and_ver_commands_open_read_only_info_split(editor):
     import prompt_toolkit
 
     from vith import __version__ as vith_version
     from vith.commands.commands import version_lines
-
-    captured = _capture_pager(monkeypatch)
 
     # Works even when no buffer is open (empty arrangement).
     empty_lines = version_lines(editor)
@@ -606,31 +609,55 @@ def test_version_and_ver_commands_use_pager_and_report_runtime_info(editor, monk
     assert any('Thai word segmentation:' in line for line in empty_lines)
     assert any('Cold-text compression:' in line for line in empty_lines)
 
-    # With an active buffer open, `:ver` and `:version` emit identical pager output.
-    editor.load_initial_files([None])
+    # Opening `:ver` on an empty arrangement creates a read-only info buffer cleanly.
     handle_command(editor, ':ver')
-    handle_command(editor, ':version')
+    wa = editor.window_arrangement
+    assert wa.active_editor_buffer is not None
+    assert wa.active_editor_buffer.is_scratch is True
+    assert wa.active_editor_buffer.buffer.read_only() is True
+    assert f'vith {vith_version}' in wa.active_editor_buffer.buffer.text
 
-    assert len(captured) == 2
-    assert captured[0] == captured[1]
-    assert f'vith {vith_version}' in captured[0]
-    assert 'Cold-text compression:' in captured[0]
+    # With an active buffer open, `:ver` and `:version` open identical splits
+    # and clean up their scratch buffer on `:q`.
+    handle_command(editor, ':enew')
+    orig_eb = wa.active_editor_buffer
+    assert orig_eb.is_scratch is False
+
+    handle_command(editor, ':ver')
+    assert wa.active_tab.window_count() == 2
+    ver_eb = wa.active_editor_buffer
+    assert ver_eb.get_display_name() == '[Version]'
+    assert ver_eb.buffer.read_only() is True
+    first_text = ver_eb.buffer.text
+    assert f'vith {vith_version}' in first_text
+    assert 'Cold-text compression:' in first_text
+
+    handle_command(editor, ':q')
+    assert wa.active_tab.window_count() == 1
+    assert ver_eb not in wa.editor_buffers
+
+    handle_command(editor, ':version')
+    assert wa.active_tab.window_count() == 2
+    assert wa.active_editor_buffer.buffer.text == first_text
+    handle_command(editor, ':q')
 
     # `:ver!` is rejected.
     handle_command(editor, ':ver!')
     assert editor.message == 'No ! allowed'
 
 
-def test_messages_and_mes_commands_bounded_history_and_pager(editor, monkeypatch):
+def test_messages_and_mes_commands_open_read_only_info_split(editor):
     from vith.commands.commands import messages_lines
 
-    captured = _capture_pager(monkeypatch)
+    editor.load_initial_files([None])
+    wa = editor.window_arrangement
+    orig_eb = wa.active_editor_buffer
 
-    # Empty message log shows 'No messages' without self-recording.
+    # Empty message log shows 'No messages' without self-recording or splitting.
     handle_command(editor, ':messages')
     assert editor.message == 'No messages'
     assert messages_lines(editor) == []
-    assert captured == []
+    assert wa.active_tab.window_count() == 1
 
     # Empty/None messages are ignored; non-empty messages are recorded.
     editor.show_message('')
@@ -641,10 +668,22 @@ def test_messages_and_mes_commands_bounded_history_and_pager(editor, monkeypatch
     editor.show_message('second message')
 
     handle_command(editor, ':mes')
+    assert wa.active_tab.window_count() == 2
+    mes_eb = wa.active_editor_buffer
+    assert mes_eb is not orig_eb
+    assert mes_eb.is_scratch is True
+    assert mes_eb.get_display_name() == '[Messages]'
+    assert mes_eb.buffer.read_only() is True
+    assert mes_eb.buffer.text == 'first message\nsecond message'
+
+    handle_command(editor, ':q')
+    assert wa.active_tab.window_count() == 1
+    assert mes_eb not in wa.editor_buffers
+
     handle_command(editor, ':messages')
-    assert len(captured) == 2
-    assert captured[0] == 'first message\nsecond message\n'
-    assert captured[0] == captured[1]
+    assert wa.active_tab.window_count() == 2
+    assert wa.active_editor_buffer.buffer.text == 'first message\nsecond message'
+    handle_command(editor, ':q')
 
     # Bounded to 200 entries (oldest messages evicted).
     for i in range(210):

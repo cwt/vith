@@ -3,7 +3,6 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.document import Document
 
 from vith.thai import note_document_text
@@ -59,26 +58,13 @@ def _confirm_unsaved_changes(editor, force):
 def press_enter_to_continue():
     """
     Wait for the user to press Enter, degrading gracefully on EOF or
-    interrupt (non-TTY stdin; shared by `_run_pager` and `vith.rc_file`,
-    docs/bugs/113.md, docs/bugs/115.md).
+    interrupt (non-TTY stdin; used by `vith.rc_file`, docs/bugs/113.md,
+    docs/bugs/115.md).
     """
     try:
         input('\nPress ENTER to continue...')
     except (EOFError, KeyboardInterrupt, OSError):
         pass
-
-
-def _run_pager(print_handler):
-    """
-    Run `print_handler` in a terminal pager and wait for Enter afterwards
-    (shared by `:ls` and the rc-file loader; docs/bugs/073.md).
-    """
-
-    def pager_handler():
-        print_handler()
-        press_enter_to_continue()
-
-    run_in_terminal(pager_handler)
 
 
 def has_command_handler(command):
@@ -374,14 +360,13 @@ def buffer_add(editor, location):
 @cmd('buffers')
 def buffer_list(editor):
     """
-    List all buffers.
+    List all open buffers in a read-only split inside vith (`:ls` / `:files` / `:buffers`).
     """
-
-    def handler():
-        for line in buffer_list_lines(editor):
-            print(line)
-
-    _run_pager(handler)
+    lines = buffer_list_lines(editor)
+    if not lines:
+        editor.show_message('No open buffers', record=False)
+        return
+    editor.show_info('\n'.join(lines), title='[Buffers]')
 
 
 def buffer_list_lines(editor):
@@ -763,15 +748,10 @@ def version_lines(editor) -> list[str]:
 @cmd('version')
 def show_version(editor):
     """
-    Display vith and runtime environment version info (`:ver` / `:version`).
+    Display vith and runtime environment version info in a split inside vith
+    (`:ver` / `:version`).
     """
-    lines = version_lines(editor)
-
-    def handler():
-        for line in lines:
-            print(line)
-
-    _run_pager(handler)
+    editor.show_info('\n'.join(version_lines(editor)), title='[Version]')
 
 
 def messages_lines(editor) -> list[str]:
@@ -785,18 +765,13 @@ def messages_lines(editor) -> list[str]:
 @cmd('messages')
 def show_messages(editor):
     """
-    Display recorded editor messages via pager (`:mes` / `:messages`).
+    Display recorded editor messages in a split inside vith (`:mes` / `:messages`).
     """
     lines = messages_lines(editor)
     if not lines:
         editor.show_message('No messages', record=False)
         return
-
-    def handler():
-        for line in lines:
-            print(line)
-
-    _run_pager(handler)
+    editor.show_info('\n'.join(lines), title='[Messages]')
 
 
 @cmd('h')

@@ -456,12 +456,18 @@ class WindowStatusBar(FormattedTextToolbar):
                 else:
                     return ''
 
+            if editor_buffer.scratch_title:
+                name_part = editor_buffer.scratch_title
+            else:
+                name_part = (editor_buffer.location or '') + (
+                    f' {UNTITLED_LABEL}' if editor_buffer.is_new else ''
+                )
+
             return ''.join(
                 [
                     ' ',
                     recording(),
-                    (editor_buffer.location or ''),
-                    (f' {UNTITLED_LABEL}' if editor_buffer.is_new else ''),
+                    name_part,
                     ('*' if editor_buffer.has_unsaved_changes else ''),
                     (' '),
                     mode(),

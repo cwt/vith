@@ -517,9 +517,12 @@ class WindowArrangement:
         for t in self.tab_pages:
             ebs |= set(t.visible_editor_buffers())
 
-        # Remove empty/new buffers that are hidden.
+        # Remove empty/new or scratch info buffers that are hidden.
         for eb in self.editor_buffers[:]:
-            if eb.is_new and not eb.location and eb not in ebs and eb.buffer.text == '':
+            if eb not in ebs and (
+                (eb.is_new and not eb.location and eb.buffer.text == '')
+                or (eb.is_scratch and not eb.has_unsaved_changes)
+            ):
                 self.editor_buffers.remove(eb)
 
     def close_buffer(self):
