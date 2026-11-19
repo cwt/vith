@@ -65,3 +65,26 @@ def test_substitute_grammar_ranges_delimiters_and_non_collisions():
         variables = m.variables()
         assert variables.get('command') == expected_cmd, line
         assert variables.get('sub_args') is None, line
+
+
+def test_phase1_aliases_match_without_collisions():
+    for line, expected_cmd, expected_force in (
+        (':ls', 'ls', ''),
+        (':files', 'files', ''),
+        (':bnext', 'bnext', ''),
+        (':bnext!', 'bnext', '!'),
+        (':bprev', 'bprev', ''),
+        (':bprevious!', 'bprevious', '!'),
+        (':bdelete', 'bdelete', ''),
+        (':bwipeout!', 'bwipeout', '!'),
+        (':on', 'on', ''),
+        (':clo', 'clo', ''),
+        (':close!', 'close', '!'),
+        (':wqall', 'wqall', ''),
+        (':wqall!', 'wqall', '!'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        variables = m.variables()
+        assert variables.get('command') == expected_cmd, line
+        assert variables.get('force') == expected_force, line

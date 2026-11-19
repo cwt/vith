@@ -228,6 +228,7 @@ def set_command_execute(editor, variables):
         editor.show_message('Unknown option: %s' % option)
 
 
+@cmd('bnext', accepts_force=True)
 @cmd('bn', accepts_force=True)
 def _bn(editor, force=False):
     """
@@ -237,6 +238,8 @@ def _bn(editor, force=False):
         editor.window_arrangement.go_to_next_buffer()
 
 
+@cmd('bprevious', accepts_force=True)
+@cmd('bprev', accepts_force=True)
 @cmd('bp', accepts_force=True)
 def _bp(editor, force=False):
     """
@@ -275,12 +278,44 @@ def _previous(editor, force=False):
         window_arrangement.go_to_previous_buffer()
 
 
+@cmd('on')
 @cmd('only')
 def only(editor):
     """
     Keep only the current window.
     """
     editor.window_arrangement.keep_only_current_window()
+
+
+@cmd('clo', accepts_force=True)
+@cmd('close', accepts_force=True)
+def close_window(editor, force=False):
+    """
+    Close the current window (without exiting on the last window).
+
+    Matches Vim `:close`: reports E444 on the last remaining window and guards
+    unsaved changes when closing the last window showing a dirty buffer unless
+    `!` is passed.
+    """
+    wa = editor.window_arrangement
+    active_tab = wa.active_tab
+    if active_tab is None:
+        return
+
+    has_multiple_windows = len(wa.tab_pages) > 1 or active_tab.window_count() > 1
+    if not has_multiple_windows:
+        wa.close_window()
+        return
+
+    active_eb = wa.active_editor_buffer
+    if active_eb is not None:
+        visible_count = sum(
+            1 for tab in wa.tab_pages for win in tab.windows() if win.editor_buffer is active_eb
+        )
+        if visible_count <= 1 and not _confirm_unsaved_changes(editor, force):
+            return
+
+    wa.close_window()
 
 
 @cmd('hide')
@@ -333,6 +368,8 @@ def buffer_add(editor, location):
     editor.window_arrangement.open_buffer(location)
 
 
+@cmd('ls')
+@cmd('files')
 @cmd('buffers')
 def buffer_list(editor):
     """
@@ -392,6 +429,8 @@ def _buffer(editor, variables):
         editor.window_arrangement.go_to_buffer(buffer_name)
 
 
+@cmd('bwipeout', accepts_force=True)
+@cmd('bdelete', accepts_force=True)
 @cmd('bw', accepts_force=True)
 @cmd('bd', accepts_force=True)
 def buffer_wipe(editor, force=False):
@@ -500,6 +539,7 @@ def quit_nonzero(editor):
     editor.application.exit()
 
 
+@cmd('wqall', accepts_force=True)
 @cmd('wqa', accepts_force=True)
 def write_and_quit_all(editor, force=False):
     """
