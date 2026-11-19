@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-19T09:20:00Z"
-timestamp: "2026-11-19T09:20:00Z"
+  at: "2026-11-20T00:56:00Z"
+timestamp: "2026-11-20T00:56:00Z"
 ---
 
 # vith Documentation Bundle
@@ -18,7 +18,7 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Architecture & Design Plans
 
-* [Ex Command Completeness Plan](command_completeness_plan.md) — **Draft**: phased implementation plan (Phases 1–4) for missing crucial and popular Vim Ex commands (`:ls`/`:files`, `:u`/`:undo`, `:red`/`:redo`, `:noh`, `:x`/`:xa`/`:wa`/`:up`, `:r`/`:read` incl. `:r !cmd`, `:sav`, `:so`, generalized range editing `:d`/`:y`/`:pu`/`:m`/`:t`/`:j`/`:sort`/`:g`/`:v`/`:[range]!cmd`, tab/buffer completeness, `%`/`#` expansion, and `:set` `?`/`!`/`inv`/multi-option ergonomics), with open design decisions (§6) and verification gates (§5).
+* [Ex Command Completeness Plan](command_completeness_plan.md) — **Implemented (Phases 1–4, hg rev 333–358)**: full Vim Ex command parity across files (`:r`/`:read` incl. `:r !cmd`, `:sav`, `:so`, `:up`, `:x`, `:wa`, `:xa`, `:f`, `:enew`), buffers/windows/tabs (`:ls`/`:files`, `:b #`, `:bf`/`:bl`, `:sb`, `:bd <target>`, `:clo`, `:on`, `:tabo`/`:tabfir`/`:tabl`/`:tabm`/`:tabs`), shared range engine ([`../vith/commands/ranges.py`](../vith/commands/ranges.py)) and line editing (`:$`/`±N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:g`/`:v`, `:[range]!cmd`, `:[range]w`, `:[range]norm[!]`), `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, ergonomic `:set` (`?`/`!`/`inv`/bare/`all`/multi-arg + `smartcase`/`shiftwidth`/`readonly`/`autoindent`/`fileencoding`), and in-editor read-only info splits (`:ver`, `:mes`, `:reg`, `:marks`, `:set`). Verified with **424 passed** (87.91% coverage), `mypy .` (67 files), and `ruff` clean.
 * [Vith Re-brand & Modernization Plan](vith_rebrand_plan.md) — **Executed**: new identity `vith` (วิธ), BSD 3-clause kept with stacked copyright, `setup.py` → `pyproject.toml` (PEP 621), `README.rst` → `README.md`, user-data migration with graceful fallback, docs sweep and gate re-verification. All gates re-verified (current suite: 200+ tests, mypy 56 files @3.10, ruff clean).
 * [Thai & Lao Script Support Plan](thai_support_plan.md) — **Implemented**: root-cause analysis (`prompt_toolkit` vs `vith`), cell-cluster vs syllable granularity ([`../vith/thai.py`](../vith/thai.py), [`../vith/key_bindings.py`](../vith/key_bindings.py)), `SARA AM` (`U+0E33`/`U+0EB3`) differential renderer neighbor refresh (ported from `szn` `71ba808`), version-gated `prompt_toolkit` integration, and unit test suite ([`../tests/test_thai.py`](../tests/test_thai.py)).
 * [Speed, Latency & Python 3.15 Stability Plan](speed_latency_plan.md) — **Implemented (rev 161–162)**: reproducible Python 3.15.2 benchmarks ([`../tools/bench_plans.py`](../tools/bench_plans.py)), Python 3.14+ `asyncio.get_event_loop()` startup crash fix, streaming/cached `PygmentsLexer`, lazy colorscheme loading, singleton word completion caching (incl. jedi 0.20 dual-API support), O(1) error line index, `io.open` & dirty-flag cleanups, mypy baseline ([`../mypy.ini`](../mypy.ini)); deviations & follow-ups logged in §1.4.

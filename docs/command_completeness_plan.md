@@ -1,10 +1,11 @@
 ---
 type: project_priority
 title: "Ex Command Completeness Plan for vith"
-description: "Phased architecture and implementation plan for missing crucial and popular Vim Ex (:) commands in vith — covering quick-win aliases (:ls, :x, :wa, :noh, :undo/:redo), :read / :saveas / :source, generalized range-editing commands (:d, :y, :pu, :sort, :g/:v, :m/:t, :j, :[range]!cmd), tab/buffer completeness, filename expansion (%/#), and :set ergonomics."
-status: draft
+description: "Phased architecture and implementation plan for missing crucial and popular Vim Ex (:) commands in vith — covering quick-win aliases (:ls, :x, :wa, :noh, :undo/:redo), :read / :saveas / :source, generalized range-editing commands (:d, :y, :pu, :sort, :g/:v, :m/:t, :j, :[range]!cmd, :norm), tab/buffer completeness, filename expansion (%/#), and :set ergonomics."
+status: stable
 sources:
   - ../vith/commands/commands.py
+  - ../vith/commands/ranges.py
   - ../vith/commands/grammar.py
   - ../vith/commands/handler.py
   - ../vith/commands/completer.py
@@ -14,6 +15,7 @@ sources:
   - ../vith/editor_buffer.py
   - ../vith/window_arrangement.py
   - ../vith/cold_text.py
+  - ../vith/key_bindings.py
   - ../vith/layout.py
   - ../vith/rc_file.py
   - ../vith/io/backends.py
@@ -24,12 +26,16 @@ sources:
   - ../tests/test_quit_and_goto.py
   - ../tests/test_substitute.py
   - ../tests/test_set_int_options.py
+  - ../tests/test_ex_commands.py
+  - ../tests/test_read_command.py
+  - ../tests/test_range_commands.py
+  - ../tests/test_set_ergonomics.py
 verified: [machine-confirmed, human-reviewed]
 stale_after: 2027-05-19T00:00:00Z
 tags: [commands, ex-mode, vim-parity, grammar, completer, preview, planning]
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-19T16:00:00Z"
+  at: "2026-11-20T00:56:00Z"
 ---
 
 # Ex Command Completeness Plan for `vith`
@@ -328,6 +334,22 @@ Every phase MUST land with dedicated unit tests and pass all repository gates be
 | **D2** | Output UI for informational commands (`:ls`/`:files`/`:buffers`, `:ver`, `:messages`, `:tabs`, `:reg`, `:marks`, `:set` / `:set all`, `:compression`, `:help`) | **In-editor read-only scratch split (`Editor.show_info`)**: All multi-line informational commands open a read-only horizontal scratch split inside `vith` (matching `:compression` and `:help`, scrollable/searchable/yankable, closeable with `:q` with automatic buffer cleanup), backed by pure `*_lines(editor)` helpers for clean unit testing. |
 | **D3** | `:r !cmd` / `:[range]!cmd` non-zero exit code | **Strict Vim filter/read (Option B)**: Both `:r !cmd` and `:[range]!cmd` capture combined output (`stderr=subprocess.STDOUT`, matching Unix Vim's `shellredir`), insert/replace the buffer inside a single undoable step even on non-zero exit (so `u` restores original lines cleanly), and report `shell returned {N}`. Mutation aborts only on launch/timeout errors (`OSError`, `TimeoutExpired`). |
 | **D4** | `:normal` (`:norm`) scope | **Included in Phase 3 (Option A)**: Ship `:[range]norm[!] {keys}` / `:normal` directly in Phase 3 via `KeyProcessor.feed()` with column-0 start per line, automatic return to Normal mode after each line, single undo snapshot for the range, `!` to ignore user mappings, and recursion/read-only/Thai-gate guards. |
+
+---
+
+## 7. Implementation Record (Completed — Phases 1–4)
+
+All four phases are implemented and verified against every repository quality gate:
+
+| Phase | Mercurial Revisions | Test Suite Added | Status |
+| :--- | :--- | :--- | :--- |
+| **Design decisions (D1–D4)** | rev 333 (`cf4edfaf8ed6`) | — | Confirmed |
+| **Phase 1 — Quick wins, aliases & in-editor info splits** | rev 334–342 (`c891211c6181`..`b50c6ea1804b`) | [`../tests/test_ex_commands.py`](../tests/test_ex_commands.py) | Implemented & verified |
+| **Phase 2 — `:read`, `:saveas`, `:source`, buffer & tab completeness** | rev 343–347 (`ae0ce42369ee`..`71ee52d012a0`) | [`../tests/test_read_command.py`](../tests/test_read_command.py) | Implemented & verified |
+| **Phase 3 — Shared `ranges.py`, Ex line editing, `:g`/`:v`, `:[range]!cmd`, `:norm`** | rev 348–353 (`e5e6c3959450`..`61b691023a5b`) | [`../tests/test_range_commands.py`](../tests/test_range_commands.py) | Implemented & verified |
+| **Phase 4 — `%`/`#` expansion, `:set` upgrades & new options, `:reg`, `:marks`, docs** | rev 354–357+ (`1c3e05b8ed07`..`95285cde066d`) | [`../tests/test_set_ergonomics.py`](../tests/test_set_ergonomics.py) | Implemented & verified |
+
+Final verification gates: **424 passed**, **87.91% coverage** (`>= 85%` gate), `mypy .` clean on **67 source files** (Python 3.10 floor, 0 errors/notes), `ruff check` and `ruff format` clean.
 
 ---
 

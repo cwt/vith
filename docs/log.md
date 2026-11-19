@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-19T09:20:00Z"
-timestamp: "2026-11-19T09:20:00Z"
+  at: "2026-11-20T00:56:00Z"
+timestamp: "2026-11-20T00:56:00Z"
 ---
 
 # Documentation Bundle Log
@@ -44,3 +44,4 @@ This file tracks all modifications, extensions, and updates to the `vith` OKF do
 | 2026-11-09T16:55:03Z | [bugs/index.md](bugs/index.md), [bugs/124.md](bugs/124.md), [bugs/125.md](bugs/125.md), [index.md](index.md) | Findings closed (Round 7 addendum) | Fixed two user-reported field bugs ([124](bugs/124.md) `:next`/`:previous` cycling, [125](bugs/125.md) tab-click crash) one-by-one with regression tests. Gates: **277 passed**, `mypy .` 57 files clean, ruff clean. All 125 bundle findings closed; synchronized `bugs/index.md`, `bugs/log.md`, and the root `index.md` count. |
 | 2026-11-10T00:00:00Z | [bugs/index.md](bugs/index.md), [bugs/126.md](bugs/126.md), [index.md](index.md) | Findings closed (126) | Fixed the [124](bugs/124.md) follow-up [126](bugs/126.md): tab-aware `:next`/`:previous` (tab switch when several pages open, buffer cycling otherwise). Gates: **279 passed**, `mypy .` 57 files clean, ruff clean. All 126 bundle findings closed; synchronized `bugs/index.md`, `bugs/log.md`, and the root `index.md` count. |
 | 2026-11-19T09:20:00Z | [command_completeness_plan.md](command_completeness_plan.md), [index.md](index.md), [log.md](log.md) | Created | Authored the OKF v0.2 Ex Command Completeness Plan (`status: draft`, anchored at node `ea41ca1964477da3830b0614c4e61b5b36c46621`): audited the current command surface, specified Phases 1–4 (quick wins & aliases incl. `:ls`/`:undo`/`:redo`/`:noh`/`:x`/`:wa`, `:read`/`:saveas`/`:source` + buffer/tab completeness, shared range engine + Ex line-editing commands, `%`/`#` expansion + `:set` ergonomics), recorded module touchpoints, test strategy, and open design decisions (D1–D4); linked from `index.md`. |
+| 2026-11-20T00:56:00Z | [command_completeness_plan.md](command_completeness_plan.md), [index.md](index.md), [log.md](log.md), [../vith/help.py](../vith/help.py), [../README.md](../README.md) | Updated / status changed | Marked `command_completeness_plan.md` as **implemented & stable** (`status: stable`): Phases 1–4 completed across hg rev 333–357+ with 4 new test modules (`test_ex_commands.py`, `test_read_command.py`, `test_range_commands.py`, `test_set_ergonomics.py`), refreshed `vith/help.py` and `README.md`, and verified all gates (**424 passed**, 87.91% coverage, `mypy .` 67 files clean, `ruff` clean). |
