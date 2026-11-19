@@ -32,6 +32,9 @@ COMMAND_GRAMMAR = compile(
         # Commands accepting a buffer.
         (?P<command>bwipeout|bdelete|sbuffer|buffer|bd|bw|sb|b)(?P<force>!?)  \s+   (?P<buffer_name>[^\s]+)    |
 
+        # Tab move command with position argument.
+        (?P<command>tabmove|tabm) \s+ (?P<tab_arg>[^\s]+)    |
+
         # Jump to line numbers.
         (?P<go_to_line>\d+)                                     |
 

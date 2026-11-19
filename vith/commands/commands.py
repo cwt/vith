@@ -1067,6 +1067,77 @@ def tab_previous(editor):
     editor.window_arrangement.go_to_previous_tab()
 
 
+@cmd('tabonly', accepts_force=True)
+@cmd('tabo', accepts_force=True)
+def tab_only(editor, force=False):
+    """
+    Close all tab pages except the current tab (`:tabo` / `:tabonly`).
+    """
+    editor.window_arrangement.keep_only_current_tab()
+
+
+@cmd('tabfirst')
+@cmd('tabfir')
+@cmd('tabrewind')
+@cmd('tabr')
+def tab_first(editor):
+    """
+    Go to the first tab page (`:tabfir` / `:tabfirst`).
+    """
+    editor.window_arrangement.go_to_first_tab()
+
+
+@cmd('tablast')
+@cmd('tabl')
+def tab_last(editor):
+    """
+    Go to the last tab page (`:tabl` / `:tablast`).
+    """
+    editor.window_arrangement.go_to_last_tab()
+
+
+@_cmd('tabmove')
+@_cmd('tabm')
+def tab_move(editor, variables):
+    """
+    Move the active tab page (`:tabm [N|+N|-N|$]` / `:tabmove`).
+    """
+    if variables.get('force'):
+        editor.show_message('No ! allowed')
+        return
+    editor.window_arrangement.move_tab(variables.get('tab_arg'))
+
+
+def tabs_lines(editor) -> list[str]:
+    """
+    Build Vim-style `:tabs` lines listing all tab pages and their windows.
+    """
+    wa = editor.window_arrangement
+    lines: list[str] = []
+    for idx, tab in enumerate(wa.tab_pages):
+        is_active_tab = idx == wa.active_tab_index
+        lines.append(f'Tab page {idx + 1}')
+        for win in tab.windows():
+            eb = win.editor_buffer
+            active_mark = '>' if (is_active_tab and win is tab.active_window) else ' '
+            mod_mark = '+' if eb.has_unsaved_changes else ' '
+            lines.append(f'{active_mark} {mod_mark} {eb.get_display_name()}')
+    return lines
+
+
+@cmd('tabs')
+def show_tabs(editor):
+    """
+    Display all tab pages and their windows/buffers in a read-only split
+    inside vith (`:tabs`).
+    """
+    lines = tabs_lines(editor)
+    if not lines:
+        editor.show_message('No open tabs', record=False)
+        return
+    editor.show_info('\n'.join(lines), title='[Tabs]')
+
+
 @cmd('pwd')
 def pwd(editor):
     "Print working directory."

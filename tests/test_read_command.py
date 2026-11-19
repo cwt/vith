@@ -466,3 +466,96 @@ def test_targeted_bdelete_bwipeout_and_sbuffer_with_completion(editor, tmp_path)
     for prefix in ('bd gam', 'sb gam'):
         completions = [c.text for c in completer.get_completions(Document(prefix), event)]
         assert any('gamma.py' in item for item in completions), (prefix, completions)
+
+
+def test_tab_completeness_commands_and_tabs_info_split(editor, tmp_path):
+    from vith.commands.commands import tabs_lines
+
+    # Empty arrangement guards.
+    handle_command(editor, ':tabs')
+    assert editor.message == 'No open tabs'
+    handle_command(editor, ':tabo')
+    handle_command(editor, ':tabfir')
+    handle_command(editor, ':tabl')
+    handle_command(editor, ':tabm 0')
+
+    files = [str(tmp_path / name) for name in ('t1.txt', 't2.txt', 't3.txt', 't4.txt')]
+    editor.load_initial_files(files, in_tab_pages=True)
+    wa = editor.window_arrangement
+    t1, t2, t3, t4 = list(wa.tab_pages)
+
+    # `:tabl` / `:tablast` and `:tabfir` / `:tabfirst`.
+    handle_command(editor, ':tabl')
+    assert wa.active_tab is t4
+    handle_command(editor, ':tabfir')
+    assert wa.active_tab is t1
+    handle_command(editor, ':tablast')
+    assert wa.active_tab is t4
+    handle_command(editor, ':tabfirst')
+    assert wa.active_tab is t1
+
+    # `:tabm` / `:tabmove` strict Vim positioning.
+    # Start: [t1*, t2, t3, t4]
+    handle_command(editor, ':tabm 2')  # after tab 2 (t2) -> [t2, t1*, t3, t4]
+    assert wa.tab_pages == [t2, t1, t3, t4]
+    assert wa.active_tab_index == 1
+
+    handle_command(editor, ':tabm +1')  # right by 1 -> [t2, t3, t1*, t4]
+    assert wa.tab_pages == [t2, t3, t1, t4]
+    assert wa.active_tab_index == 2
+
+    handle_command(editor, ':tabmove -2')  # left by 2 -> [t1*, t2, t3, t4]
+    assert wa.tab_pages == [t1, t2, t3, t4]
+    assert wa.active_tab_index == 0
+
+    handle_command(editor, ':tabm')  # omitted -> end -> [t2, t3, t4, t1*]
+    assert wa.tab_pages == [t2, t3, t4, t1]
+    assert wa.active_tab_index == 3
+
+    handle_command(editor, ':tabm 0')  # 0 -> before first -> [t1*, t2, t3, t4]
+    assert wa.tab_pages == [t1, t2, t3, t4]
+    assert wa.active_tab_index == 0
+
+    handle_command(editor, ':tabm $')  # $ -> end -> [t2, t3, t4, t1*]
+    assert wa.tab_pages == [t2, t3, t4, t1]
+    assert wa.active_tab_index == 3
+
+    # Move back with `:tabm 1` (after tab 1 = t2 -> index 1).
+    handle_command(editor, ':tabm 1')
+    assert wa.tab_pages == [t2, t1, t3, t4]
+    assert wa.active_tab_index == 1
+
+    # Invalid `:tabm` argument reports E474; `:tabm!` reports 'No ! allowed'.
+    handle_command(editor, ':tabm bogus')
+    assert editor.message == 'E474: Invalid argument: bogus'
+    handle_command(editor, ':tabm +xyz')
+    assert editor.message == 'E474: Invalid argument: +xyz'
+    handle_command(editor, ':tabm!')
+    assert editor.message == 'No ! allowed'
+
+    # `:tabs` displays all tab pages and windows inside vith via `show_info`,
+    # marking the active window (`>`) and modified buffers (`+`).
+    wa.active_editor_buffer.buffer.text = 'dirty in tab 2'
+    handle_command(editor, ':sp')
+    lines = tabs_lines(editor)
+    assert 'Tab page 1' in lines
+    assert 'Tab page 2' in lines
+    assert any(line.startswith('> + ') and 't1.txt' in line for line in lines)
+
+    handle_command(editor, ':tabs')
+    tabs_eb = wa.active_editor_buffer
+    assert tabs_eb.is_scratch is True
+    assert tabs_eb.get_display_name() == '[Tabs]'
+    assert tabs_eb.buffer.read_only() is True
+    assert 'Tab page 4' in tabs_eb.buffer.text
+
+    # Closing `[Tabs]` with `:q` restores window count and removes scratch buffer.
+    handle_command(editor, ':q')
+    assert tabs_eb not in wa.editor_buffers
+    assert wa.active_tab.window_count() == 2
+
+    # `:tabo` / `:tabonly` closes all other tabs while preserving splits in active tab.
+    handle_command(editor, ':tabo')
+    assert len(wa.tab_pages) == 1
+    assert wa.active_tab is t1
+    assert wa.active_tab.window_count() == 2

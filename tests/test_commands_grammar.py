@@ -115,12 +115,33 @@ def test_phase1_aliases_match_without_collisions():
         (':blast!', 'blast', '!'),
         (':sb', 'sb', ''),
         (':sbuffer', 'sbuffer', ''),
+        (':tabo', 'tabo', ''),
+        (':tabonly!', 'tabonly', '!'),
+        (':tabfir', 'tabfir', ''),
+        (':tabfirst', 'tabfirst', ''),
+        (':tabl', 'tabl', ''),
+        (':tablast', 'tablast', ''),
+        (':tabm', 'tabm', ''),
+        (':tabmove', 'tabmove', ''),
+        (':tabs', 'tabs', ''),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
         variables = m.variables()
         assert variables.get('command') == expected_cmd, line
         assert variables.get('force') == expected_force, line
+
+    for line, expected_cmd, expected_arg in (
+        (':tabm 0', 'tabm', '0'),
+        (':tabm +1', 'tabm', '+1'),
+        (':tabmove -2', 'tabmove', '-2'),
+        (':tabmove $', 'tabmove', '$'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        variables = m.variables()
+        assert variables.get('command') == expected_cmd, line
+        assert variables.get('tab_arg') == expected_arg, line
 
     for line, expected_cmd, expected_buf, expected_force in (
         (':b #', 'b', '#', ''),

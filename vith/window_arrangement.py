@@ -342,6 +342,17 @@ class WindowArrangement:
         self.tab_pages = [TabPage(self.active_tab.active_window)]
         self.active_tab_index = 0
 
+    def keep_only_current_tab(self):
+        """
+        Close all other tab pages except the active tab (`:tabo` / `:tabonly`),
+        preserving splits within the active tab.
+        """
+        if self.active_tab is None:
+            return
+        self.tab_pages = [self.active_tab]
+        self.active_tab_index = 0
+        self._auto_close_new_empty_buffers()
+
     def cycle_focus(self):
         """Focus next visible window."""
         if self.active_tab is None:
@@ -423,6 +434,66 @@ class WindowArrangement:
         Focus the previous tab.
         """
         self._cycle_tab(-1)
+
+    def go_to_first_tab(self):
+        """
+        Focus the first tab page (`:tabfir` / `:tabfirst`).
+        """
+        if self.tab_pages:
+            self.active_tab_index = 0
+
+    def go_to_last_tab(self):
+        """
+        Focus the last tab page (`:tabl` / `:tablast`).
+        """
+        if self.tab_pages:
+            self.active_tab_index = len(self.tab_pages) - 1
+
+    def move_tab(self, arg=None):
+        """
+        Move the active tab page to a new position (`:tabm [N|+N|-N|$]`).
+
+        Matches Vim `:tabmove` semantics:
+        - omitted or `$`: move to the end
+        - `0`: move before the first tab (index 0)
+        - `N` (>= 1): move after 1-based tab page `N`
+        - `+N` / `-N` (or `+` / `-`): move `N` (default 1) positions right/left
+        """
+        total = len(self.tab_pages)
+        cur = self.active_tab_index
+        if total == 0 or cur is None:
+            return
+
+        if arg is None or arg == '' or arg == '$':
+            target_index = total - 1
+        elif arg[0] in ('+', '-'):
+            sign = 1 if arg[0] == '+' else -1
+            rest = arg[1:]
+            if rest == '':
+                delta = 1
+            elif rest.isdigit():
+                delta = int(rest)
+            else:
+                self.editor.show_message('E474: Invalid argument: %s' % arg)
+                return
+            target_index = max(0, min(total - 1, cur + sign * delta))
+        elif arg.isdigit():
+            n = int(arg)
+            if n == 0:
+                target_index = 0
+            elif n <= cur:
+                target_index = n
+            else:
+                target_index = min(total - 1, n - 1)
+        else:
+            self.editor.show_message('E474: Invalid argument: %s' % arg)
+            return
+
+        if target_index == cur:
+            return
+        tab = self.tab_pages.pop(cur)
+        self.tab_pages.insert(target_index, tab)
+        self.active_tab_index = target_index
 
     def resolve_buffer(self, buffer_name):
         """
