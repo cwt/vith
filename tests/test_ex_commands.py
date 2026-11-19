@@ -277,3 +277,78 @@ def test_undo_and_redo_read_only_empty_arrangement_and_thai_gate(editor):
     assert editor.message == 'No ! allowed'
     handle_command(editor, ':redo!')
     assert editor.message == 'No ! allowed'
+
+
+def test_noh_and_nohlsearch_suppress_and_auto_restore_on_search(editor):
+    from prompt_toolkit.layout.processors import ConditionalProcessor, HighlightSearchProcessor
+    from prompt_toolkit.search import SearchDirection, SearchState
+
+    from vith.commands.preview import CommandPreviewer
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'alpha beta alpha'
+    editor.sync_with_prompt_toolkit()
+
+    control = editor.editor_layout._create_buffer_control(eb)
+    search_proc = next(
+        p
+        for p in control.input_processors
+        if isinstance(p, ConditionalProcessor) and isinstance(p.processor, HighlightSearchProcessor)
+    )
+
+    assert editor.highlight_search is True
+    assert editor._hlsearch_suppressed is False
+    assert search_proc.filter() is True
+
+    # Previewing `:noh` must not suppress highlighting.
+    previewer = CommandPreviewer(editor)
+    previewer.preview(':noh')
+    assert editor._hlsearch_suppressed is False
+
+    # `:noh` suppresses highlight while keeping `highlight_search = True`.
+    handle_command(editor, ':noh')
+    assert editor.highlight_search is True
+    assert editor._hlsearch_suppressed is True
+    assert search_proc.filter() is False
+
+    # Typing in `search_buffer` clears suppression.
+    editor.search_buffer.text = 'alpha'
+    assert editor._hlsearch_suppressed is False
+    assert search_proc.filter() is True
+
+    # `:nohlsearch` suppresses again; `apply_search` (n/N/*/#) clears it.
+    handle_command(editor, ':nohlsearch')
+    assert editor._hlsearch_suppressed is True
+    eb.buffer.apply_search(SearchState(text='alpha', direction=SearchDirection.FORWARD))
+    assert editor._hlsearch_suppressed is False
+
+    # `:s` and `:s/.../n` clear suppression.
+    handle_command(editor, ':noh')
+    assert editor._hlsearch_suppressed is True
+    handle_command(editor, ':s/alpha/gamma/n')
+    assert editor._hlsearch_suppressed is False
+
+    handle_command(editor, ':noh')
+    assert editor._hlsearch_suppressed is True
+    handle_command(editor, ':s/alpha/gamma/')
+    assert editor._hlsearch_suppressed is False
+
+    # Previewing `:set hls` temporarily clears suppression and restores on Esc;
+    # executing `:set hls` permanently clears suppression.
+    handle_command(editor, ':noh')
+    assert editor._hlsearch_suppressed is True
+    previewer2 = CommandPreviewer(editor)
+    previewer2.preview(':set hls')
+    assert editor._hlsearch_suppressed is False
+    previewer2.restore()
+    assert editor._hlsearch_suppressed is True
+
+    handle_command(editor, ':set hls')
+    assert editor._hlsearch_suppressed is False
+
+    # Focusing search_buffer on key press clears suppression too.
+    handle_command(editor, ':noh')
+    editor.application.layout.focus(editor.search_buffer)
+    editor.application.key_processor.after_key_press.fire()
+    assert editor._hlsearch_suppressed is False

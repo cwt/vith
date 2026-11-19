@@ -193,6 +193,7 @@ def _record_word_search(editor, event, direction):
     search_state = event.app.current_search_state
     search_state.text = word
     search_state.direction = direction
+    editor.clear_hlsearch_suppression()
     try:
         editor.search_buffer.history.append_string(word)
     except OSError:

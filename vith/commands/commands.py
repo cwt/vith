@@ -614,6 +614,15 @@ def redo_command(editor):
     editor.show_message('Already at newest change')
 
 
+@cmd('noh')
+@cmd('nohlsearch')
+def no_hlsearch(editor):
+    """
+    Temporarily clear search highlighting until the next search (`:noh`).
+    """
+    editor.suppress_hlsearch()
+
+
 @cmd('h')
 @cmd('help')
 def help(editor):
@@ -774,6 +783,8 @@ def _register_generated_set_options() -> None:
 
         def _on(editor, _attribute=attribute):
             setattr(editor, _attribute, True)
+            if _attribute == 'highlight_search':
+                editor.clear_hlsearch_suppression()
 
         def _off(editor, _attribute=attribute):
             setattr(editor, _attribute, False)
@@ -1147,6 +1158,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
         line_word = 'line' if matched_lines == 1 else 'lines'
         editor.show_message(f'{total_matches} {match_word} on {matched_lines} {line_word}')
         search_state.text = search
+        editor.clear_hlsearch_suppression()
         return
 
     # Apply substitution.
@@ -1179,6 +1191,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     # update editor state
     editor.last_substitute_text = replace
     search_state.text = search
+    editor.clear_hlsearch_suppression()
 
     if options.print_last:
         editor.show_message(doc.lines[row])

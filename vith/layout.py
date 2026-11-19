@@ -755,7 +755,7 @@ class EditorLayout:
             return self.editor.incsearch
 
         def search_highlight_enabled():
-            return self.editor.highlight_search
+            return self.editor.highlight_search and not self.editor._hlsearch_suppressed
 
         def unprintable_enabled():
             return self.editor.display_unprintable_characters

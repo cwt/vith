@@ -175,6 +175,7 @@ class Editor:
         # Vi options.
         self.show_line_numbers = True
         self.highlight_search = True
+        self._hlsearch_suppressed = False
         self.paste_mode = False
         self.show_ruler = True
         self.show_wildmenu = True
@@ -243,6 +244,10 @@ class Editor:
         def note_command_text(buff):
             note_document_text(buff.text)
 
+        def note_search_text(buff):
+            self.clear_hlsearch_suppression()
+            note_document_text(buff.text)
+
         commands_history = FileHistory(os.path.join(self.config_directory, 'commands_history'))
         self.command_buffer = Buffer(
             accept_handler=handle_action,
@@ -258,7 +263,7 @@ class Editor:
             history=search_buffer_history,
             enable_history_search=True,
             multiline=False,
-            on_text_changed=note_command_text,
+            on_text_changed=note_search_text,
         )
 
         # Create key bindings registry.
@@ -273,6 +278,12 @@ class Editor:
             self.message = None
 
         self.application.key_processor.before_key_press += key_pressed
+
+        def after_key_pressed(_):
+            if self._hlsearch_suppressed and self.application.layout.has_focus(self.search_buffer):
+                self.clear_hlsearch_suppression()
+
+        self.application.key_processor.after_key_press += after_key_pressed
 
         # Command line previewer.
         self.previewer = CommandPreviewer(self)
@@ -417,6 +428,27 @@ class Editor:
         bottom.
         """
         self.message = message
+
+    def suppress_hlsearch(self) -> None:
+        """
+        Temporarily clear search highlights until the next search (`:noh`).
+        """
+        self._hlsearch_suppressed = True
+        try:
+            self.application.invalidate()
+        except Exception:
+            pass
+
+    def clear_hlsearch_suppression(self) -> None:
+        """
+        Re-enable search highlights when a new search or match jump starts.
+        """
+        if self._hlsearch_suppressed:
+            self._hlsearch_suppressed = False
+            try:
+                self.application.invalidate()
+            except Exception:
+                pass
 
     def use_colorscheme(self, name='default'):
         """

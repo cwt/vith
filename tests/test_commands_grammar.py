@@ -86,6 +86,8 @@ def test_phase1_aliases_match_without_collisions():
         (':undo', 'undo', ''),
         (':red', 'red', ''),
         (':redo', 'redo', ''),
+        (':noh', 'noh', ''),
+        (':nohlsearch', 'nohlsearch', ''),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line

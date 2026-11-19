@@ -301,6 +301,23 @@ class ColdTextBuffer(Buffer):
             self.document = Document(text, cursor_position=cursor_position)
             self._text_version = text_version
 
+    def apply_search(
+        self,
+        search_state: Any,
+        include_current_position: bool = True,
+        count: int = 1,
+    ) -> None:
+        eb_ref = getattr(self, '_vith_editor_buffer_ref', None)
+        if eb_ref is not None:
+            eb = eb_ref()
+            if eb is not None and eb.editor is not None:
+                eb.editor.clear_hlsearch_suppression()
+        super().apply_search(
+            search_state,
+            include_current_position=include_current_position,
+            count=count,
+        )
+
     def cold_text_stats(self) -> dict[str, Any]:
         """Return undo, redo and total compressed-history statistics."""
         undo = cast(ColdTextStack, self._undo_stack).stats

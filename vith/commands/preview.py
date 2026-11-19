@@ -51,6 +51,7 @@ class CommandPreviewer:
         self._style = e.current_style
         self._show_line_numbers = e.show_line_numbers
         self._highlight_search = e.highlight_search
+        self._hlsearch_suppressed = getattr(e, '_hlsearch_suppressed', False)
         self._show_ruler = e.show_ruler
         self._relative_number = e.relative_number
         self._cursorcolumn = e.cursorcolumn
@@ -94,6 +95,7 @@ class CommandPreviewer:
         e.current_style = self._style
         e.show_line_numbers = self._show_line_numbers
         e.highlight_search = self._highlight_search
+        e._hlsearch_suppressed = self._hlsearch_suppressed
         e.show_ruler = self._show_ruler
         e.relative_number = self._relative_number
         e.cursorcolumn = self._cursorcolumn
@@ -161,6 +163,8 @@ class CommandPreviewer:
                 spec = _TOGGLE_PREVIEWS.get(set_option)
                 if spec is not None:
                     setattr(e, spec[0], spec[1])
+                    if spec[0] == 'highlight_search' and spec[1]:
+                        e._hlsearch_suppressed = False
                     return
 
                 spec = _INT_VALUE_PREVIEWS.get(set_option)
