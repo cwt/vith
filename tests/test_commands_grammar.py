@@ -128,3 +128,32 @@ def test_phase1_aliases_match_without_collisions():
         variables = m.variables()
         assert variables.get('command') == expected_cmd, line
         assert variables.get('location') == expected_loc, line
+
+
+def test_read_command_grammar_and_non_collision_with_redo():
+    for line, exp_addr, exp_cmd, exp_loc, exp_shell in (
+        (':r', None, 'r', None, None),
+        (':read', None, 'read', None, None),
+        (':0r foo.txt', '0', 'r', 'foo.txt', None),
+        (':$read ~/bar.txt', '$', 'read', '~/bar.txt', None),
+        (':.-1r snippet.py', '.-1', 'r', 'snippet.py', None),
+        (":'<r part.txt", "'<", 'r', 'part.txt', None),
+        (':r !echo hello', None, 'r', None, 'echo hello'),
+        (':r!echo hello', None, 'r', None, 'echo hello'),
+        (':0read !date -u', '0', 'read', None, 'date -u'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('read_addr') == exp_addr, line
+        assert v.get('command') == exp_cmd, line
+        assert v.get('location') == exp_loc, line
+        assert v.get('read_shell') == exp_shell, line
+
+    # `:red` and `:redo` must not collide with `:r`/`:read`.
+    for line, expected_cmd in ((':red', 'red'), (':redo', 'redo')):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('command') == expected_cmd, line
+        assert v.get('read_shell') is None, line

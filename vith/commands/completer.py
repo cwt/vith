@@ -96,6 +96,7 @@ def create_command_completer(editor):
             'buffer_name': BufferNameCompleter(editor),
             'colorscheme': ColorSchemeCompleter(editor),
             'shell_command': SystemCompleter(),
+            'read_shell': SystemCompleter(),
         },
     )
     return CommandCompleter(inner)

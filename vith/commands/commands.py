@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 from dataclasses import dataclass
 from typing import Any
 
@@ -446,6 +447,175 @@ def _format_file_status(eb) -> str:
 
     flag_part = (' ' + ''.join(flags)) if flags else ''
     return f'"{display_name}"{flag_part} {line_count} {line_word} --{percent}%--'
+
+
+def _resolve_read_address(
+    address: str | None,
+    cursor_row: int,
+    line_count: int,
+    visual_marks: tuple[int, int] | None,
+) -> tuple[int | None, str | None]:
+    """
+    Resolve an optional `:[addr]read` line address to a 0-based insertion index
+    in `0..line_count` (0 inserts before line 1; `line_count` appends at EOF).
+    """
+    if not address:
+        return cursor_row + 1, None
+
+    match = _LINE_ADDRESS_RE.match(address)
+    if match is None:
+        return None, 'E19: No such line in current buffer'
+
+    base = match.group('base')
+    offset_text = match.group('offset')
+    offset = int(offset_text) if offset_text else 0
+
+    if base == '.':
+        base_1based = cursor_row + 1
+    elif base == '$':
+        base_1based = line_count
+    elif base in ("'<", "'>"):
+        if visual_marks is None:
+            return None, 'E20: Mark not set'
+        base_1based = (visual_marks[0] if base == "'<" else visual_marks[1]) + 1
+    else:
+        base_1based = int(base)
+
+    target = base_1based + offset
+    if not 0 <= target <= line_count:
+        return None, 'E19: No such line in current buffer'
+
+    return target, None
+
+
+def _read_location_text(editor, location: str) -> str | None:
+    """
+    Read text from `location` through `editor.io_backends` without mutating any
+    `EditorBuffer` metadata (`location`, `is_new`, `isdir`, `encoding`).
+    """
+    io = next(
+        (backend for backend in editor.io_backends if backend.can_open_location(location)),
+        None,
+    )
+    if io is None:
+        editor.show_message(f"E484: Can't open file {location}")
+        return None
+
+    if io.exists(location) is False:
+        editor.show_message(f"E484: Can't open file {location}")
+        return None
+
+    try:
+        text, _encoding = io.read(location)
+    except Exception as exc:
+        editor.show_message(f"E484: Can't open file {location}: {exc}")
+        return None
+    return text
+
+
+def _read_shell_text(editor, shell_cmd: str) -> tuple[str | None, int | None]:
+    """
+    Execute `shell_cmd` capturing combined stdout/stderr (matching Unix Vim's
+    `shellredir` `2>&1`, Decision D3). Returns `(output, returncode)` or
+    `(None, None)` on launch/timeout failure.
+    """
+    try:
+        proc = subprocess.run(
+            shell_cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        editor.show_message(f'Command timed out after 30s: {shell_cmd}')
+        return None, None
+    except OSError as exc:
+        editor.show_message(f'Cannot execute shell command: {exc}')
+        return None, None
+    return proc.stdout or '', proc.returncode
+
+
+@_cmd('r')
+@_cmd('read')
+def read_command(editor, variables):
+    """
+    Insert a file or shell command output after an addressed line
+    (`:[addr]r [file]` / `:[addr]r !{cmd}`).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    doc = eb.buffer.document
+    insert_index, addr_err = _resolve_read_address(
+        variables.get('read_addr'),
+        doc.cursor_position_row,
+        len(doc.lines),
+        getattr(eb, 'visual_marks', None),
+    )
+    if addr_err is not None or insert_index is None:
+        editor.show_message(addr_err)
+        return
+
+    read_shell = variables.get('read_shell')
+    if read_shell is not None:
+        shell_cmd = read_shell.strip()
+        if not shell_cmd:
+            editor.show_message('E34: No previous command')
+            return
+        raw_text, returncode = _read_shell_text(editor, shell_cmd)
+        if raw_text is None or returncode is None:
+            return
+        source_label = f'!{shell_cmd}'
+    else:
+        target = variables.get('location') or eb.location
+        if not target:
+            editor.show_message(_NO_FILE_NAME)
+            return
+        raw_text = _read_location_text(editor, target)
+        if raw_text is None:
+            return
+        returncode = 0
+        source_label = target
+
+    normalized = raw_text.replace('\r\n', '\n')
+    if normalized == '':
+        if returncode != 0:
+            editor.show_message(f'shell returned {returncode}')
+        else:
+            editor.show_message(f'"{source_label}" 0L')
+        return
+
+    if normalized.endswith('\n'):
+        normalized = normalized[:-1]
+    inserted_lines = normalized.split('\n')
+
+    eb.buffer.save_to_undo_stack()
+    if eb.buffer.text == '':
+        new_lines = inserted_lines
+        first_row = 0
+    else:
+        new_lines = list(doc.lines)
+        new_lines[insert_index:insert_index] = inserted_lines
+        first_row = insert_index
+
+    new_doc = Document('\n'.join(new_lines))
+    eb.buffer.document = new_doc
+    note_document_text(normalized)
+
+    first_line = new_doc.lines[first_row]
+    first_non_blank = len(first_line) - len(first_line.lstrip())
+    eb.buffer.cursor_position = new_doc.translate_row_col_to_index(first_row, first_non_blank)
+
+    if returncode != 0:
+        editor.show_message(f'shell returned {returncode}')
+    else:
+        editor.show_message(f'"{source_label}" {len(inserted_lines)}L')
 
 
 @location_cmd('f', accepts_force=False)

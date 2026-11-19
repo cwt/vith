@@ -23,6 +23,9 @@ COMMAND_GRAMMAR = compile(
         # Substitute command
         (?P<sub_range>(%%|(\d+|\.|\$|'<|'>)([+-]\d+)?(,(\d+|\.|\$|'<|'>)([+-]\d+)?)?)?) \s* (?P<command>s|substitute) (?P<sub_args>\s*[^a-zA-Z0-9_\\\s"].*)?   |
 
+        # Read command (file or shell output insertion with optional line address).
+        (?P<read_addr>(\d+|\.|\$|'<|'>)([+-]\d+)?)? \s* (?P<command>read|r) (\s* ! (?P<read_shell>.*) | \s+ (?P<location>[^\s]+))?   |
+
         # Commands accepting a location.
         (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>[^\s]+)   |
 

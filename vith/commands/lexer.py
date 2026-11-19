@@ -17,5 +17,6 @@ def create_command_lexer():
             'command': SimpleLexer('class:commandline.command'),
             'location': SimpleLexer('class:commandline.location'),
             'shell_command': PygmentsLexer(BashLexer),
+            'read_shell': PygmentsLexer(BashLexer),
         },
     )
