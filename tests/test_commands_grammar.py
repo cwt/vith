@@ -229,3 +229,42 @@ def test_bare_address_jump_grammar():
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
         assert m.variables().get('go_to_line') == expected_addr, line
+
+
+def test_range_line_editing_grammar_and_non_collisions():
+    for line, exp_range, exp_cmd, exp_force, exp_arg, exp_dest in (
+        (':d', None, 'd', '', None, None),
+        (':2,4d', '2,4', 'd', '', None, None),
+        (':%delete', '%', 'delete', '', None, None),
+        (':2d 3', '2', 'd', '', '3', None),
+        (':1,3y', '1,3', 'y', '', None, None),
+        (':0pu', '0', 'pu', '', None, None),
+        (':$put!', '$', 'put', '!', None, None),
+        (':1,3j!', '1,3', 'j', '!', None, None),
+        (':2,4m 0', '2,4', 'm', None, None, '0'),
+        (':m+1', None, 'm', None, None, '+1'),
+        (':1,3t $', '1,3', 't', None, None, '$'),
+        (':co.', None, 'co', None, None, '.'),
+        (':t0', None, 't', None, None, '0'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('cmd_range') == exp_range, line
+        assert v.get('command') == exp_cmd, line
+        assert v.get('force') == exp_force, line
+        assert v.get('cmd_arg') == exp_arg, line
+        assert v.get('dest_addr') == exp_dest, line
+
+    # Ensure no collisions with `:colo`, `:comp`, `:mes`, `:tabe`, `:tabs`.
+    for line, expected_cmd in (
+        (':colo vim', 'colo'),
+        (':comp', 'comp'),
+        (':mes', 'mes'),
+        (':messages', 'messages'),
+        (':tabe foo.py', 'tabe'),
+        (':tabs', 'tabs'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        assert m.variables().get('command') == expected_cmd, line

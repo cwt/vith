@@ -27,6 +27,12 @@ COMMAND_GRAMMAR = compile(
         # Read command (file or shell output insertion with optional line address).
         (?P<read_addr>%(addr)s)? \s* (?P<command>read|r) (\s* ! (?P<read_shell>.*) | \s+ (?P<location>[^\s]+))?   |
 
+        # Range line-editing commands (:d, :y, :pu, :j with optional count).
+        (?P<cmd_range>%(range)s)? \s* (?P<command>delete|yank|join|put|pu|d|y|j)(?P<force>!?) (\s+ (?P<cmd_arg>\d+))?   |
+
+        # Range move/copy commands (:m, :t, :co with destination address).
+        (?P<cmd_range>%(range)s)? \s* (?P<command>move|copy|co|m|t) (\s* (?P<dest_addr>%(addr)s) | \s+ (?P<dest_addr>[^\s]+))?   |
+
         # Commands accepting a location.
         (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>[^\s]+)   |
 

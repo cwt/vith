@@ -4,6 +4,9 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any
 
+from prompt_toolkit.clipboard import ClipboardData
+from prompt_toolkit.selection import SelectionType
+
 from vith.thai import note_document_text
 
 from .ranges import (
@@ -19,6 +22,7 @@ from .ranges import (
     replace_buffer_lines,
     resolve_insert_address,
     resolve_range,
+    resolve_range_str,
 )
 
 __all__ = (
@@ -1571,3 +1575,303 @@ def substitute(editor, range_start, range_end, search, replace, flags):
 
     if options.print_last:
         editor.show_message(eb.buffer.document.lines[row])
+
+
+def _apply_optional_line_count(
+    start_row: int, end_row: int, cmd_arg: str | None, line_count: int
+) -> tuple[tuple[int, int] | None, str | None]:
+    """Adjust `(start_row, end_row)` for an optional Ex line count (`:2d 3`)."""
+    if not cmd_arg:
+        return (start_row, end_row), None
+    count = int(cmd_arg)
+    if count < 1:
+        return None, f'E488: Trailing characters: {cmd_arg}'
+    new_start = end_row
+    new_end = min(line_count - 1, new_start + count - 1)
+    return (new_start, new_end), None
+
+
+@_cmd('delete')
+@_cmd('d')
+def delete_lines(editor, variables):
+    """
+    Delete addressed lines and place them on the clipboard (`:[range]d [count]`).
+    """
+    if variables.get('force'):
+        editor.show_message('No ! allowed')
+        return
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    bounds, err = resolve_range_str(variables.get('cmd_range'), eb, default_range='.')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    lines = list(eb.buffer.document.lines)
+    bounds, count_err = _apply_optional_line_count(
+        bounds[0], bounds[1], variables.get('cmd_arg'), len(lines)
+    )
+    if count_err is not None or bounds is None:
+        editor.show_message(count_err)
+        return
+
+    start_row, end_row = bounds
+    deleted = lines[start_row : end_row + 1]
+    editor.application.clipboard.set_data(ClipboardData('\n'.join(deleted), SelectionType.LINES))
+
+    remaining = lines[:start_row] + lines[end_row + 1 :]
+    if not remaining:
+        remaining = ['']
+    target_row = min(start_row, len(remaining) - 1)
+    if not replace_buffer_lines(editor, eb, remaining, target_row, first_non_blank=True):
+        return
+
+    if len(deleted) >= 2:
+        editor.show_message(f'{len(deleted)} fewer lines')
+
+
+@_cmd('yank')
+@_cmd('y')
+def yank_lines(editor, variables):
+    """
+    Copy addressed lines to the clipboard (`:[range]y [count]`).
+    """
+    if variables.get('force'):
+        editor.show_message('No ! allowed')
+        return
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+
+    bounds, err = resolve_range_str(variables.get('cmd_range'), eb, default_range='.')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    lines = eb.buffer.document.lines
+    bounds, count_err = _apply_optional_line_count(
+        bounds[0], bounds[1], variables.get('cmd_arg'), len(lines)
+    )
+    if count_err is not None or bounds is None:
+        editor.show_message(count_err)
+        return
+
+    start_row, end_row = bounds
+    yanked = lines[start_row : end_row + 1]
+    editor.application.clipboard.set_data(ClipboardData('\n'.join(yanked), SelectionType.LINES))
+    line_word = 'line' if len(yanked) == 1 else 'lines'
+    editor.show_message(f'{len(yanked)} {line_word} yanked')
+
+
+@_cmd('put')
+@_cmd('pu')
+def put_lines(editor, variables):
+    """
+    Insert clipboard text after the addressed line, or before with `!`
+    (`:[addr]pu[!]`).
+    """
+    if variables.get('cmd_arg'):
+        editor.show_message(f"E488: Trailing characters: {variables['cmd_arg']}")
+        return
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    doc = eb.buffer.document
+    range_start, range_end = parse_substitute_range(variables.get('cmd_range'))
+    addr_token = range_end or range_start
+    if addr_token == '%':
+        addr_token = '$'
+
+    insert_index, err = resolve_insert_address(
+        addr_token,
+        doc.cursor_position_row,
+        len(doc.lines),
+        getattr(eb, 'visual_marks', None),
+    )
+    if err is not None or insert_index is None:
+        editor.show_message(err)
+        return
+
+    if variables.get('force'):
+        insert_index = max(0, insert_index - 1)
+
+    clip_data = editor.application.clipboard.get_data()
+    if clip_data is None or clip_data.text == '':
+        editor.show_message('E353: Nothing in register "')
+        return
+
+    clip_text = clip_data.text.replace('\r\n', '\n')
+    if clip_text.endswith('\n'):
+        clip_text = clip_text[:-1]
+    segment = clip_text.split('\n')
+
+    if eb.buffer.text == '':
+        new_lines = segment
+        cursor_row = len(segment) - 1
+    else:
+        new_lines = list(doc.lines)
+        new_lines[insert_index:insert_index] = segment
+        cursor_row = insert_index + len(segment) - 1
+
+    replace_buffer_lines(
+        editor,
+        eb,
+        new_lines,
+        cursor_row,
+        first_non_blank=True,
+        inserted_text=clip_text,
+    )
+
+
+def _resolve_move_copy_dest(editor, eb, dest_addr: str | None) -> int | None:
+    if not dest_addr:
+        editor.show_message('E14: Invalid address')
+        return None
+    doc = eb.buffer.document
+    dest, err = resolve_insert_address(
+        dest_addr,
+        doc.cursor_position_row,
+        len(doc.lines),
+        getattr(eb, 'visual_marks', None),
+    )
+    if err is not None or dest is None:
+        editor.show_message(err)
+        return None
+    return dest
+
+
+@_cmd('move')
+@_cmd('m')
+def move_lines(editor, variables):
+    """
+    Move addressed lines after destination `{addr}` (`:[range]m {addr}`).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    bounds, err = resolve_range_str(variables.get('cmd_range'), eb, default_range='.')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    dest = _resolve_move_copy_dest(editor, eb, variables.get('dest_addr'))
+    if dest is None:
+        return
+
+    start_row, end_row = bounds
+    line1 = start_row + 1
+    line2 = end_row + 1
+    if line1 <= dest < line2:
+        editor.show_message('E134: Cannot move a range of lines into itself')
+        return
+
+    lines = list(eb.buffer.document.lines)
+    moved = lines[start_row : end_row + 1]
+    remaining = lines[:start_row] + lines[end_row + 1 :]
+    insert_at = dest if dest <= start_row else dest - len(moved)
+    remaining[insert_at:insert_at] = moved
+    cursor_row = insert_at + len(moved) - 1
+    replace_buffer_lines(editor, eb, remaining, cursor_row, first_non_blank=True)
+
+
+@_cmd('copy')
+@_cmd('co')
+@_cmd('t')
+def copy_lines(editor, variables):
+    """
+    Copy addressed lines after destination `{addr}` (`:[range]t {addr}` / `:co`).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    bounds, err = resolve_range_str(variables.get('cmd_range'), eb, default_range='.')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    dest = _resolve_move_copy_dest(editor, eb, variables.get('dest_addr'))
+    if dest is None:
+        return
+
+    start_row, end_row = bounds
+    lines = list(eb.buffer.document.lines)
+    copied = lines[start_row : end_row + 1]
+    lines[dest:dest] = copied
+    cursor_row = dest + len(copied) - 1
+    replace_buffer_lines(
+        editor,
+        eb,
+        lines,
+        cursor_row,
+        first_non_blank=True,
+        inserted_text='\n'.join(copied),
+    )
+
+
+@_cmd('join')
+@_cmd('j')
+def join_lines(editor, variables):
+    """
+    Join addressed lines (`:[range]j[!] [count]` / `:join[!]`).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    bounds, err = resolve_range_str(variables.get('cmd_range'), eb, default_range='.')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    lines = list(eb.buffer.document.lines)
+    start_row, end_row = bounds
+    cmd_arg = variables.get('cmd_arg')
+    if cmd_arg:
+        count = int(cmd_arg)
+        if count < 1:
+            editor.show_message(f'E488: Trailing characters: {cmd_arg}')
+            return
+        start_row = end_row
+        end_row = min(len(lines) - 1, start_row + max(1, count - 1))
+    elif start_row == end_row:
+        end_row = min(len(lines) - 1, start_row + 1)
+
+    if start_row >= end_row:
+        return
+
+    segment = lines[start_row : end_row + 1]
+    if variables.get('force'):
+        joined = ''.join(segment)
+    else:
+        joined = segment[0]
+        for part in segment[1:]:
+            stripped = part.lstrip()
+            if not stripped:
+                continue
+            if joined and not joined[-1].isspace():
+                joined = joined + ' ' + stripped
+            else:
+                joined = joined + stripped
+
+    new_lines = lines[:start_row] + [joined] + lines[end_row + 1 :]
+    replace_buffer_lines(editor, eb, new_lines, start_row, first_non_blank=True)
