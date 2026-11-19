@@ -101,6 +101,8 @@ def test_phase1_aliases_match_without_collisions():
         (':enew!', 'enew', '!'),
         (':ene', 'ene', ''),
         (':ene!', 'ene', '!'),
+        (':f', 'f', ''),
+        (':file', 'file', ''),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
@@ -114,6 +116,8 @@ def test_phase1_aliases_match_without_collisions():
         (':x out.txt', 'x', 'out.txt'),
         (':xit out.txt', 'xit', 'out.txt'),
         (':exit! out.txt', 'exit', 'out.txt'),
+        (':f newname.py', 'f', 'newname.py'),
+        (':file newname.py', 'file', 'newname.py'),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line

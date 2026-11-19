@@ -442,6 +442,49 @@ def buffer_wipe(editor, force=False):
         editor.window_arrangement.close_buffer()
 
 
+def _format_file_status(eb) -> str:
+    """Format Vim-style `:file` status line for `eb`."""
+    display_name = eb.get_display_name()
+    flags = []
+    if _is_buffer_read_only(eb.buffer):
+        flags.append('[readonly]')
+    if eb.has_unsaved_changes:
+        flags.append('[Modified]')
+    if eb.is_new and eb.location is not None:
+        flags.append('[New file]')
+
+    doc = eb.buffer.document
+    line_count = max(1, len(doc.lines))
+    current_line = doc.cursor_position_row + 1
+    percent = int((current_line * 100) / line_count)
+    line_word = 'line' if line_count == 1 else 'lines'
+
+    flag_part = (' ' + ''.join(flags)) if flags else ''
+    return f'"{display_name}"{flag_part} {line_count} {line_word} --{percent}%--'
+
+
+@location_cmd('f', accepts_force=False)
+@location_cmd('file', accepts_force=False)
+def file_info(editor, location):
+    """
+    Show current file name/status (`:f` / `:file`), or rename the current
+    buffer's location (`:file {name}`) without writing to disk.
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        editor.show_message(_NO_FILE_NAME)
+        return
+
+    if location is not None:
+        eb.location = location
+        eb._detected_filetype = None
+        eb.run_reporter()
+        note_document_text(eb.location)
+        editor.update_title()
+
+    editor.show_message(_format_file_status(eb))
+
+
 @cmd('enew', accepts_force=True)
 @cmd('ene', accepts_force=True)
 def buffer_new_empty(editor, force=False):

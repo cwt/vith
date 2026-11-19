@@ -530,3 +530,62 @@ def test_enew_on_empty_arrangement_creates_initial_buffer(editor):
     assert eb is not None
     assert eb.location is None
     assert eb.buffer.text == ''
+
+
+def test_file_command_status_and_rename(editor, tmp_path):
+    from prompt_toolkit.filters import to_filter
+
+    from vith.commands.preview import CommandPreviewer
+    from vith.thai import _THAI_GATE, reset_thai_text_gate
+
+    # Empty arrangement reports 'No file name'.
+    handle_command(editor, ':f')
+    assert editor.message == 'No file name'
+
+    # Existing multi-line file status (cursor at line 2 of 4 -> 50%).
+    target = tmp_path / 'notes.txt'
+    target.write_text('l1\nl2\nl3\nl4\n')
+    editor.load_initial_files([str(target)])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.cursor_position = eb.buffer.document.translate_row_col_to_index(1, 0)
+
+    handle_command(editor, ':f')
+    assert editor.message == f'"{target}" 4 lines --50%--'
+
+    # Modified + readonly flags appear cleanly.
+    eb.buffer.text = 'l1\nl2\nl3\nl4\nl5'
+    eb.buffer.read_only = to_filter(True)
+    handle_command(editor, ':file')
+    assert '[readonly][Modified]' in editor.message
+    assert '5 lines' in editor.message
+    eb.buffer.read_only = to_filter(False)
+
+    # Previewing `:file renamed.py` must NOT mutate `eb.location`.
+    previewer = CommandPreviewer(editor)
+    previewer.preview(':file renamed.py')
+    assert eb.location == str(target)
+
+    # Renaming updates location, resets filetype detection, refreshes title,
+    # and latches the Thai gate when the new filename contains Thai.
+    reset_thai_text_gate()
+    new_name = str(tmp_path / 'สวัสดี.py')
+    handle_command(editor, f':file {new_name}')
+    assert eb.location == new_name
+    assert eb.filetype == 'python'
+    assert editor.get_title() == 'vith - สวัสดี.py'
+    assert _THAI_GATE.value
+    assert new_name in editor.message
+
+    # `:f!` is rejected.
+    handle_command(editor, ':f!')
+    assert editor.message == 'No ! allowed'
+
+
+def test_file_command_untitled_and_new_named_flags(editor, tmp_path):
+    editor.load_initial_files([None])
+    handle_command(editor, ':f')
+    assert editor.message == '"[New file]" 1 line --100%--'
+
+    fresh = tmp_path / 'brand_new.txt'
+    handle_command(editor, f':f {fresh}')
+    assert editor.message == f'"{fresh}" [New file] 1 line --100%--'
