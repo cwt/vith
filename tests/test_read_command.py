@@ -364,3 +364,105 @@ def test_source_reloads_toml_and_python_rc_without_prompting(editor, tmp_path, m
     # 6. `:so!` is rejected.
     handle_command(editor, ':so!')
     assert editor.message == 'No ! allowed'
+
+
+def test_alternate_buffer_bfirst_blast_and_ls_marker(editor, tmp_path):
+    from vith.commands.commands import buffer_list_lines
+
+    f1 = tmp_path / 'first.txt'
+    f2 = tmp_path / 'second.txt'
+    f3 = tmp_path / 'third.txt'
+    editor.load_initial_files([str(f1), str(f2), str(f3)])
+    wa = editor.window_arrangement
+    eb1, eb2, eb3 = wa.editor_buffers[0], wa.editor_buffers[1], wa.editor_buffers[2]
+
+    # Before any switch, `:b #` reports E23.
+    handle_command(editor, ':b #')
+    assert editor.message == 'E23: No alternate file'
+    assert wa.active_editor_buffer is eb1
+
+    # `:bl` / `:blast` jumps to last buffer and records `eb1` as alternate (`#`).
+    handle_command(editor, ':bl')
+    assert wa.active_editor_buffer is eb3
+    assert wa.alternate_editor_buffer is eb1
+
+    lines = buffer_list_lines(editor)
+    assert '1 # ' in lines[0]
+    assert '3 % ' in lines[2]
+
+    # `:b #` toggles back to `eb1` and swaps alternate to `eb3`.
+    handle_command(editor, ':b #')
+    assert wa.active_editor_buffer is eb1
+    assert wa.alternate_editor_buffer is eb3
+
+    # `:bf` / `:bfirst` and `:blast` respect unsaved-changes guard unless `!`.
+    handle_command(editor, ':bn')
+    assert wa.active_editor_buffer is eb2
+    eb2.buffer.text = 'dirty middle'
+
+    handle_command(editor, ':bf')
+    assert wa.active_editor_buffer is eb2
+    assert editor.message == 'No write since last change (add ! to override)'
+
+    handle_command(editor, ':bfirst!')
+    assert wa.active_editor_buffer is eb1
+
+    handle_command(editor, ':blast')
+    assert wa.active_editor_buffer is eb3
+
+
+def test_targeted_bdelete_bwipeout_and_sbuffer_with_completion(editor, tmp_path):
+    f1 = tmp_path / 'alpha.py'
+    f2 = tmp_path / 'beta.py'
+    f3 = tmp_path / 'gamma.py'
+    editor.load_initial_files([str(f1), str(f2), str(f3)])
+    wa = editor.window_arrangement
+    eb_alpha = wa.get_editor_buffer_for_location(str(f1))
+    eb_beta = wa.get_editor_buffer_for_location(str(f2))
+    eb_gamma = wa.get_editor_buffer_for_location(str(f3))
+    assert wa.active_editor_buffer is eb_alpha
+
+    # Switch by 1-based buffer number (`:b 2`, even when tmp_path contains digits).
+    second_eb = wa.editor_buffers[1]
+    handle_command(editor, ':b 2')
+    assert wa.active_editor_buffer is second_eb
+    assert wa.alternate_editor_buffer is eb_alpha
+
+    # `:sb` with buffer name opens a horizontal split showing that buffer.
+    handle_command(editor, ':sb gamma')
+    assert wa.active_tab.window_count() == 2
+    assert wa.active_editor_buffer is eb_gamma
+
+    # `:sbuffer` without argument splits the current buffer.
+    handle_command(editor, ':sbuffer')
+    assert wa.active_tab.window_count() == 3
+    handle_command(editor, ':only')
+    assert wa.active_tab.window_count() == 1
+
+    # Targeted `:bd <target>` blocks if target is dirty unless `!`, without
+    # closing the active window when target is hidden.
+    eb_beta.buffer.text = 'unsaved beta'
+    handle_command(editor, ':bd beta')
+    assert eb_beta in wa.editor_buffers
+    assert editor.message == 'No write since last change (add ! to override)'
+
+    handle_command(editor, ':bd! beta')
+    assert eb_beta not in wa.editor_buffers
+    assert wa.active_editor_buffer is eb_gamma
+
+    # Wiping the alternate buffer (`:bw #`) clears `alternate_editor_buffer`.
+    assert wa.alternate_editor_buffer is eb_alpha
+    handle_command(editor, ':bw #')
+    assert eb_alpha not in wa.editor_buffers
+    assert wa.alternate_editor_buffer is None
+
+    # Unknown target reports E94 cleanly.
+    handle_command(editor, ':bdelete nonexistent')
+    assert editor.message == 'E94: No matching buffer for nonexistent'
+
+    # BufferNameCompleter works for `:bd ` and `:sb `.
+    completer = create_command_completer(editor)
+    event = CompleteEvent()
+    for prefix in ('bd gam', 'sb gam'):
+        completions = [c.text for c in completer.get_completions(Document(prefix), event)]
+        assert any('gamma.py' in item for item in completions), (prefix, completions)

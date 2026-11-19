@@ -30,7 +30,7 @@ COMMAND_GRAMMAR = compile(
         (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>[^\s]+)   |
 
         # Commands accepting a buffer.
-        (?P<command>b|buffer)(?P<force>!?)  \s+   (?P<buffer_name>[^\s]+)    |
+        (?P<command>bwipeout|bdelete|sbuffer|buffer|bd|bw|sb|b)(?P<force>!?)  \s+   (?P<buffer_name>[^\s]+)    |
 
         # Jump to line numbers.
         (?P<go_to_line>\d+)                                     |

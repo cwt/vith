@@ -240,6 +240,7 @@ class WindowArrangement:
         self.tab_pages = []
         self.active_tab_index = None
         self.editor_buffers = []  # List of EditorBuffer
+        self.alternate_editor_buffer = None
 
     @property
     def editor(self):
@@ -347,13 +348,25 @@ class WindowArrangement:
             return
         self.active_tab.cycle_focus()
 
+    def _update_alternate_buffer(self, previous_eb, new_eb):
+        """Record `previous_eb` as the alternate buffer (`#`) when switching."""
+        if (
+            previous_eb is not None
+            and previous_eb is not new_eb
+            and not getattr(previous_eb, 'is_scratch', False)
+            and previous_eb in self.editor_buffers
+        ):
+            self.alternate_editor_buffer = previous_eb
+
     def show_editor_buffer(self, editor_buffer):
         """
         Show this EditorBuffer in the current window.
         """
         if self.active_tab is None:
             return
+        previous_eb = self.active_editor_buffer
         self.active_tab.show_editor_buffer(editor_buffer)
+        self._update_alternate_buffer(previous_eb, editor_buffer)
 
         # Clean up buffers.
         self._auto_close_new_empty_buffers()
@@ -373,16 +386,27 @@ class WindowArrangement:
             new_index = (index + step) % len(self.editor_buffers)
 
             # Open new buffer in active tab.
-            self.active_tab.show_editor_buffer(self.editor_buffers[new_index])
-
-            # Clean up buffers.
-            self._auto_close_new_empty_buffers()
+            self.show_editor_buffer(self.editor_buffers[new_index])
 
     def go_to_previous_buffer(self):
         """
         Open the previous buffer in the active window.
         """
         self.go_to_next_buffer(_previous=True)
+
+    def go_to_first_buffer(self):
+        """
+        Open the first buffer in the active window (`:bf` / `:bfirst`).
+        """
+        if self.editor_buffers and self.active_tab is not None:
+            self.show_editor_buffer(self.editor_buffers[0])
+
+    def go_to_last_buffer(self):
+        """
+        Open the last buffer in the active window (`:bl` / `:blast`).
+        """
+        if self.editor_buffers and self.active_tab is not None:
+            self.show_editor_buffer(self.editor_buffers[-1])
 
     def _cycle_tab(self, step: int) -> None:
         if self.tab_pages and self.active_tab_index is not None:
@@ -400,19 +424,31 @@ class WindowArrangement:
         """
         self._cycle_tab(-1)
 
-    def go_to_buffer(self, buffer_name):
+    def resolve_buffer(self, buffer_name):
         """
-        Show the editor buffer for this name.
-
-        Resolution order (docs/bugs/067.md): exact location, then a *unique*
-        substring match (ambiguous names are rejected like Vim's E93), then
-        the 1-based buffer number as displayed by `:ls`/`BufferListOverlay`.
+        Resolve a buffer selector (`#`, exact location, unique substring, or
+        1-based buffer number) to an `EditorBuffer`. Reports Vim errors
+        (`E23`, `E93`, `E94`) and returns `None` when unresolved.
         """
         assert isinstance(buffer_name, str)
         ebs = self.editor_buffers
 
+        if buffer_name == '#':
+            alt = self.alternate_editor_buffer
+            if alt is not None and alt in ebs:
+                return alt
+            self.editor.show_message('E23: No alternate file')
+            return None
+
         # Exact location match.
         matches = [eb for eb in ebs if eb.location == buffer_name]
+
+        # 1-based buffer number (Vim ':ls' numbering): checked before substring
+        # so `:b 2` resolves buffer #2 even when paths contain digits.
+        if not matches and buffer_name.isdigit():
+            number = int(buffer_name)
+            if 1 <= number <= len(ebs):
+                matches = [ebs[number - 1]]
 
         # Unique substring match (the completer promises this). Guard the
         # untitled buffers (`location None`) — the substring branch used to
@@ -420,18 +456,26 @@ class WindowArrangement:
         if not matches and buffer_name:
             matches = [eb for eb in ebs if eb.location is not None and buffer_name in eb.location]
 
-        # 1-based buffer number (Vim ':ls' numbering).
-        if not matches and buffer_name.isdigit():
-            number = int(buffer_name)
-            if 1 <= number <= len(ebs):
-                matches = [ebs[number - 1]]
-
         if len(matches) == 1:
-            self.show_editor_buffer(matches[0])
-        elif not matches:
-            self.editor.show_message("E94: No matching buffer for %s" % buffer_name)
+            return matches[0]
+        if not matches:
+            self.editor.show_message('E94: No matching buffer for %s' % buffer_name)
         else:
-            self.editor.show_message("E93: More than one match for %s" % buffer_name)
+            self.editor.show_message('E93: More than one match for %s' % buffer_name)
+        return None
+
+    def go_to_buffer(self, buffer_name):
+        """
+        Show the editor buffer for this name.
+
+        Resolution order (docs/bugs/067.md): `#` alternate buffer, exact
+        location, then a *unique* substring match (ambiguous names are
+        rejected like Vim's E93), then the 1-based buffer number as displayed
+        by `:ls`/`BufferListOverlay`.
+        """
+        eb = self.resolve_buffer(buffer_name)
+        if eb is not None:
+            self.show_editor_buffer(eb)
 
     def _add_editor_buffer(self, editor_buffer, show_in_current_window=False):
         """
@@ -457,7 +501,9 @@ class WindowArrangement:
 
         # To be shown?
         if show_in_current_window and self.active_tab:
+            previous_eb = self.active_editor_buffer
             self.active_tab.show_editor_buffer(editor_buffer)
+            self._update_alternate_buffer(previous_eb, editor_buffer)
 
         # Start reporter.
         editor_buffer.run_reporter()
@@ -524,14 +570,17 @@ class WindowArrangement:
                 or (eb.is_scratch and not eb.has_unsaved_changes)
             ):
                 self.editor_buffers.remove(eb)
+                if self.alternate_editor_buffer is eb:
+                    self.alternate_editor_buffer = None
 
-    def close_buffer(self):
+    def close_buffer(self, target=None):
         """
-        Close current buffer. When there are other windows showing the same
-        buffer, they are closed as well. When no windows are left, the previous
-        buffer or an empty buffer is shown.
+        Close `target` buffer (defaulting to the active buffer). When there
+        are other windows showing the same buffer, they are closed as well.
+        When no windows are left, the previous buffer or an empty buffer is
+        shown.
         """
-        eb = self.active_editor_buffer
+        eb = self.active_editor_buffer if target is None else target
         active_tab = self.active_tab
 
         if eb is None or active_tab is None:
@@ -545,9 +594,12 @@ class WindowArrangement:
             index = 0
         if eb in self.editor_buffers:
             self.editor_buffers.remove(eb)
+        if self.alternate_editor_buffer is eb:
+            self.alternate_editor_buffer = None
 
-        # Close the active window.
-        active_tab.close_active_window()
+        # Close the active window if it displays `eb`.
+        if eb is self.active_editor_buffer:
+            active_tab.close_active_window()
 
         # Close all the windows that still have this buffer open and remove
         # tabs emptied by the close. Bookkeeping runs on the live list while

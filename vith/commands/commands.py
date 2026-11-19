@@ -237,6 +237,26 @@ def _bp(editor, force=False):
         editor.window_arrangement.go_to_previous_buffer()
 
 
+@cmd('bfirst', accepts_force=True)
+@cmd('bf', accepts_force=True)
+def _bfirst(editor, force=False):
+    """
+    Go to first buffer (`:bf` / `:bfirst`).
+    """
+    if _confirm_unsaved_changes(editor, force):
+        editor.window_arrangement.go_to_first_buffer()
+
+
+@cmd('blast', accepts_force=True)
+@cmd('bl', accepts_force=True)
+def _blast(editor, force=False):
+    """
+    Go to last buffer (`:bl` / `:blast`).
+    """
+    if _confirm_unsaved_changes(editor, force):
+        editor.window_arrangement.go_to_last_buffer()
+
+
 @cmd('next', accepts_force=True)
 @cmd('n', accepts_force=True)
 def _next(editor, force=False):
@@ -377,9 +397,15 @@ def buffer_list_lines(editor):
     untitled buffers.
     """
     wa = editor.window_arrangement
+    alt_eb = getattr(wa, 'alternate_editor_buffer', None)
     lines = []
     for info in wa.list_open_buffers():
-        char = '%' if info.is_active else ''
+        if info.is_active:
+            char = '%'
+        elif info.editor_buffer is alt_eb:
+            char = '#'
+        else:
+            char = ''
         eb = info.editor_buffer
         display = eb.get_display_name()
         lines.append(
@@ -416,15 +442,46 @@ def _buffer(editor, variables):
         editor.window_arrangement.go_to_buffer(buffer_name)
 
 
-@cmd('bwipeout', accepts_force=True)
-@cmd('bdelete', accepts_force=True)
-@cmd('bw', accepts_force=True)
-@cmd('bd', accepts_force=True)
-def buffer_wipe(editor, force=False):
+@_cmd('sbuffer')
+@_cmd('sb')
+def split_buffer(editor, variables):
     """
-    Wipe buffer.
+    Open a horizontal split showing an open buffer (`:sb [N|name]` /
+    `:sbuffer [N|name]`), or split the active buffer when omitted.
     """
-    if _confirm_unsaved_changes(editor, force):
+    wa = editor.window_arrangement
+    if wa.active_tab is None:
+        return
+    buffer_name = variables.get('buffer_name')
+    if not buffer_name:
+        wa.hsplit()
+        return
+    target = wa.resolve_buffer(buffer_name)
+    if target is not None:
+        wa.active_tab.hsplit(target)
+
+
+@_cmd('bwipeout')
+@_cmd('bdelete')
+@_cmd('bw')
+@_cmd('bd')
+def buffer_wipe(editor, variables):
+    """
+    Wipe the active buffer or a targeted buffer (`:bd[!] [N|name]` /
+    `:bw[!] [N|name]`).
+    """
+    buffer_name = variables.get('buffer_name')
+    force = bool(variables['force'])
+    if buffer_name:
+        wa = editor.window_arrangement
+        target = wa.resolve_buffer(buffer_name)
+        if target is None:
+            return
+        if not force and target.has_unsaved_changes:
+            editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
+            return
+        wa.close_buffer(target=target)
+    elif _confirm_unsaved_changes(editor, force):
         editor.window_arrangement.close_buffer()
 
 

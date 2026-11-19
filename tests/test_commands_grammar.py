@@ -109,11 +109,35 @@ def test_phase1_aliases_match_without_collisions():
         (':messages', 'messages', ''),
         (':so', 'so', ''),
         (':source', 'source', ''),
+        (':bf', 'bf', ''),
+        (':bfirst!', 'bfirst', '!'),
+        (':bl', 'bl', ''),
+        (':blast!', 'blast', '!'),
+        (':sb', 'sb', ''),
+        (':sbuffer', 'sbuffer', ''),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
         variables = m.variables()
         assert variables.get('command') == expected_cmd, line
+        assert variables.get('force') == expected_force, line
+
+    for line, expected_cmd, expected_buf, expected_force in (
+        (':b #', 'b', '#', ''),
+        (':buffer 2', 'buffer', '2', ''),
+        (':bd 2', 'bd', '2', ''),
+        (':bd! foo.py', 'bd', 'foo.py', '!'),
+        (':bdelete #', 'bdelete', '#', ''),
+        (':bw! 1', 'bw', '1', '!'),
+        (':bwipeout bar', 'bwipeout', 'bar', ''),
+        (':sb 2', 'sb', '2', ''),
+        (':sbuffer foo.py', 'sbuffer', 'foo.py', ''),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        variables = m.variables()
+        assert variables.get('command') == expected_cmd, line
+        assert variables.get('buffer_name') == expected_buf, line
         assert variables.get('force') == expected_force, line
 
     for line, expected_cmd, expected_loc in (
