@@ -540,3 +540,77 @@ def test_range_write_partial_append_and_pipe_commands(editor, tmp_path):
     # Non-zero exit from `:w !cmd` reports `shell returned N`.
     handle_command(editor, ':w !sh -c "exit 5"')
     assert editor.message == 'shell returned 5'
+
+
+def test_normal_command_range_undo_bang_thai_global_and_guards(editor):
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    # Missing argument reports E471; empty arrangement is safe.
+    handle_command(editor, ':norm')
+    assert editor.message == 'E471: Argument required'
+    handle_command(editor, ':norm x')
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'alpha\nbeta\ngamma'
+    editor.sync_with_prompt_toolkit()
+
+    # `:%norm A;` appends `;` to every line, exits Insert mode automatically,
+    # and undoes all three lines in ONE single `:u`.
+    handle_command(editor, ':%norm A;')
+    assert eb.buffer.document.lines == ['alpha;', 'beta;', 'gamma;']
+    assert editor.application.vi_state.input_mode == InputMode.NAVIGATION
+
+    handle_command(editor, ':u')
+    assert eb.buffer.document.lines == ['alpha', 'beta', 'gamma']
+
+    # `:1,2normal I# ` preserves trailing spaces in `{keys}` and prefixes lines 1-2.
+    handle_command(editor, ':1,2normal I# ')
+    assert eb.buffer.document.lines == ['# alpha', '# beta', 'gamma']
+    handle_command(editor, ':u')
+
+    # `:norm` invokes user mappings while `:norm!` ignores them (Vim parity).
+    @editor.add_key_binding('Q')
+    def custom_mapping(event):
+        event.current_buffer.insert_text('MAPPED_')
+
+    eb.buffer.cursor_position = 0
+    handle_command(editor, ':1norm Q')
+    assert eb.buffer.document.lines[0] == 'MAPPED_alpha'
+    handle_command(editor, ':u')
+
+    handle_command(editor, ':1norm! Q')
+    assert eb.buffer.document.lines[0] == 'alpha'
+
+    # Thai insertion through `:norm` latches the sticky Thai/Lao renderer gate.
+    reset_thai_text_gate()
+    assert not _THAI_GATE.value
+    handle_command(editor, ':1norm A ไทย')
+    assert eb.buffer.document.lines[0] == 'alpha ไทย'
+    assert _THAI_GATE.value
+    handle_command(editor, ':u')
+
+    # `:g/pat/norm ...` integrates cleanly as a single undo step (including `dd`).
+    eb.buffer.text = 'keep 1\nTODO a\nkeep 2\nTODO b'
+    handle_command(editor, ':g/TODO/norm A [done]')
+    assert eb.buffer.document.lines == ['keep 1', 'TODO a [done]', 'keep 2', 'TODO b [done]']
+    handle_command(editor, ':u')
+    assert eb.buffer.document.lines == ['keep 1', 'TODO a', 'keep 2', 'TODO b']
+
+    # Incomplete key sequence (`:norm d`) recovers cleanly without hanging or leaking state.
+    handle_command(editor, ':1norm d')
+    assert editor.application.vi_state.operator_func is None
+    assert editor.application.vi_state.input_mode == InputMode.NAVIGATION
+
+    # Recursion guard blocks re-entrant `:norm`.
+    editor._normal_command_depth = 1
+    try:
+        handle_command(editor, ':1norm x')
+        assert editor.message == 'E169: Command too recursive'
+    finally:
+        editor._normal_command_depth = 0
+
+    # Read-only buffer rejects `:norm` with E21.
+    eb.buffer.read_only = to_filter(True)
+    handle_command(editor, ':1norm x')
+    assert editor.message == "E21: Cannot make changes, 'modifiable' is off"

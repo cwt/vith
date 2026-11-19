@@ -270,6 +270,8 @@ class Editor:
 
         # Create key bindings registry.
         self.key_bindings = create_key_bindings(self)
+        self._builtin_key_binding_count = len(self.key_bindings.bindings)
+        self._normal_command_depth = 0
 
         # Create layout and CommandLineInterface instance.
         self.editor_layout = EditorLayout(self, self.window_arrangement)

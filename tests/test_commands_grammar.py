@@ -330,3 +330,18 @@ def test_filter_and_range_write_grammar():
         assert v.get('location') == exp_loc, line
         assert v.get('write_append') == exp_app, line
         assert v.get('write_shell') == exp_sh, line
+
+
+def test_normal_command_grammar():
+    for line, exp_range, exp_cmd, exp_force, exp_keys in (
+        (':norm A;', None, 'norm', '', 'A;'),
+        (':%norm! dd', '%', 'norm', '!', 'dd'),
+        (':1,3normal I# ', '1,3', 'normal', '', 'I# '),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('cmd_range') == exp_range, line
+        assert v.get('command') == exp_cmd, line
+        assert v.get('force') == exp_force, line
+        assert v.get('norm_keys') == exp_keys, line

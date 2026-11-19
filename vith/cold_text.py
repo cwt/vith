@@ -189,6 +189,7 @@ class ColdTextBuffer(Buffer):
         self.cold_compression_level = cold_compression_level
         self._text_version = 0
         self._vith_cell_column: tuple[int, int] | tuple[int, int, int] | None = None
+        self._suppress_undo_saves = 0
         super().__init__(*args, **kwargs)
 
     def reset(
@@ -268,6 +269,8 @@ class ColdTextBuffer(Buffer):
         super()._text_changed()
 
     def save_to_undo_stack(self, clear_redo_stack: bool = True) -> None:
+        if getattr(self, '_suppress_undo_saves', 0) > 0:
+            return
         undo_stack = cast(ColdTextStack, self._undo_stack)
         if undo_stack and undo_stack.top_version == self._text_version:
             undo_stack.update_top_cursor(self.cursor_position)

@@ -36,6 +36,9 @@ COMMAND_GRAMMAR = compile(
         # Range sort and retab commands.
         (?P<cmd_range>%(range)s)? \s* (?P<command>sort|retab)(?P<force>!?) (\s+ (?P<cmd_arg>[^\s]+))?   |
 
+        # Range normal command (:[range]norm[!] {keys} / :normal[!] {keys}).
+        (?P<cmd_range>%(range)s)? \s* (?P<command>normal|norm)(?P<force>!?) \s+ (?P<norm_keys>.+)   |
+
         # Global / vglobal commands (:[range]g[!]/pat/[cmd], :[range]v/pat/[cmd]).
         (?P<cmd_range>%(range)s)? \s* (?P<command>vglobal|global|g|v)(?P<force>!?) (?P<global_args>\s*[^a-zA-Z0-9_\\\s"!].*)   |
 
