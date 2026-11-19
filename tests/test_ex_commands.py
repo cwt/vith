@@ -589,3 +589,33 @@ def test_file_command_untitled_and_new_named_flags(editor, tmp_path):
     fresh = tmp_path / 'brand_new.txt'
     handle_command(editor, f':f {fresh}')
     assert editor.message == f'"{fresh}" [New file] 1 line --100%--'
+
+
+def test_version_and_ver_commands_use_pager_and_report_runtime_info(editor, monkeypatch):
+    import prompt_toolkit
+
+    from vith import __version__ as vith_version
+    from vith.commands.commands import version_lines
+
+    captured = _capture_pager(monkeypatch)
+
+    # Works even when no buffer is open (empty arrangement).
+    empty_lines = version_lines(editor)
+    assert any(f'vith {vith_version}' in line for line in empty_lines)
+    assert any(f'prompt_toolkit {prompt_toolkit.__version__}' in line for line in empty_lines)
+    assert any('Thai word segmentation:' in line for line in empty_lines)
+    assert any('Cold-text compression:' in line for line in empty_lines)
+
+    # With an active buffer open, `:ver` and `:version` emit identical pager output.
+    editor.load_initial_files([None])
+    handle_command(editor, ':ver')
+    handle_command(editor, ':version')
+
+    assert len(captured) == 2
+    assert captured[0] == captured[1]
+    assert f'vith {vith_version}' in captured[0]
+    assert 'Cold-text compression:' in captured[0]
+
+    # `:ver!` is rejected.
+    handle_command(editor, ':ver!')
+    assert editor.message == 'No ! allowed'

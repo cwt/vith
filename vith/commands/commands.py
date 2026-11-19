@@ -723,6 +723,57 @@ def no_hlsearch(editor):
     editor.suppress_hlsearch()
 
 
+def version_lines(editor) -> list[str]:
+    """
+    Build the `:version` pager lines: vith, Python, prompt_toolkit, Thai word
+    segmentation backend, and cold-text compression configuration.
+    """
+    import platform
+    import sys
+
+    import prompt_toolkit
+
+    from vith import __version__ as vith_version
+    from vith.cold_text import make_cold_text_compressor
+    from vith.thai.words import _get_libthai
+
+    thai_backend = 'libthai' if _get_libthai() is not None else 'orthographic fallback (TCC-lite)'
+
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is not None and hasattr(eb.buffer, 'cold_compression_name'):
+        comp_name = eb.buffer.cold_compression_name
+        comp_level = eb.buffer.cold_compression_level
+    else:
+        _, comp_name, comp_level = make_cold_text_compressor(
+            editor.cold_text_compression,
+            editor.cold_text_compression_level,
+        )
+    comp_text = comp_name if comp_level <= 0 else f'{comp_name} (level {comp_level})'
+
+    return [
+        f'vith {vith_version}',
+        f'Python {platform.python_version()} ({platform.python_implementation()}) on {sys.platform}',
+        f'prompt_toolkit {prompt_toolkit.__version__}',
+        f'Thai word segmentation: {thai_backend}',
+        f'Cold-text compression: {comp_text}',
+    ]
+
+
+@cmd('ver')
+@cmd('version')
+def show_version(editor):
+    """
+    Display vith and runtime environment version info (`:ver` / `:version`).
+    """
+    lines = version_lines(editor)
+
+    def handler():
+        for line in lines:
+            print(line)
+
+    _run_pager(handler)
+
+
 @cmd('h')
 @cmd('help')
 def help(editor):
