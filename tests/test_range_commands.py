@@ -418,3 +418,125 @@ def test_global_and_vglobal_commands_redos_two_pass_and_undo(editor):
     eb.buffer.read_only = to_filter(True)
     handle_command(editor, ':g/A/d')
     assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
+
+
+def test_range_external_filter_command_vim_parity_and_errors(editor, monkeypatch):
+    import subprocess
+
+    # Empty arrangement guard.
+    handle_command(editor, ':%!cat')
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'header\ncherry\napple\nbanana\nfooter'
+
+    # `:2,4!sort` filters only lines 2-4 in a single undoable change.
+    handle_command(editor, ':2,4!sort')
+    assert eb.buffer.document.lines == ['header', 'apple', 'banana', 'cherry', 'footer']
+
+    handle_command(editor, ':u')
+    assert eb.buffer.document.lines == ['header', 'cherry', 'apple', 'banana', 'footer']
+
+    # Decision D3: non-zero exit replaces addressed lines with combined output (2>&1)
+    # and reports `shell returned N`; `:u` cleanly restores original lines.
+    before = eb.buffer.text
+    handle_command(editor, ':2,3!sh -c "echo filtered_err >&2; exit 4"')
+    assert eb.buffer.document.lines == ['header', 'filtered_err', 'banana', 'footer']
+    assert editor.message == 'shell returned 4'
+
+    handle_command(editor, ':u')
+    assert eb.buffer.text == before
+
+    # Thai output from filter latches the sticky Thai/Lao renderer gate.
+    reset_thai_text_gate()
+    handle_command(editor, ':1!printf "สวัสดี\\n"')
+    assert eb.buffer.document.lines[0] == 'สวัสดี'
+    assert _THAI_GATE.value
+    handle_command(editor, ':u')
+
+    # Empty shell command reports E34 without mutating.
+    handle_command(editor, ':%!')
+    assert editor.message == 'E34: No previous command'
+    assert eb.buffer.text == before
+
+    # Read-only buffer rejects filter with E21.
+    eb.buffer.read_only = to_filter(True)
+    handle_command(editor, ':%!cat')
+    assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
+    eb.buffer.read_only = to_filter(False)
+
+    # Timeout and OSError abort cleanly without mutating.
+    def fake_timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd='sleep', timeout=30)
+
+    monkeypatch.setattr(subprocess, 'run', fake_timeout)
+    handle_command(editor, ':%!sleep')
+    assert 'timed out' in editor.message
+    assert eb.buffer.text == before
+
+    def fake_oserror(*args, **kwargs):
+        raise OSError('spawn error')
+
+    monkeypatch.setattr(subprocess, 'run', fake_oserror)
+    handle_command(editor, ':%!bad')
+    assert 'Cannot execute shell command' in editor.message
+    assert eb.buffer.text == before
+
+
+def test_range_write_partial_append_and_pipe_commands(editor, tmp_path):
+    orig = tmp_path / 'orig.txt'
+    orig.write_text('L1\nL2\nL3\nL4\n')
+    editor.load_initial_files([str(orig)])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'L1\nL2 edited\nL3\nL4'
+    assert eb.has_unsaved_changes is True
+
+    # 1. Partial range write (`:2,3w part.txt`) writes ONLY addressed lines
+    # without renaming `eb.location` or clearing `has_unsaved_changes`.
+    part = tmp_path / 'part.txt'
+    handle_command(editor, f':2,3w {part}')
+    assert part.read_text() == 'L2 edited\nL3\n'
+    assert eb.location == str(orig)
+    assert eb.has_unsaved_changes is True
+
+    # Existing destination without `!` is rejected.
+    handle_command(editor, f':1,2w {part}')
+    assert editor.message == 'File exists (add ! to override)'
+    assert part.read_text() == 'L2 edited\nL3\n'
+
+    # Partial write to current buffer's own file refuses without `!`, succeeds with `!`.
+    handle_command(editor, ':2,3w')
+    assert editor.message == 'Use ! to write partial buffer'
+    handle_command(editor, ':2,3w!')
+    assert orig.read_text() == 'L2 edited\nL3\n'
+    assert eb.has_unsaved_changes is True
+
+    # 2. Append (`:[range]w[!] >> file`): refuses non-existent target unless `!`.
+    log_path = tmp_path / 'append.log'
+    handle_command(editor, f':1,2w >> {log_path}')
+    assert editor.message == 'File does not exist (add ! to create)'
+    assert not log_path.exists()
+
+    handle_command(editor, f':1,2w! >> {log_path}')
+    assert log_path.read_text() == 'L1\nL2 edited\n'
+
+    handle_command(editor, f':4w >> {log_path}')
+    assert log_path.read_text() == 'L1\nL2 edited\nL4\n'
+
+    # 3. Pipe (`:[range]w !cmd`): single-line stdout goes to message; multi-line
+    # stdout opens read-only split; buffer is never mutated.
+    before = eb.buffer.text
+    handle_command(editor, ':2,3w !wc -l')
+    assert editor.message.strip() == '2'
+    assert eb.buffer.text == before
+
+    handle_command(editor, ':1,2w !cat')
+    wa = editor.window_arrangement
+    assert wa.active_editor_buffer.is_scratch is True
+    assert wa.active_editor_buffer.buffer.text == 'L1\nL2 edited'
+    handle_command(editor, ':q')
+    assert wa.active_editor_buffer is eb
+
+    # Non-zero exit from `:w !cmd` reports `shell returned N`.
+    handle_command(editor, ':w !sh -c "exit 5"')
+    assert editor.message == 'shell returned 5'

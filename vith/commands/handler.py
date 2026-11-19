@@ -1,5 +1,6 @@
 from .commands import (
     call_command_handler,
+    filter_range_command,
     has_command_handler,
     parse_substitute_args,
     parse_substitute_range,
@@ -29,6 +30,7 @@ def handle_command(editor, input_string):
     command = variables.get('command')
     go_to_line = variables.get('go_to_line')
     shell_command = variables.get('shell_command')
+    filter_shell = variables.get('filter_shell')
     sub_range = variables.get('sub_range')
     sub_args = variables.get('sub_args')
 
@@ -37,6 +39,10 @@ def handle_command(editor, input_string):
     if go_to_line is not None:
         # Handle go-to-line.
         _go_to_line(editor, go_to_line)
+
+    elif filter_shell is not None:
+        # Handle `:[range]!{cmd}` external filter.
+        filter_range_command(editor, variables.get('filter_range'), filter_shell)
 
     elif shell_command is not None:
         # Handle shell commands.

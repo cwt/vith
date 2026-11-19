@@ -748,8 +748,6 @@ def quit_all(editor, force=False):
     quit(editor, all_=True, force=force)
 
 
-@location_cmd('w', accepts_force=True)
-@location_cmd('write', accepts_force=True)
 def write(editor, location, force=False):
     """
     Write file. Returns whether the buffer was written.
@@ -762,6 +760,213 @@ def write(editor, location, force=False):
         editor.show_message(_NO_FILE_NAME)
         return False
     return eb.write(location, force=force)
+
+
+def _write_payload_to_location(editor: Any, eb: Any, target: str, payload: str) -> bool:
+    """Write `payload` to `target` via `editor.io_backends` without mutating `eb`."""
+    io = next(
+        (backend for backend in editor.io_backends if backend.can_open_location(target)),
+        None,
+    )
+    if io is None:
+        editor.show_message('Unknown location: %r' % target)
+        return False
+    try:
+        try:
+            io.write(target, payload, eb.encoding)
+        except UnicodeEncodeError:
+            io.write(target, payload, 'utf-8')
+    except Exception as exc:
+        editor.show_message('%s' % exc)
+        return False
+    return True
+
+
+def _write_pipe_shell(editor: Any, shell_cmd: str, payload: str) -> None:
+    """Pipe `payload` to `shell_cmd`'s stdin (`:[range]w !{cmd}`)."""
+    cmd = shell_cmd.strip()
+    if not cmd:
+        editor.show_message('E34: No previous command')
+        return
+    try:
+        proc = subprocess.run(
+            cmd,
+            shell=True,
+            input=payload,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        editor.show_message(f'Command timed out after 30s: {cmd}')
+        return
+    except OSError as exc:
+        editor.show_message(f'Cannot execute shell command: {exc}')
+        return
+
+    output = (proc.stdout or '').replace('\r\n', '\n').rstrip('\n')
+    if output:
+        if '\n' in output:
+            editor.show_info(output, title=f'[!{cmd}]')
+        else:
+            editor.show_message(output)
+    if proc.returncode != 0:
+        editor.show_message(f'shell returned {proc.returncode}')
+
+
+def _write_append_file(editor: Any, eb: Any, target: str, payload: str, force: bool) -> None:
+    """Append `payload` to `target` (`:[range]w[!] >> {file}`)."""
+    expanded = os.path.expanduser(target)
+    if not force and not os.path.exists(expanded):
+        editor.show_message('File does not exist (add ! to create)')
+        return
+    try:
+        try:
+            with open(expanded, 'a', encoding=eb.encoding) as fh:
+                fh.write(payload)
+        except UnicodeEncodeError:
+            with open(expanded, 'a', encoding='utf-8') as fh:
+                fh.write(payload)
+    except OSError as exc:
+        editor.show_message('%s' % exc)
+
+
+@_cmd('write')
+@_cmd('w')
+def write_command(editor: Any, variables: Any) -> None:
+    """
+    Write buffer or range to file, append (`>>`), or pipe to shell (`!cmd`)
+    (`:[range]w[!] [file | >> file | !cmd]`).
+    """
+    cmd_range = variables.get('cmd_range')
+    force = bool(variables.get('force'))
+    location = variables.get('location')
+    write_append = variables.get('write_append')
+    write_shell = variables.get('write_shell')
+
+    if write_shell is not None:
+        eb = editor.window_arrangement.active_editor_buffer
+        if eb is None:
+            return
+        bounds, err = resolve_range_str(cmd_range, eb, default_range='%')
+        if err is not None or bounds is None:
+            editor.show_message(err)
+            return
+        start_row, end_row = bounds
+        payload = '\n'.join(eb.buffer.document.lines[start_row : end_row + 1]) + '\n'
+        _write_pipe_shell(editor, write_shell, payload)
+        return
+
+    if write_append is not None:
+        eb = editor.window_arrangement.active_editor_buffer
+        if eb is None:
+            return
+        bounds, err = resolve_range_str(cmd_range, eb, default_range='%')
+        if err is not None or bounds is None:
+            editor.show_message(err)
+            return
+        start_row, end_row = bounds
+        payload = '\n'.join(eb.buffer.document.lines[start_row : end_row + 1]) + '\n'
+        _write_append_file(editor, eb, write_append, payload, force=force)
+        return
+
+    if cmd_range is not None:
+        eb = editor.window_arrangement.active_editor_buffer
+        if eb is None:
+            editor.show_message(_NO_FILE_NAME)
+            return
+        bounds, err = resolve_range_str(cmd_range, eb, default_range='%')
+        if err is not None or bounds is None:
+            editor.show_message(err)
+            return
+        start_row, end_row = bounds
+        lines = eb.buffer.document.lines
+        is_partial = start_row > 0 or end_row < len(lines) - 1
+        if not is_partial:
+            write(editor, location, force=force)
+            return
+        target = location or eb.location
+        if not target:
+            editor.show_message(_NO_FILE_NAME)
+            return
+        if not force:
+            if location is None:
+                editor.show_message('Use ! to write partial buffer')
+                return
+            if os.path.exists(os.path.expanduser(target)):
+                editor.show_message('File exists (add ! to override)')
+                return
+        payload = '\n'.join(lines[start_row : end_row + 1]) + '\n'
+        _write_payload_to_location(editor, eb, target, payload)
+        return
+
+    write(editor, location, force=force)
+
+
+def filter_range_command(editor: Any, range_str: str | None, shell_cmd: str) -> None:
+    """
+    Pipe addressed lines through an external shell command and replace the
+    range with combined output (`:[range]!{cmd}`, Decision D3).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    cmd = shell_cmd.strip()
+    if not cmd:
+        editor.show_message('E34: No previous command')
+        return
+
+    bounds, err = resolve_range_str(range_str, eb, default_range='.')
+    if err is not None or bounds is None:
+        editor.show_message(err)
+        return
+
+    start_row, end_row = bounds
+    lines = list(eb.buffer.document.lines)
+    stdin_text = '\n'.join(lines[start_row : end_row + 1]) + '\n'
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            shell=True,
+            input=stdin_text,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        editor.show_message(f'Command timed out after 30s: {cmd}')
+        return
+    except OSError as exc:
+        editor.show_message(f'Cannot execute shell command: {exc}')
+        return
+
+    output = (proc.stdout or '').replace('\r\n', '\n')
+    if output == '':
+        replacement: list[str] = []
+    else:
+        if output.endswith('\n'):
+            output = output[:-1]
+        replacement = output.split('\n')
+
+    new_lines = lines[:start_row] + replacement + lines[end_row + 1 :]
+    cursor_row = min(start_row, max(0, len(new_lines) - 1))
+    replace_buffer_lines(
+        editor,
+        eb,
+        new_lines,
+        cursor_row,
+        first_non_blank=True,
+        inserted_text=output,
+    )
+    if proc.returncode != 0:
+        editor.show_message(f'shell returned {proc.returncode}')
 
 
 @location_cmd('sav', accepts_force=True)

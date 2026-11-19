@@ -92,11 +92,14 @@ def create_command_completer(editor):
         {
             'command': WordCompleter(commands),
             'location': PathCompleter(expanduser=True),
+            'write_append': PathCompleter(expanduser=True),
             'set_option': WordCompleter(sorted(SET_COMMANDS)),
             'buffer_name': BufferNameCompleter(editor),
             'colorscheme': ColorSchemeCompleter(editor),
             'shell_command': SystemCompleter(),
             'read_shell': SystemCompleter(),
+            'filter_shell': SystemCompleter(),
+            'write_shell': SystemCompleter(),
         },
     )
     return CommandCompleter(inner)

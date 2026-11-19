@@ -16,7 +16,10 @@ def create_command_lexer():
         lexers={
             'command': SimpleLexer('class:commandline.command'),
             'location': SimpleLexer('class:commandline.location'),
+            'write_append': SimpleLexer('class:commandline.location'),
             'shell_command': PygmentsLexer(BashLexer),
             'read_shell': PygmentsLexer(BashLexer),
+            'filter_shell': PygmentsLexer(BashLexer),
+            'write_shell': PygmentsLexer(BashLexer),
         },
     )

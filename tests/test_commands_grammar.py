@@ -292,3 +292,41 @@ def test_global_and_vglobal_grammar():
         assert v.get('command') == exp_cmd, line
         assert v.get('force') == exp_force, line
         assert v.get('global_args') == exp_args, line
+
+
+def test_filter_and_range_write_grammar():
+    for line, exp_range, exp_shell in (
+        (':%!sort', '%', 'sort'),
+        (':2,4!tr a-z A-Z', '2,4', 'tr a-z A-Z'),
+        (":'<,'>!jq .", "'<,'>", 'jq .'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('filter_range') == exp_range, line
+        assert v.get('filter_shell') == exp_shell, line
+        assert v.get('shell_command') is None, line
+
+    # Bare `:!cmd` stays on `shell_command`.
+    m_bare = COMMAND_GRAMMAR.match(':!ls -la')
+    assert m_bare is not None
+    assert m_bare.variables().get('shell_command') == 'ls -la'
+    assert m_bare.variables().get('filter_shell') is None
+
+    for line, exp_range, exp_cmd, exp_force, exp_loc, exp_app, exp_sh in (
+        (':2,4w out.txt', '2,4', 'w', '', 'out.txt', None, None),
+        (':2,4w! out.txt', '2,4', 'w', '!', 'out.txt', None, None),
+        (':w >> log.txt', None, 'w', '', None, 'log.txt', None),
+        (':2,4w! >> log.txt', '2,4', 'w', '!', None, 'log.txt', None),
+        (':w !wc -l', None, 'w', '', None, None, 'wc -l'),
+        (':2,4write !cat', '2,4', 'write', '', None, None, 'cat'),
+    ):
+        m = COMMAND_GRAMMAR.match(line)
+        assert m is not None, line
+        v = m.variables()
+        assert v.get('cmd_range') == exp_range, line
+        assert v.get('command') == exp_cmd, line
+        assert v.get('force') == exp_force, line
+        assert v.get('location') == exp_loc, line
+        assert v.get('write_append') == exp_app, line
+        assert v.get('write_shell') == exp_sh, line

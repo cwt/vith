@@ -39,6 +39,12 @@ COMMAND_GRAMMAR = compile(
         # Global / vglobal commands (:[range]g[!]/pat/[cmd], :[range]v/pat/[cmd]).
         (?P<cmd_range>%(range)s)? \s* (?P<command>vglobal|global|g|v)(?P<force>!?) (?P<global_args>\s*[^a-zA-Z0-9_\\\s"!].*)   |
 
+        # Range shell filter (requires explicit range; bare :!cmd stays interactive).
+        (?P<filter_range>%(range)s) \s* ! (?P<filter_shell>.*)   |
+
+        # Range/append/pipe write command (:[range]w[!] [file | >> file | !cmd]).
+        (?P<cmd_range>%(range)s)? \s* (?P<command>write|w)(?P<force>!?) (\s* >> \s* (?P<write_append>[^\s]+) | \s+ ! (?P<write_shell>.*) | \s+ (?P<location>[^\s]+))?   |
+
         # Commands accepting a location.
         (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>[^\s]+)   |
 
