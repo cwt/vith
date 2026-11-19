@@ -179,3 +179,101 @@ def test_wqall_writes_all_dirty_buffers_and_exits(editor, tmp_path, monkeypatch)
     assert exits == [1]
     assert f1.read_text() == 'alpha\n'
     assert f2.read_text() == 'beta\n'
+
+
+def test_undo_and_redo_commands_roundtrip_and_boundaries(editor):
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    buff = eb.buffer
+
+    # Empty stacks report Vim boundary messages.
+    handle_command(editor, ':u')
+    assert editor.message == 'Already at oldest change'
+    handle_command(editor, ':red')
+    assert editor.message == 'Already at newest change'
+
+    # Push edits and test :u, :undo, :red, :redo round-trip + cursor restore.
+    buff.text = 'first'
+    buff.cursor_position = 2
+    buff.save_to_undo_stack()
+    buff.text = 'second'
+    buff.cursor_position = 4
+    buff.save_to_undo_stack()
+    buff.text = 'third'
+
+    editor.message = None
+    handle_command(editor, ':u')
+    assert buff.text == 'second'
+    assert buff.cursor_position == 4
+    assert editor.message is None
+
+    handle_command(editor, ':undo')
+    assert buff.text == 'first'
+    assert buff.cursor_position == 2
+
+    handle_command(editor, ':undo')
+    assert buff.text == 'first'
+    assert editor.message == 'Already at oldest change'
+
+    editor.message = None
+    handle_command(editor, ':red')
+    assert buff.text == 'second'
+    assert editor.message is None
+
+    handle_command(editor, ':redo')
+    assert buff.text == 'third'
+
+    handle_command(editor, ':redo')
+    assert buff.text == 'third'
+    assert editor.message == 'Already at newest change'
+
+
+def test_undo_and_redo_read_only_empty_arrangement_and_thai_gate(editor):
+    from prompt_toolkit.filters import to_filter
+
+    from vith.commands.preview import CommandPreviewer
+    from vith.thai import _THAI_GATE, reset_thai_text_gate
+
+    # Empty arrangement never raises.
+    handle_command(editor, ':u')
+    handle_command(editor, ':redo')
+
+    # Read-only buffer (prompt_toolkit Filter) rejects undo and redo without mutating.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'สวัสดี'
+    eb.buffer.save_to_undo_stack()
+    eb.buffer.text = 'plain ascii'
+    eb.buffer.read_only = to_filter(True)
+
+    handle_command(editor, ':u')
+    assert eb.buffer.text == 'plain ascii'
+    assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
+
+    editor.message = None
+    handle_command(editor, ':red')
+    assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
+
+    # Unlocking read_only allows undo; restoring Thai latches the Thai gate.
+    eb.buffer.read_only = to_filter(False)
+    reset_thai_text_gate()
+    assert not _THAI_GATE.value
+
+    # Previewing :undo / :redo must not mutate the buffer.
+    previewer = CommandPreviewer(editor)
+    previewer.preview(':undo')
+    assert eb.buffer.text == 'plain ascii'
+
+    handle_command(editor, ':undo')
+    assert eb.buffer.text == 'สวัสดี'
+    assert _THAI_GATE.value
+
+    # Redo back to ASCII, then test Thai latch on redo as well.
+    handle_command(editor, ':redo')
+    assert eb.buffer.text == 'plain ascii'
+
+    # Reject `!` on :u! and :redo!.
+    handle_command(editor, ':u!')
+    assert editor.message == 'No ! allowed'
+    handle_command(editor, ':redo!')
+    assert editor.message == 'No ! allowed'

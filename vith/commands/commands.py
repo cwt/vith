@@ -23,6 +23,7 @@ SET_COMMANDS_TAKING_VALUE: set[str] = set()
 
 _NO_WRITE_SINCE_LAST_CHANGE_TEXT = 'No write since last change (add ! to override)'
 _NO_FILE_NAME = 'No file name'
+_MODIFIABLE_OFF_TEXT = "E21: Cannot make changes, 'modifiable' is off"
 
 # Heuristic guard against catastrophic backtracking (docs/bugs/123.md): a
 # group that contains a quantifier and is itself quantified, e.g. `(a+)+`,
@@ -551,6 +552,66 @@ def write_and_quit_all(editor, force=False):
             return
 
     editor.application.exit()
+
+
+def _is_buffer_read_only(buff) -> bool:
+    """
+    Evaluate `buff.read_only`, which prompt_toolkit stores as a `Filter`
+    callable (`Always` / `Never`), while also tolerating plain booleans.
+    """
+    read_only = getattr(buff, 'read_only', False)
+    if callable(read_only):
+        return bool(read_only())
+    return bool(read_only)
+
+
+@cmd('u')
+@cmd('undo')
+def undo_command(editor):
+    """
+    Undo the latest change in the active buffer (`:u` / `:undo`).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    before_text = eb.buffer.text
+    eb.buffer.undo()
+    if eb.buffer.text == before_text:
+        editor.show_message('Already at oldest change')
+    else:
+        note_document_text(eb.buffer.text)
+
+
+@cmd('red')
+@cmd('redo')
+def redo_command(editor):
+    """
+    Redo the latest undone change in the active buffer (`:red` / `:redo`).
+    """
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        return
+    if _is_buffer_read_only(eb.buffer):
+        editor.show_message(_MODIFIABLE_OFF_TEXT)
+        return
+
+    redo_stack = getattr(eb.buffer, '_redo_stack', None)
+    if not redo_stack:
+        editor.show_message('Already at newest change')
+        return
+
+    before_text = eb.buffer.text
+    while redo_stack:
+        eb.buffer.redo()
+        if eb.buffer.text != before_text:
+            note_document_text(eb.buffer.text)
+            return
+
+    editor.show_message('Already at newest change')
 
 
 @cmd('h')

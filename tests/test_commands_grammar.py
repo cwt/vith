@@ -82,6 +82,10 @@ def test_phase1_aliases_match_without_collisions():
         (':close!', 'close', '!'),
         (':wqall', 'wqall', ''),
         (':wqall!', 'wqall', '!'),
+        (':u', 'u', ''),
+        (':undo', 'undo', ''),
+        (':red', 'red', ''),
+        (':redo', 'redo', ''),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
