@@ -341,7 +341,7 @@ class EditorBuffer:
                 pass
         return True
 
-    def write(self, location=None, force=False):
+    def write(self, location=None, force=False, *, rename=False):
         """
         Write file to I/O backend.
 
@@ -349,6 +349,11 @@ class EditorBuffer:
         (a message has been shown). With ``force`` (``:w!``), a read-only
         local file is temporarily made writable for one write and its mode
         is restored afterwards (docs/bugs/117.md).
+
+        Strict Vim parity (Decision D1): writing to a different ``location``
+        from an already-named buffer writes a copy without renaming the buffer
+        or clearing ``has_unsaved_changes`` unless ``rename=True`` (``:saveas``).
+        Writing an untitled buffer names it and marks it clean.
         """
         # Resolve the target location without mutating state up front.
         target_location = location if location is not None else self.location
@@ -376,22 +381,28 @@ class EditorBuffer:
                     raise
                 if not self._write_forced(io, target_location, payload):
                     return False
-            self.is_new = False
         except Exception as e:
             # E.g. "No such file or directory."
             self.editor.show_message('%s' % e)
             return False
         else:
-            location_changed = target_location != self.location
-            # Only mutate location after a successful write.
-            self.location = target_location
-            # When the save succeeds: update: _file_content.
-            self._file_content = self.buffer.text
-            self._has_unsaved_changes = False
-            if location_changed:
-                self._detected_filetype = None
-                self.run_reporter()
-                note_document_text(self.location)
+            updates_buffer = (
+                self.location is None or target_location == self.location or bool(rename)
+            )
+            if updates_buffer:
+                location_changed = target_location != self.location
+                self.is_new = False
+                # Only mutate location after a successful write.
+                self.location = target_location
+                # When the save succeeds: update: _file_content.
+                self._file_content = self.buffer.text
+                self._has_unsaved_changes = False
+                if location_changed:
+                    self._detected_filetype = None
+                    self.run_reporter()
+                    note_document_text(self.location)
+                    if self.editor is not None:
+                        self.editor.update_title()
             return True
 
     def get_display_name(self, short=False):

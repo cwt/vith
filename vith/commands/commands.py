@@ -728,6 +728,26 @@ def write(editor, location, force=False):
     return eb.write(location, force=force)
 
 
+@location_cmd('sav', accepts_force=True)
+@location_cmd('saveas', accepts_force=True)
+def save_as(editor, location, force=False):
+    """
+    Write the active buffer to `location` and rename the buffer to it
+    (`:sav[!] {file}` / `:saveas[!] {file}`).
+    """
+    if not location:
+        editor.show_message('E471: Argument required')
+        return False
+    if not force and os.path.exists(os.path.expanduser(location)):
+        editor.show_message('File exists (add ! to override)')
+        return False
+    eb = editor.window_arrangement.active_editor_buffer
+    if eb is None:
+        editor.show_message(_NO_FILE_NAME)
+        return False
+    return eb.write(location, force=force, rename=True)
+
+
 @location_cmd('up', accepts_force=True)
 @location_cmd('update', accepts_force=True)
 def update(editor, location, force=False):

@@ -236,3 +236,69 @@ def test_read_command_completion_paths_and_commands(editor, tmp_path):
     prefix = f'r {tmp_path}/readme_'
     path_completions = [c.text for c in completer.get_completions(Document(prefix), event)]
     assert any('target.txt' in item for item in path_completions)
+
+
+def test_write_copy_vs_saveas_strict_vim_parity(editor, tmp_path):
+    # Decision D1: `:w other` on a named buffer writes a copy without renaming
+    # or clearing unsaved changes; `:sav`/`:saveas` writes and renames.
+    orig = tmp_path / 'orig.txt'
+    orig.write_text('original\n')
+    copy_path = tmp_path / 'copy.py'
+    renamed_path = tmp_path / 'renamed.py'
+
+    editor.load_initial_files([str(orig)])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'modified content'
+    assert eb.has_unsaved_changes
+
+    # `:w copy.py` writes a copy, keeping `orig.txt` name and dirty state.
+    handle_command(editor, f':w {copy_path}')
+    assert copy_path.read_text() == 'modified content\n'
+    assert eb.location == str(orig)
+    assert eb.has_unsaved_changes is True
+    assert editor.get_title() == 'vith - orig.txt'
+
+    # `:sav` without argument reports E471.
+    handle_command(editor, ':sav')
+    assert editor.message == 'E471: Argument required'
+
+    # `:saveas` on an existing file without `!` refuses to overwrite.
+    handle_command(editor, f':saveas {copy_path}')
+    assert editor.message == 'File exists (add ! to override)'
+    assert eb.location == str(orig)
+
+    # `:sav renamed.py` writes, renames, clears dirty flag, updates filetype & title.
+    handle_command(editor, f':sav {renamed_path}')
+    assert renamed_path.read_text() == 'modified content\n'
+    assert eb.location == str(renamed_path)
+    assert eb.is_new is False
+    assert eb.has_unsaved_changes is False
+    assert eb.filetype == 'python'
+    assert editor.get_title() == 'vith - renamed.py'
+
+    # `:saveas!` overwrites an existing file and renames the buffer to it.
+    eb.buffer.text = 'overwritten'
+    handle_command(editor, f':saveas! {copy_path}')
+    assert copy_path.read_text() == 'overwritten\n'
+    assert eb.location == str(copy_path)
+    assert eb.has_unsaved_changes is False
+
+
+def test_write_names_untitled_buffer_and_saveas_empty_arrangement_guard(editor, tmp_path):
+    # Empty arrangement guard for `:sav`.
+    handle_command(editor, f':sav {tmp_path / "nowhere.txt"}')
+    assert editor.message == 'No file name'
+
+    # Decision D1: `:w file` on an untitled buffer names it and marks it clean.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'brand new'
+    dest = tmp_path / 'first_name.py'
+
+    handle_command(editor, f':w {dest}')
+    assert dest.read_text() == 'brand new\n'
+    assert eb.location == str(dest)
+    assert eb.is_new is False
+    assert eb.has_unsaved_changes is False
+    assert eb.filetype == 'python'
+    assert editor.get_title() == 'vith - first_name.py'

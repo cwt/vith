@@ -122,6 +122,10 @@ def test_phase1_aliases_match_without_collisions():
         (':exit! out.txt', 'exit', 'out.txt'),
         (':f newname.py', 'f', 'newname.py'),
         (':file newname.py', 'file', 'newname.py'),
+        (':sav copy.py', 'sav', 'copy.py'),
+        (':sav! copy.py', 'sav', 'copy.py'),
+        (':saveas copy.py', 'saveas', 'copy.py'),
+        (':saveas! copy.py', 'saveas', 'copy.py'),
     ):
         m = COMMAND_GRAMMAR.match(line)
         assert m is not None, line
