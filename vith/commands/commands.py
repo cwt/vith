@@ -586,26 +586,48 @@ def _read_location_text(editor, location: str) -> str | None:
     return text
 
 
+_SHELL_TIMEOUT = 30
+
+
+def _run_shell(editor: Any, cmd: str, payload: str | None = None) -> Any | None:
+    """
+    Run a shell command with byte-preserving UTF-8 I/O (docs/bugs/137.md).
+
+    Shell output is arbitrary bytes: decoding with the locale's strict policy
+    used to raise `UnicodeDecodeError` out of the command handler. Using
+    `surrogateescape` on both directions keeps every byte round-trippable
+    without ever crashing the TUI. Returns `None` (after a message) on timeout,
+    decode failure or launch error.
+    """
+    try:
+        return subprocess.run(
+            cmd,
+            shell=True,
+            input=payload,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding='utf-8',
+            errors='surrogateescape',
+            timeout=_SHELL_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        editor.show_message(f'Command timed out after {_SHELL_TIMEOUT}s: {cmd}')
+    except UnicodeError as exc:
+        editor.show_message(f'Cannot decode shell command output: {exc}')
+    except OSError as exc:
+        editor.show_message(f'Cannot execute shell command: {exc}')
+    return None
+
+
 def _read_shell_text(editor, shell_cmd: str) -> tuple[str | None, int | None]:
     """
     Execute `shell_cmd` capturing combined stdout/stderr (matching Unix Vim's
     `shellredir` `2>&1`, Decision D3). Returns `(output, returncode)` or
     `(None, None)` on launch/timeout failure.
     """
-    try:
-        proc = subprocess.run(
-            shell_cmd,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        editor.show_message(f'Command timed out after 30s: {shell_cmd}')
-        return None, None
-    except OSError as exc:
-        editor.show_message(f'Cannot execute shell command: {exc}')
+    proc = _run_shell(editor, shell_cmd)
+    if proc is None:
         return None, None
     return proc.stdout or '', proc.returncode
 
@@ -888,21 +910,8 @@ def _write_pipe_shell(editor: Any, shell_cmd: str, payload: str) -> None:
     if not cmd:
         editor.show_message('E34: No previous command')
         return
-    try:
-        proc = subprocess.run(
-            cmd,
-            shell=True,
-            input=payload,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        editor.show_message(f'Command timed out after 30s: {cmd}')
-        return
-    except OSError as exc:
-        editor.show_message(f'Cannot execute shell command: {exc}')
+    proc = _run_shell(editor, cmd, payload=payload)
+    if proc is None:
         return
 
     output = (proc.stdout or '').replace('\r\n', '\n').rstrip('\n')
@@ -1028,21 +1037,8 @@ def filter_range_command(editor: Any, range_str: str | None, shell_cmd: str) -> 
     lines = list(eb.buffer.document.lines)
     stdin_text = '\n'.join(lines[start_row : end_row + 1]) + '\n'
 
-    try:
-        proc = subprocess.run(
-            cmd,
-            shell=True,
-            input=stdin_text,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        editor.show_message(f'Command timed out after 30s: {cmd}')
-        return
-    except OSError as exc:
-        editor.show_message(f'Cannot execute shell command: {exc}')
+    proc = _run_shell(editor, cmd, payload=stdin_text)
+    if proc is None:
         return
 
     output = (proc.stdout or '').replace('\r\n', '\n')

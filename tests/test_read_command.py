@@ -559,3 +559,45 @@ def test_tab_completeness_commands_and_tabs_info_split(editor, tmp_path):
     assert len(wa.tab_pages) == 1
     assert wa.active_tab is t1
     assert wa.active_tab.window_count() == 2
+
+
+def test_shell_commands_tolerate_invalid_utf8_output(editor):
+    # 137: shell output is arbitrary bytes; none of the three Ex shell paths
+    # may raise UnicodeDecodeError out of the command handler.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'base'
+
+    editor.message = None
+    handle_command(editor, ":r !printf '\\377'")
+    assert '\udcff' in eb.buffer.text
+
+    handle_command(editor, ":%!printf '\\377'")
+    assert '\udcff' in eb.buffer.text
+
+    handle_command(editor, ":w !printf '\\377'")
+    assert editor.message is None or '\udcff' in editor.message
+
+
+def test_shell_helper_uses_byte_preserving_encoding(editor, monkeypatch):
+    # 137: every subprocess call goes through the shared helper, which encodes
+    # input and decodes output with an explicit byte-preserving policy.
+    seen = {}
+
+    def fake_run(cmd, **kwargs):
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(cmd, 0, stdout='ok')
+
+    monkeypatch.setattr(subprocess, 'run', fake_run)
+    editor.load_initial_files([None])
+    editor.window_arrangement.active_editor_buffer.buffer.text = 'แสง'
+
+    handle_command(editor, ':r !echo ok')
+    assert seen.get('encoding') == 'utf-8'
+    assert seen.get('errors') == 'surrogateescape'
+
+    seen.clear()
+    handle_command(editor, ':w !cat >/dev/null')
+    assert seen.get('encoding') == 'utf-8'
+    assert seen.get('errors') == 'surrogateescape'
+    assert 'แสง' in seen.get('input', '')
