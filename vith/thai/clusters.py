@@ -123,14 +123,21 @@ cell_starts.cache_clear = _cell_starts_cached.cache_clear  # type: ignore[attr-d
 cell_starts.cache_info = _cell_starts_cached.cache_info  # type: ignore[attr-defined]
 
 
-def _compute_cell_columns(line: str) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+DEFAULT_TABSTOP = 8
+
+
+def _compute_cell_columns(
+    line: str, tabstop: int = DEFAULT_TABSTOP
+) -> tuple[tuple[int, ...], tuple[int, ...], int]:
     """
     Build `(cluster starts, visual columns, total width)` for `line`.
 
     A cluster's visual width is the sum of `get_cwidth` over its codepoints:
-    Thai/Lao marks are zero-width (one cell per cluster, as before), while
-    CJK/full-width/emoji bases occupy two cells (docs/bugs/141.md).
+    Thai/Lao combining marks are zero-width, CJK/full-width/emoji bases occupy
+    two cells (docs/bugs/141.md), and `\\t` advances to the next multiple of
+    `tabstop` (matching `TabsProcessor` in `vith/thai/patches.py`).
     """
+    ts = max(1, int(tabstop))
     stops = cell_stops(line)
     starts = stops[:-1]
     columns: list[int] = []
@@ -138,37 +145,55 @@ def _compute_cell_columns(line: str) -> tuple[tuple[int, ...], tuple[int, ...], 
     for index, start in enumerate(starts):
         columns.append(visual)
         end = stops[index + 1]
-        visual += sum(get_cwidth(char) for char in line[start:end])
+        if line[start] == "\t":
+            visual += ts - (visual % ts)
+        else:
+            visual += sum(get_cwidth(char) for char in line[start:end])
     return tuple(starts), tuple(columns), visual
 
 
 @lru_cache(maxsize=4096)
-def _cell_columns_cached(line: str) -> tuple[tuple[int, ...], tuple[int, ...], int]:
-    return _compute_cell_columns(line)
+def _cell_columns_cached(
+    line: str, tabstop: int = DEFAULT_TABSTOP
+) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+    return _compute_cell_columns(line, tabstop)
 
 
-def _cell_columns(line: str) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+def _cell_columns(
+    line: str, tabstop: int = DEFAULT_TABSTOP
+) -> tuple[tuple[int, ...], tuple[int, ...], int]:
     if len(line) > _CELL_STARTS_CACHE_MAX_LINE:
-        return _compute_cell_columns(line)
-    return _cell_columns_cached(line)
+        return _compute_cell_columns(line, tabstop)
+    return _cell_columns_cached(line, tabstop)
 
 
 _cell_columns.cache_clear = _cell_columns_cached.cache_clear  # type: ignore[attr-defined]
 _cell_columns.cache_info = _cell_columns_cached.cache_info  # type: ignore[attr-defined]
 
 
-def _cell_ordinal(line: str, col: int) -> int:
+def _line_visual_width(line: str, tabstop: int = DEFAULT_TABSTOP) -> int:
+    """Total terminal display width of `line`, expanding tabs to `tabstop`."""
+    if not line:
+        return 0
+    if line.isascii() and "\t" not in line:
+        return len(line)
+    _starts, _columns, total_width = _cell_columns(line, tabstop)
+    return total_width
+
+
+def _cell_ordinal(line: str, col: int, tabstop: int = DEFAULT_TABSTOP) -> int:
     """
     Visual *column* containing codepoint column `col` (docs/bugs/141.md).
 
-    For Thai/Lao (all bases width 1) this equals the old cluster ordinal, so
-    the 077/078/079 behavior is unchanged. Wide (CJK/emoji) clusters consume
-    two columns, so `j`/`k` and visual blocks stay in the same display column.
-    `col` may sit mid-cluster — the containing cell's visual column is returned.
+    Thai/Lao combining marks are zero-width, wide (CJK/emoji) clusters consume
+    two columns, and `\\t` expands to the next multiple of `tabstop`, so
+    `j`/`k` and visual blocks stay in the same display column across mixed
+    lines. `col` may sit mid-cluster — the containing cell's visual column is
+    returned.
     """
-    if not line or line.isascii():
+    if not line or (line.isascii() and "\t" not in line):
         return col
-    starts, columns, total_width = _cell_columns(line)
+    starts, columns, total_width = _cell_columns(line, tabstop)
     if not starts:
         return 0
     if col >= len(line):
@@ -179,25 +204,48 @@ def _cell_ordinal(line: str, col: int) -> int:
     return columns[max(0, index)]
 
 
-def _start_of_cell_ordinal(line: str, ordinal: int) -> int:
+def _start_of_cell_ordinal(line: str, ordinal: int, tabstop: int = DEFAULT_TABSTOP) -> int:
     """
-    Line-relative codepoint column of the start of visual cell `ordinal`
-    (`len(line)` when the row has fewer cells; docs/bugs/141.md).
+    Line-relative codepoint column of the start of visual column `ordinal`
+    (`len(line)` when the row ends before `ordinal`; docs/bugs/141.md).
     """
     n = len(line)
-    if not line or line.isascii():
+    if not line or (line.isascii() and "\t" not in line):
         return min(ordinal, n)
-    starts, columns, total_width = _cell_columns(line)
+    starts, columns, total_width = _cell_columns(line, tabstop)
     if ordinal >= total_width:
         return n
     index = bisect_right(columns, ordinal) - 1
     return starts[max(0, index)]
 
 
-def _map_column_across_lines(src_line: str, src_col: int, target_line: str) -> int:
+def _end_of_visual_col(line: str, visual_col: int, tabstop: int = DEFAULT_TABSTOP) -> int:
+    """
+    Exclusive line-relative codepoint end of the cell cluster covering
+    inclusive display column `visual_col` (handling multi-codepoint combining
+    clusters, width-2 CJK/emoji cells, and multi-column tabs cleanly).
+    """
+    n = len(line)
+    if not line or visual_col < 0:
+        return 0
+    if line.isascii() and "\t" not in line:
+        return min(visual_col + 1, n)
+    starts, columns, total_width = _cell_columns(line, tabstop)
+    if not starts or visual_col >= total_width:
+        return n
+    index = max(0, bisect_right(columns, visual_col) - 1)
+    return starts[index + 1] if index + 1 < len(starts) else n
+
+
+def _map_column_across_lines(
+    src_line: str,
+    src_col: int,
+    target_line: str,
+    tabstop: int = DEFAULT_TABSTOP,
+) -> int:
     """
     Map codepoint column `src_col` on `src_line` to the start column of the
-    same visual cell-cluster ordinal on `target_line`.
+    same visual display column on `target_line`.
     """
-    ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)))
-    return _start_of_cell_ordinal(target_line, ordinal)
+    ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)), tabstop=tabstop)
+    return _start_of_cell_ordinal(target_line, ordinal, tabstop=tabstop)

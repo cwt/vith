@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 153 machine-verified findings across 9 audit rounds and 3 addenda (001–153; all closed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 154 machine-verified findings across 9 audit rounds and 4 addenda (001–154; all closed)."
 status: stable
 sources:
   - docs/bugs/
@@ -11,8 +11,8 @@ stale_after: 2027-05-20T00:00:00Z
 tags: [bugs, findings, audit, round-6, round-7, round-8, round-9]
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-20T09:15:00Z"
-timestamp: "2026-11-20T09:15:00Z"
+  at: "2026-11-20T09:47:00Z"
+timestamp: "2026-11-20T09:47:00Z"
 ---
 
 # vith Findings Bundle
@@ -33,6 +33,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 8 (2026-11-19–20, hg rev 358 → fixed rev 360–381 — [130](130.md)–[150](150.md), `fix_status: fixed`)**: 17 defects and 4 inventories from a fresh full-project re-audit focused on the post-`v0.14.0` Ex command work. Highlights: `:w %`/`:sav <current>` same-file rejection ([130](130.md)); `:wq`/`ZZ` exiting the app and discarding other windows ([131](131.md)); `:only`/`:tabonly`/`:tabclose` scope and dirty-guard gaps ([132](132.md)); `:e` crashes on read-only/directory buffers ([133](133.md)); mouse-focus dispatch to the wrong buffer ([134](134.md)); `:g` substitute bookkeeping ([135](135.md)); search-buffer Tab ([136](136.md)); non-UTF-8 shell crashes ([137](137.md)); TOML validation/detection ([138](138.md)); Vim `&`/`~` replacement semantics ([139](139.md)); CRLF loss ([140](140.md)); CJK visual-column drift ([141](141.md)); ReDoS guard bypass ([142](142.md)); plus `:normal` range, `:retab`, `:cq`, Thai-gate, and cleanup/perf/readability inventories. All 21 were fixed in the Round 8 fix arc (rev 360–381, one commit per finding or tightly related group), followed by splitting `vith/commands/commands.py` into flat submodules under `vith/commands/` in rev 382.
 * **Round 7 (2026-11-09, upstream triage — [116](116.md)–[123](123.md), `fix_status: fixed`)**: 8 worth-fixing upstream `prompt-toolkit/pyvim` issues that still reproduced in `vith`, filed as new findings and fixed one-by-one with regression tests (274 passed, `mypy .` 57 files clean, ruff clean): `ZZ`/`ZQ` ([116](116.md)), `:w!` read-only ([117](117.md)), `>>`/`<<` vs `tabstop` ([118](118.md)), `Ctrl-[` ([119](119.md)), counted `i`/`a` ([120](120.md)), extensionless highlight ([121](121.md)), `*` history ([122](122.md)), `:s` ReDoS guard ([123](123.md)).
 * **Round 9 (2026-11-20, deep read-only analysis & re-validation — [151](151.md)–[153](153.md), `fix_status: fixed`)**: residual performance, duplication/logic-drift, and readability inventories against `v0.15.0` (rev 384), all closed with regression tests: [151](151.md) (`splice_buffer_lines`, inactive-tab frame retention, $O(n)$/$O(m\sqrt{n})$ `:g` move/copy, visible-buffer Thai gate decay/re-latch + single-pass SARA-AM scan, cached `:b` regex, `:retab` fast paths); [152](152.md) (medium — catalog-derived `_default_options`/`_CONFIG_OPTION_MAP`, shared `_resolve_editor_buffer`/`apply_int_option_value`, shared 1-based address resolver, unified `resolve_ignore_case`, and unified write-target normalization fixing the `:set ro` symlink bypass & stale dirty flag); [153](153.md) (`vith/lexer.py` top import consolidation, `completer.py` class ordering, and `vith/thai/__init__.py` public surface tightened via PEP 562 `__getattr__`/`__dir__` + `cold_text.py` direct submodule import).
+* **Round 9 addendum (2026-11-20, user field report — [154](154.md), `fix_status: fixed`)**: vertical cursor movement (`j`/`k`), `{count}|`, visual-block selection (`<C-v>` highlight, `y`, `d`, `I`, `A`), and block paste (`p`/`P`) drifting after tabs on Thai text (and pure ASCII with tabs), fixed with tab-expanded visual-column math honoring buffer/local/global `tabstop`, visual-column block row iteration, `TextObject.operator_range` `BLOCK` corner fix, and visual-column `|` and `p`/`P`.
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
@@ -383,6 +384,14 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [151](151.md) | Unoptimized-algorithm inventory: inactive-tab frame/scroll/lexer loss, quadratic `:g` move/copy, constant-factor range rebuilds, SARA-AM scans, negligible `:b` regex compile, `:retab` import/ASCII scans | performance/memory | low | fixed |
 | [152](152.md) | Duplicated-code and logic-drift inventory: hand-maintained defaults/config maps, weakref/int-setter duplication, line-address parsing, drifted `should_ignore_case` fallback, split write-target normalization (`:set ro` bypass + stale dirty flag on symlink `:w`) | duplication/logic | medium | fixed |
 | [153](153.md) | Readability and import-organization inventory: split import block in `vith/lexer.py:1-23`, completer declaration ordering, deferred Thai `_private` surface | readability | low | fixed |
+
+## Round 9 Addendum (2026-11-20, user field report)
+
+### Defects (`type: bug`, `fix_status: fixed`)
+
+| ID | Finding | Area | Priority |
+| :--- | :--- | :--- | :--- |
+| [154](154.md) | Vertical cursor motion (`j`/`k`), `{count}\|`, visual blocks (`<C-v>` highlight/`y`/`d`/`I`/`A`), and block paste (`p`/`P`) drift after tabs on Thai text (and ignore custom `tabstop`) | thai/tabs/selection | **high** |
 
 ## Meta
 

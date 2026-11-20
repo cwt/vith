@@ -18,9 +18,10 @@ import re
 from typing import Any, Callable, Iterable
 
 import prompt_toolkit.renderer as ptk_renderer
+from prompt_toolkit.clipboard import ClipboardData
 from prompt_toolkit.document import Document
 from prompt_toolkit.filters.app import vi_mode, vi_navigation_mode, vi_selection_mode
-from prompt_toolkit.selection import SelectionType
+from prompt_toolkit.selection import PasteMode, SelectionType
 
 try:
     from prompt_toolkit.key_binding.bindings.vi import TextObject as _PtkTextObject
@@ -59,7 +60,10 @@ from .classify import (
     is_sara_am,
 )
 from .clusters import (  # noqa: F401
+    DEFAULT_TABSTOP,
     _cell_ordinal,
+    _end_of_visual_col,
+    _line_visual_width,
     _map_column_across_lines,
     _start_of_cell_ordinal,
     next_cell_offset,
@@ -112,24 +116,55 @@ def _doc_get_cursor_right_position(self: Document, count: int = 1) -> int:
     return next_cell_offset(line, col, count) - col
 
 
+def _document_tabstop(doc: Document) -> int:
+    """
+    Resolve the effective `tabstop` for `doc` from the owning `EditorBuffer`
+    (when running inside a `vith` `Application`), defaulting to Vim's `8`.
+    """
+    try:
+        from prompt_toolkit.application.current import get_app
+
+        app = get_app()
+    except Exception:
+        return DEFAULT_TABSTOP
+
+    buff = getattr(app, "current_buffer", None)
+    if buff is not None:
+        eb_ref = getattr(buff, "_vith_editor_buffer_ref", None)
+        if eb_ref is not None:
+            eb = eb_ref()
+            if eb is not None:
+                if buff.document is doc:
+                    return max(1, int(eb.tabstop))
+                editor = eb.editor
+                if editor is not None:
+                    for other_eb in editor.window_arrangement.editor_buffers:
+                        if other_eb.buffer.document is doc:
+                            return max(1, int(other_eb.tabstop))
+                return max(1, int(eb.tabstop))
+    return DEFAULT_TABSTOP
+
+
 def _vertical_cursor_position(
     self: Document, target_row: int, preferred_column: int | None = None
 ) -> int:
     """
     Index delta for moving to `target_row` with the *same visual column*
-    (cell-cluster ordinal, docs/bugs/078.md). `preferred_column` is a
-    codepoint column recorded on a previous row — for the common live-cursor
-    case (`preferred_column is None`, or a column of the current row) the
+    (display column honoring combining marks, CJK widths, and tab stops;
+    docs/bugs/078.md, 141.md). `preferred_column` is a codepoint column
+    recorded on a previous row — for the common live-cursor case
+    (`preferred_column is None`, or a column of the current row) the
     conversion via `_cell_ordinal` on the current row is exact; for sticky
-    columns recorded on a different Thai row this is a best-effort mapping
-    (the sticky-correct path is the `ColdTextBuffer.cursor_up/down`
-    override).
+    columns recorded on a different row this is a best-effort mapping (the
+    sticky-correct path is `ColdTextBuffer.cursor_up/down`).
     """
     column = self.cursor_position_col if preferred_column is None else preferred_column
+    tabstop = _document_tabstop(self)
     target_col = _map_column_across_lines(
         self.lines[self.cursor_position_row],
         column,
         self.lines[target_row],
+        tabstop=tabstop,
     )
     return self.translate_row_col_to_index(target_row, target_col) - self.cursor_position
 
@@ -149,6 +184,21 @@ def _doc_get_cursor_down_position(
     assert count >= 1
     target_row = min(len(self.lines) - 1, self.cursor_position_row + count)
     return _vertical_cursor_position(self, target_row, preferred_column)
+
+
+def _doc_get_column_cursor_position(self: Document, column: int) -> int:
+    """
+    Visual-column-aware replacement for `Document.get_column_cursor_position`
+    (used by Vim's `{count}|` motion). Maps 0-based visual display column
+    `column` onto the starting codepoint of that cell, honoring combining
+    marks, CJK widths, and tab stops.
+    """
+    line = self.current_line
+    current_column = self.cursor_position_col
+    if column <= 0:
+        return -current_column
+    target_col = _start_of_cell_ordinal(line, column, tabstop=_document_tabstop(self))
+    return target_col - current_column
 
 
 def _kp_fix_vi_cursor_position(self: KeyProcessor, event: KeyPressEvent) -> None:
@@ -811,63 +861,66 @@ def _install_tabs_processor_patch(applied: list[tuple[Any, str, object]] | None 
 # top of this module (docs/bugs/075.md).
 
 
-def _visual_block_ordinal_bounds(doc: Document, pos_a: int, pos_b: int) -> tuple[int, int]:
+def _visual_block_ordinal_bounds(
+    doc: Document, pos_a: int, pos_b: int, tabstop: int | None = None
+) -> tuple[int, int]:
     """
-    Return `(v_low, v_high)` visual cell-cluster ordinal bounds for a
-    visual-block selection between document indices `pos_a` and `pos_b`
-    (docs/bugs/077.md, docs/bugs/113.md).
+    Return `(v_low, v_high)` visual display-column bounds for a visual-block
+    selection between document indices `pos_a` and `pos_b`, expanding tabs to
+    `tabstop` (docs/bugs/077.md, 113.md, 141.md).
     """
+    ts = _document_tabstop(doc) if tabstop is None else tabstop
     from_pos, to_pos = sorted((pos_a, pos_b))
     row_from, col_from = doc.translate_index_to_position(from_pos)
     row_to, col_to = doc.translate_index_to_position(to_pos)
     line_from = doc.lines[min(row_from, len(doc.lines) - 1)]
     line_to = doc.lines[min(row_to, len(doc.lines) - 1)]
-    ord_from = _cell_ordinal(line_from, col_from)
-    ord_to = _cell_ordinal(line_to, col_to)
+    ord_from = _cell_ordinal(line_from, col_from, tabstop=ts)
+    ord_to = _cell_ordinal(line_to, col_to, tabstop=ts)
     return min(ord_from, ord_to), max(ord_from, ord_to)
 
 
 def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
-    """Thai-aware wrapper for `Document.selection_ranges`."""
+    """Thai/tab-aware wrapper for `Document.selection_ranges`."""
     orig = _ORIGINAL_DOCUMENT_METHODS.get("selection_ranges")
     if orig is None:
         # Fallback to the (unpatched) bound method.
         orig = type(self).selection_ranges
     selection = self.selection
-    block = selection is not None and selection.type == SelectionType.BLOCK
-    v_low = v_high = 0
-    if block and vi_mode() and selection is not None:
-        # Visual block rectangle in cell-cluster ordinals (Vim semantics,
-        # mirroring docs/bugs/077.md, keeping 079: the "I"/"A" multi-cursor
-        # positions must sit on cell boundaries — inserting on a combining
-        # mark splits the cluster).
+    if selection is not None and selection.type == SelectionType.BLOCK and vi_mode():
+        # Visual block rectangle in terminal display columns (honoring combining
+        # marks, CJK widths, and tab stops — Vim semantics). Computed directly
+        # across `from_line..to_line` instead of delegating row filtering to
+        # prompt_toolkit's codepoint-length check, which drops shorter tabbed
+        # rows whose visual width still crosses `v_low`.
+        ts = _document_tabstop(self)
         cursor_pos = self.cursor_position
         original_pos = selection.original_cursor_position
-        # Operator wrappers (prompt_toolkit `TextObject.cut` et al.) move the
-        # cursor one codepoint back before re-reading the selection; when it
-        # thereby parks on a combining mark of its own cluster, block `d`
-        # would cut one cell wider than the on-screen highlight (block
-        # corner runs one cell up/left). Compensate that cursor-side corner
-        # (docs/bugs/084.md).
-        cursor_row, cursor_col = self.translate_index_to_position(cursor_pos)
-        cursor_row = min(cursor_row, len(self.lines) - 1)
-        cursor_line = self.lines[cursor_row]
-        if 0 < cursor_col < len(cursor_line) and is_combining_char(cursor_line[cursor_col]):
-            cursor_pos += 1
-        cursor_pos = min(cursor_pos, len(self.text))
-        v_low, v_high = _visual_block_ordinal_bounds(self, cursor_pos, original_pos)
+        from_pos, to_pos = sorted((cursor_pos, original_pos))
+        from_line, _ = self.translate_index_to_position(from_pos)
+        to_line, _ = self.translate_index_to_position(to_pos)
+        v_low, v_high = _visual_block_ordinal_bounds(self, cursor_pos, original_pos, tabstop=ts)
+        lines = self.lines
+        last_line = min(to_line, len(lines) - 1)
+        for row in range(from_line, last_line + 1):
+            line = lines[row]
+            total_width = _line_visual_width(line, tabstop=ts)
+            if v_low > total_width:
+                continue
+            if v_low == total_width:
+                eol_idx = self.translate_row_col_to_index(row, len(line))
+                yield eol_idx, eol_idx
+                continue
+            start_col = _start_of_cell_ordinal(line, v_low, tabstop=ts)
+            end_col = _end_of_visual_col(line, v_high, tabstop=ts)
+            yield (
+                self.translate_row_col_to_index(row, start_col),
+                self.translate_row_col_to_index(row, end_col),
+            )
+        return
+
     for from_, to in orig(self):
         if vi_mode() and to > from_ and to <= len(self.text):
-            if block:
-                row, _col = self.translate_index_to_position(from_)
-                line = self.lines[min(row, len(self.lines) - 1)]
-                start_col = _start_of_cell_ordinal(line, v_low)
-                end_col = _start_of_cell_ordinal(line, v_high + 1)
-                from_ = self.translate_row_col_to_index(row, start_col)
-                end_abs = self.translate_row_col_to_index(row, end_col)
-                to = end_abs
-                yield from_, to
-                continue
             last_idx = to - 1
             row, col = self.translate_index_to_position(last_idx)
             if row < len(self.lines):
@@ -880,56 +933,130 @@ def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
 
 
 def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] | None:
-    """Thai-aware wrapper for `Document.selection_range_at_line`."""
+    """Thai/tab-aware wrapper for `Document.selection_range_at_line`."""
     orig = _ORIGINAL_DOCUMENT_METHODS.get("selection_range_at_line")
     if orig is None:
         orig = type(self).selection_range_at_line
     res = orig(self, row)
+    selection = self.selection
+    if selection is None:
+        return res
+    if selection.type == SelectionType.BLOCK and vi_mode():
+        # Visual rectangle in terminal display columns (honoring combining
+        # marks, CJK widths, and tab stops — Vim semantics). Evaluated across
+        # `from_line..to_line` even when `orig` returned `None` due to a row
+        # having fewer codepoints than the corner's codepoint column (e.g.
+        # tabs expanding to wider display columns).
+        from_pos, to_pos = sorted((self.cursor_position, selection.original_cursor_position))
+        from_line, _ = self.translate_index_to_position(from_pos)
+        to_line, _ = self.translate_index_to_position(to_pos)
+        if not (from_line <= row <= to_line):
+            return None
+        ts = _document_tabstop(self)
+        line = self.lines[row]
+        v_low, v_high = _visual_block_ordinal_bounds(
+            self, self.cursor_position, selection.original_cursor_position, tabstop=ts
+        )
+        total_width = _line_visual_width(line, tabstop=ts)
+        if v_low >= total_width:
+            if res is not None and res[1] > len(line):
+                return len(line), len(line) + 1
+            return None
+        start = _start_of_cell_ordinal(line, v_low, tabstop=ts)
+        cell_end = _end_of_visual_col(line, v_high, tabstop=ts)
+        # If the block extends to or past EOL and prompt_toolkit flagged an EOL
+        # space (`res[1] > len(line)`), keep that trailing space marker;
+        # otherwise end strictly at the visual cell boundary (docs/bugs/092.md).
+        if res is not None and res[1] > len(line) and cell_end >= len(line):
+            return start, res[1]
+        return start, cell_end
+
     if res is None:
         return None
     # prompt_toolkit returns LINE-RELATIVE columns `(from_column, to_column)`
     # with an exclusive upper bound (vi mode already adds +1 for inclusion).
     # Extend the highlight over a trailing combining mark of the last
-    # selected cell — in line-relative coordinates (the former absolute
-    # mix-up produced out-of-mapping columns on rows > 0 and crashed
-    # `HighlightSelectionProcessor` with a KeyError; docs/bugs/076.md).
+    # selected cell — in line-relative coordinates (docs/bugs/076.md, 085.md).
     start, end = res
-    selection = self.selection
-    if selection is None:
-        return start, end
     if vi_mode() and end > start:
         line = self.lines[row]
-        if selection.type == SelectionType.BLOCK:
-            # Visual rectangle: prompt_toolkit's per-row columns are
-            # codepoint columns, which count upper/lower vowels and tone
-            # marks — so a block over multiple Thai lines skews instead of
-            # covering whole cells (docs/bugs/077.md). The corners define
-            # the rectangle in VISUAL columns (cluster ordinals, like Vim):
-            # map each row's span back to codepoints, whole cells only.
-            v_low, v_high = _visual_block_ordinal_bounds(
-                self, self.cursor_position, selection.original_cursor_position
-            )
-            start = _start_of_cell_ordinal(line, v_low)
-            cell_end = _start_of_cell_ordinal(line, v_high + 1)
-            # If the block extends to or past EOL and prompt_toolkit flagged an EOL space
-            # (end > len(line)), keep that trailing space marker; otherwise, end strictly
-            # at the visual cell boundary (taking max(end, cell_end) unconditionally bled
-            # prompt_toolkit's codepoint column into adjacent characters on rows with
-            # fewer combining marks than the corner row, e.g. SARA AM; docs/bugs/092.md).
-            if not (end > len(line) and cell_end >= len(line)):
-                end = cell_end
-            return start, end
-        # Char selections: keep the highlight on whole cells for the LAST
-        # selected cell (docs/bugs/085.md) — whatever cell the inclusive
-        # upper bound `end - 1` falls in, extend to the end of its cluster.
-        # (The previous mark-only gate missed base cursors mid-cluster —
-        # highlight showed `ที่ด` while yank/cut took `ที่ดิ`.)
         cursor_col = end - 1
         if 0 <= cursor_col < len(line):
             cluster_end_col = next_cell_offset(line, cursor_col, 1)
             if cluster_end_col > end:
                 end = cluster_end_col
     return start, end
+
+
+def _thai_paste_clipboard_data(
+    self: Document,
+    data: ClipboardData,
+    paste_mode: PasteMode = PasteMode.EMACS,
+    count: int = 1,
+) -> Document:
+    """
+    Thai/tab-aware wrapper for `Document.paste_clipboard_data`.
+
+    Aligns visual-block pastes (`SelectionType.BLOCK`) by terminal display
+    column (honoring combining marks, CJK widths, and tab stops) instead of
+    raw codepoint offsets, and ensures charwise Vi-after paste (`p`) lands
+    after the full current cell cluster rather than splitting combining marks.
+    """
+    orig = _ORIGINAL_DOCUMENT_METHODS.get("paste_clipboard_data")
+    if orig is None:
+        orig = type(self).paste_clipboard_data
+
+    if data.type == SelectionType.BLOCK:
+        if count <= 0:
+            return self
+        before = paste_mode in (PasteMode.VI_BEFORE, PasteMode.EMACS)
+        ts = _document_tabstop(self)
+        lines = self.lines[:]
+        start_line = self.cursor_position_row
+        start_row_text = lines[start_line]
+        cur_col = self.cursor_position_col
+        if before:
+            anchor_col = snap_to_cell_start(start_row_text, cur_col)
+        else:
+            anchor_col = next_cell_offset(start_row_text, cur_col, 1)
+        target_vcol = _cell_ordinal(start_row_text, anchor_col, tabstop=ts)
+
+        new_cursor_col = anchor_col
+        for i, chunk in enumerate(data.text.split("\n")):
+            index = i + start_line
+            if index >= len(lines):
+                lines.append("")
+            row_text = lines[index]
+            row_width = _line_visual_width(row_text, tabstop=ts)
+            if row_width < target_vcol:
+                pad = " " * (target_vcol - row_width)
+                insert_col = len(row_text) + len(pad)
+                lines[index] = row_text + pad + chunk * count
+            else:
+                insert_col = _start_of_cell_ordinal(row_text, target_vcol, tabstop=ts)
+                lines[index] = row_text[:insert_col] + chunk * count + row_text[insert_col:]
+            if i == 0:
+                new_cursor_col = insert_col
+
+        new_text = "\n".join(lines)
+        new_cursor_pos = sum(len(row) + 1 for row in lines[:start_line]) + new_cursor_col
+        return Document(text=new_text, cursor_position=new_cursor_pos)
+
+    if data.type == SelectionType.CHARACTERS and paste_mode == PasteMode.VI_AFTER:
+        line = self.current_line
+        col = self.cursor_position_col
+        if col < len(line):
+            cell_end = next_cell_offset(line, col, 1)
+            if cell_end > col + 1:
+                insert_at = self.cursor_position + (cell_end - col)
+                inserted = data.text * count
+                new_text = self.text[:insert_at] + inserted + self.text[insert_at:]
+                new_cursor_position = (
+                    insert_at + len(inserted) - 1 if inserted else self.cursor_position
+                )
+                return Document(text=new_text, cursor_position=new_cursor_position)
+
+    return orig(self, data, paste_mode=paste_mode, count=count)
 
 
 _DOCUMENT_PATCH_SPECS: tuple[tuple[str, tuple[str, ...], Callable[..., object]], ...] = (
@@ -945,6 +1072,7 @@ _DOCUMENT_PATCH_SPECS: tuple[tuple[str, tuple[str, ...], Callable[..., object]],
         ("self", "count", "preferred_column"),
         _doc_get_cursor_down_position,
     ),
+    ("get_column_cursor_position", ("self", "column"), _doc_get_column_cursor_position),
     ("find_next_word_beginning", ("self", "count", "WORD"), find_next_word_beginning),
     (
         "find_next_word_ending",
@@ -973,6 +1101,11 @@ _DOCUMENT_PATCH_SPECS: tuple[tuple[str, tuple[str, ...], Callable[..., object]],
     ),
     ("selection_ranges", ("self",), _thai_selection_ranges),
     ("selection_range_at_line", ("self", "row"), _thai_selection_range_at_line),
+    (
+        "paste_clipboard_data",
+        ("self", "data", "paste_mode", "count"),
+        _thai_paste_clipboard_data,
+    ),
 )
 
 
@@ -1065,6 +1198,17 @@ def install_prompt_toolkit_thai_patches() -> bool:
                                 new_col = prev_cell_offset(line, col, 1)
                                 new_abs = doc.translate_row_col_to_index(row, new_col)
                                 start += new_abs - abs_start
+                    # Block selections are inclusive at both corners in Vi mode,
+                    # but prompt_toolkit's `TextObject.operator_range` omits
+                    # `end += 1` for `BLOCK` while `TextObject.cut` still runs
+                    # `to -= 1`, shifting the upper corner one codepoint left
+                    # (dropping the last column on `<C-v>...y`/`d`). Include the
+                    # upper-corner char (without crossing a newline) so `cut`
+                    # lands back on the exact corner.
+                    if _PtkTextObjectType is not None and self.type == _PtkTextObjectType.BLOCK:
+                        abs_end = doc.cursor_position + end
+                        if 0 <= abs_end < len(doc.text) and doc.text[abs_end] != "\n":
+                            end += 1
                     # For inclusive motions, extend the upper bound to the end of
                     # the cell cluster instead of a single codepoint.
                     if _PtkTextObjectType is not None and self.type == _PtkTextObjectType.INCLUSIVE:

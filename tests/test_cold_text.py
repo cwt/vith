@@ -295,15 +295,20 @@ def test_update_top_cursor_on_empty_stack_is_noop():
 
 
 def test_vertical_cursor_caches_ordinal_and_invalidates_on_text_change(editor_buffer):
-    # 113 item 4: `_cursor_vertical` stores `(src_col, src_row, ordinal)` on
-    # `_vith_cell_column` and invalidates it when `_text_changed` fires.
+    # 113 item 4: `_cursor_vertical` stores `(src_col, src_row, ordinal, tabstop)`
+    # on `_vith_cell_column`, invalidates on `_text_changed`, and re-anchors when
+    # `editor_buffer.tabstop` changes.
     buffer = editor_buffer.buffer
     buffer.text = "ที่ดิน\nกำแพง\nสหัส\n"
     buffer.cursor_position = 5  # row 0, col 5, ordinal 2
     buffer.cursor_down()
-    assert buffer._vith_cell_column == (5, 0, 2)
+    assert buffer._vith_cell_column == (5, 0, 2, 8)
     buffer.cursor_down()
-    assert buffer._vith_cell_column == (5, 0, 2)
+    assert buffer._vith_cell_column == (5, 0, 2, 8)
+
+    editor_buffer.tabstop = 4
+    buffer.cursor_up()
+    assert buffer._vith_cell_column == (3, 2, 2, 4)
 
     buffer.text = "เปลี่ยน\nบรรทัด\n"
     assert buffer._vith_cell_column is None

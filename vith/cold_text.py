@@ -188,7 +188,7 @@ class ColdTextBuffer(Buffer):
         self.cold_compression_name = cold_compression_name
         self.cold_compression_level = cold_compression_level
         self._text_version = 0
-        self._vith_cell_column: tuple[int, int] | tuple[int, int, int] | None = None
+        self._vith_cell_column: tuple[int, int, int, int] | None = None
         self._suppress_undo_saves = 0
         super().__init__(*args, **kwargs)
 
@@ -205,6 +205,14 @@ class ColdTextBuffer(Buffer):
 
     # -- Cluster-aware vertical cursor movement (docs/bugs/078.md) ------------
 
+    def _effective_tabstop(self) -> int:
+        eb_ref = getattr(self, '_vith_editor_buffer_ref', None)
+        if eb_ref is not None:
+            eb = eb_ref()
+            if eb is not None:
+                return max(1, int(eb.tabstop))
+        return 8
+
     def cursor_up(self, count: int = 1) -> None:
         self._cursor_vertical(count, up=True)
 
@@ -213,33 +221,42 @@ class ColdTextBuffer(Buffer):
 
     def _cursor_vertical(self, count: int, up: bool) -> None:
         """
-        Cluster-aware replacement for `Buffer.cursor_up/cursor_down`.
+        Cluster- and tab-aware replacement for `Buffer.cursor_up/cursor_down`.
 
         prompt_toolkit records `preferred_column` as a codepoint column of the
-        row it was recorded on, so `j`/`k` drift visually across Thai/Lao rows
-        with different numbers of combining marks (the cursor zig-zags and can
-        even land on the line end). We interpret the original column as a
-        visual cell-cluster ordinal and remember it together with the row it
-        was recorded on, so every landing row maps back to the same visual
-        column (Vim parity).
+        row it was recorded on, so `j`/`k` drift visually across Thai/Lao, CJK,
+        and tab-indented rows. We interpret the original column as a terminal
+        display column (honoring `get_cwidth` and the buffer's effective
+        `tabstop`) and remember it alongside `(src_col, src_row, tabstop)`, so
+        every landing row maps back to the same visual column (Vim parity).
         """
         count = max(1, int(count))
 
         doc = self.document
         lines = doc.lines
+        tabstop = self._effective_tabstop()
         remembered = getattr(self, "_vith_cell_column", None)
         sticky = self.preferred_column
         if sticky is None or remembered is None or remembered[0] != sticky:
-            # Fresh recording (first vertical move, or prompt_toolkit reset
+            # Fresh recording (first vertical move or prompt_toolkit reset
             # the sticky): recorded on the *current* row.
             src_col = sticky if sticky is not None else doc.cursor_position_col
             src_row = min(doc.cursor_position_row, len(lines) - 1)
             src_line = lines[src_row]
-            ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)))
+            ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)), tabstop=tabstop)
+        elif remembered[3] != tabstop:
+            # Tabstop changed mid-run (e.g. `:setlocal tabstop=N`): re-anchor
+            # at the cursor's current position under the new tabstop rather
+            # than mixing a codepoint column from an earlier row with the
+            # current row.
+            src_col = doc.cursor_position_col
+            src_row = min(doc.cursor_position_row, len(lines) - 1)
+            src_line = lines[src_row]
+            ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)), tabstop=tabstop)
         else:
-            # Unchanged sticky: reuse cached visual ordinal without rescanning
-            # `src_line` on every repeated `j`/`k` motion (docs/bugs/113.md).
-            src_col, src_row, ordinal = remembered
+            # Unchanged sticky & tabstop: reuse cached visual display column
+            # without rescanning `src_line` on every repeated `j`/`k` motion.
+            src_col, src_row, ordinal, _cached_ts = remembered
             src_row = min(src_row, len(lines) - 1)
 
         if up:
@@ -247,14 +264,15 @@ class ColdTextBuffer(Buffer):
         else:
             target_row = min(len(lines) - 1, doc.cursor_position_row + count)
 
-        target_col = _start_of_cell_ordinal(lines[target_row], ordinal)
+        target_col = _start_of_cell_ordinal(lines[target_row], ordinal, tabstop=tabstop)
 
         self.cursor_position = doc.translate_row_col_to_index(target_row, target_col)
 
         # Keep prompt_toolkit's sticky compatible for other readers, and
-        # remember it (with the resolved ordinal) for the next vertical move.
+        # remember it (with the resolved visual column and tabstop) for the
+        # next vertical move.
         self.preferred_column = src_col
-        self._vith_cell_column = (src_col, src_row, ordinal)
+        self._vith_cell_column = (src_col, src_row, ordinal, tabstop)
 
     def _text_changed(self) -> None:
         # Covers text assignment, Document replacement and history-index
