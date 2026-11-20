@@ -371,6 +371,7 @@ def create_key_bindings(editor):
         'tab',
         filter=vi_insert_mode
         & ~has_focus(editor.command_buffer)
+        & ~has_focus(editor.search_buffer)
         & whitespace_before_cursor_on_line,
     )
     def insert_indentation(event):

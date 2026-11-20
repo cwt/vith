@@ -249,6 +249,32 @@ def test_zz_writes_active_buffer_and_quits(editor, tmp_path, monkeypatch):
     assert exits == [1]
 
 
+def test_tab_indentation_binding_excludes_search_buffer(editor):
+    # 136: Tab in the `/` search toolbar must not insert editor indentation.
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    binding = [
+        binding
+        for binding in create_key_bindings(editor).bindings
+        if getattr(binding.handler, "__name__", None) == "insert_indentation"
+    ][0]
+    editor.search_buffer.text = 'find me'
+    with set_app(editor.application):
+        editor.application.vi_state.input_mode = InputMode.INSERT
+        editor.application.layout.focus(editor.search_buffer)
+        assert binding.filter() is False
+        assert editor.search_buffer.text == 'find me'
+
+        document_buffer = editor.window_arrangement.active_editor_buffer.buffer
+        editor.application.layout.focus(document_buffer)
+        assert binding.filter() is True
+
+
 def test_zq_quits_without_saving(editor, tmp_path, monkeypatch):
     # 116: `ZQ` quits a dirty buffer without saving (`:q!` parity).
     from unittest.mock import MagicMock
