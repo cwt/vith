@@ -35,8 +35,8 @@ Buffers, Windows & Tabs:
     :bd[!] / :bw[!] [target] Delete / wipe current or targeted buffer
     :sb [target] / :badd f   Split buffer / add buffer without switching
     :sp / :vsp / :new / :vnew  Horizontal / vertical splits
-    :clo[!] / :on / :hide    Close window / keep only active window / hide
-    :tabe / :tabc / :tabo    New tab / close tab / close other tabs
+    :clo[!] / :on[!] / :hide  Close window / keep only active window / hide
+    :tabe / :tabc[!] / :tabo[!]  New tab / close tab / close other tabs
     :tabn / :tabp / :tabfir / :tabl  Navigate tabs
     :tabm [N|+N|-N|$] / :tabs        Move tab / list tabs in a split
 
@@ -45,7 +45,7 @@ Ranges & Line Editing:
     :[range]s/pat/rep/[g][i][I][n][p]  Regex substitute (any delimiter)
     :[range]g[!]/pat/[cmd] / :v/...    Global / inverse global (d, y, p, s, m, t, norm)
     :[range]d [reg] / :y [reg]         Delete / yank lines to a register
-    :[addr]pu[!]                       Put clipboard after (or before with !) [addr]
+    :[addr]pu[!] [reg]                 Put register/clipboard after (or before with !) [addr]
     :[range]m addr / :[range]t addr    Move / copy (:co) lines after addr (0 allowed)
     :[range]j[!] [count]               Join lines (! joins verbatim)
     :[range]sort[!] [i][u][r][n]       Sort lines (ignore-case, unique, reverse, numeric)
@@ -66,7 +66,7 @@ Options (`:set` / `:setlocal` / `:setl`):
              cursorline (cul), cursorcolumn (cuc), mouse, jedi, tildeop (top),
              readonly (ro)
     Values:  tabstop (ts), shiftwidth (sw), scrolloff (so), colorcolumn (cc),
-             filetype (ft), fileencoding (fenc)
+             filetype (ft), fileencoding (fenc), fileformat (ff)
 
 Inspection & Misc:
     :reg / :registers      Show unnamed & named registers in a split

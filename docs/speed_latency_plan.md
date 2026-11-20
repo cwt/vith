@@ -12,7 +12,7 @@ sources:
   - ../vith/reporting.py
   - ../vith/completion.py
   - ../vith/style.py
-  - ../vith/commands/commands.py
+  - ../vith/commands/substitution.py
   - ../vith/commands/completer.py
   - ../vith/io/backends.py
   - ../tools/bench_plans.py
@@ -369,7 +369,7 @@ And in `ReportMessageToolbar` (`vith/layout.py:278-288`):
 [^src-completion]: `vith/completion.py` (`DocumentCompleter`, `DocumentWordsCompleter`) — [../vith/completion.py](../vith/completion.py)
 [^src-style]: `vith/style.py` (`generate_built_in_styles`, `get_editor_style_by_name`) — [../vith/style.py](../vith/style.py)
 [^src-cmd-completer]: `vith/commands/completer.py` (`ColorSchemeCompleter.get_completions`) — [../vith/commands/completer.py](../vith/commands/completer.py)
-[^src-commands]: `vith/commands/commands.py` (`substitute`) — [../vith/commands/commands.py](../vith/commands/commands.py)
+[^src-commands]: `vith/commands/substitution.py` (`substitute`, split from `vith/commands/commands.py` in rev 382) — [../vith/commands/substitution.py](../vith/commands/substitution.py)
 [^src-backends]: `vith/io/backends.py` (`FileIo`, `GZipFileIo`) — [../vith/io/backends.py](../vith/io/backends.py)
 [^src-bench]: `tools/bench_plans.py` (Reproducible cell-cluster & latency benchmark script) — [../tools/bench_plans.py](../tools/bench_plans.py)
 [^src-tests]: `tests/test_editor_buffer.py`, `tests/test_lexer.py`, `tests/test_style.py`, `tests/test_completion.py`, `tests/test_layout.py`, `tests/test_io_backends.py` (unit tests pinning P0–P5 behaviour, added in hg rev 161) — [../tests/](../tests/)

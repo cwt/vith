@@ -22,7 +22,7 @@ This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds three large, 
 
 - **Thai & Lao script support**: terminal cell-cluster navigation and editing (`h`, `l`, `j`, `k`, `x`, `X`, `s`, `r`, `~`, `$`, `e`...), two-tier Thai word segmentation (`libthai` with an always-available orthographic fallback) and SARA AM (`U+0E33`/`U+0EB3`) differential renderer fixes. See [`docs/thai_support_plan.md`](docs/thai_support_plan.md).
 - **Speed, latency & modern-Python stability**: streamed + cached Pygments highlighting, per-line word-span caches for Thai word motions, lazy colorscheme loading, cached word completion, an O(1) pyflakes error index, and the Python 3.14+/3.15 `asyncio` startup-crash fix. See [`docs/speed_latency_plan.md`](docs/speed_latency_plan.md).
-- **Ex command completeness & `:set` parity**: full Vim Ex command set across files (`:r`/`:read` incl. `:r !cmd`, `:sav`, `:up`, `:x`, `:wa`, `:xa`, `:so`, `:f`, `:enew`), buffers/windows/tabs (`:ls`, `:b #`, `:bf`/`:bl`, `:sb`, `:bd <target>`, `:clo`, `:on`, `:tabo`/`:tabm`/`:tabs`), generalized range editing (`:$`/`±N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:g`/`:v`, `:[range]!cmd`, `:[range]w` partial/append/pipe, `:[range]norm[!]`), `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, in-editor read-only info splits (`:ver`, `:mes`, `:reg`, `:marks`, `:set`), and ergonomic `:set` syntax (`?`, `!`, `inv`, multi-arg, `smartcase`, `shiftwidth`, `readonly`, `autoindent`, `fileencoding`). See [`docs/command_completeness_plan.md`](docs/command_completeness_plan.md).
+- **Ex command completeness & `:set` parity**: full Vim Ex command set across files (`:r`/`:read` incl. `:r !cmd`, `:sav`, `:up`, `:x`, `:wa`, `:xa`, `:so`, `:f`, `:enew`), buffers/windows/tabs (`:ls`, `:b #`, `:bf`/`:bl`, `:sb`, `:bd <target>`, `:clo`, `:on`, `:tabo`/`:tabm`/`:tabs`), generalized range editing (`:$`/`±N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:g`/`:v`, `:[range]!cmd`, `:[range]w` partial/append/pipe, `:[range]norm[!]`), `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, in-editor read-only info splits (`:ver`, `:mes`, `:reg`, `:marks`, `:set`), and ergonomic `:set` syntax (`?`, `!`, `inv`, multi-arg, `smartcase`, `shiftwidth`, `readonly`, `autoindent`, `fileencoding`, `fileformat`). See [`docs/command_completeness_plan.md`](docs/command_completeness_plan.md).
 
 All changes are audited in [`docs/bugs/`](docs/bugs/) (150 machine-verified findings across 8 audit rounds and 3 addenda, all fixed and closed); quality is enforced with pytest (466 passed), mypy and ruff.
 
@@ -62,7 +62,7 @@ We have already many nice things, for instance:
 - All of the functionality of [prompt_toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit). This includes a lot of Vi key bindings, it's platform independent and runs every Python version covered by `python_requires >= 3.10`.
 - Thai/Lao input files: cell-cluster safe navigation and *syntax-aware* word segmentation, including dictionary segmentation when `libthai` is installed — with visual mode, visual-block editing (`C-v`, including `I`/`A` multi-cursor inserts) and `j`/`k` staying on the *visual* column, all cluster-aligned on Thai/Lao text.
 - Compressed undo/redo history: cold snapshots are stored with [quez](https://github.com/cwt/quez) (Zstandard level 1 by default), configurable via `editor.cold_text_compression` in `.vithrc` and inspectable with `:compression`.
-- Comprehensive `:set` / `:setlocal` options with bare `:set`, `:set all`, queries (`opt?`), toggles (`opt!`, `invopt`), multi-argument commands (`:set nu rnu ts=4 et`), and live preview: `number`/`relativenumber`, `hlsearch`, `incsearch`, `ignorecase`, `smartcase`, `expandtab`, `autoindent`, `tabstop`, `shiftwidth`, `readonly`, `fileencoding`/`fenc`, `filetype`/`ft`, `scrolloff`, `colorcolumn`, `cursorline`/`cursorcolumn`, `wrap`/`breakindent`, `list`, `paste`, `ruler`, `wildmenu`, `mouse`, `jedi`, and `tildeop`.
+- Comprehensive `:set` / `:setlocal` options with bare `:set`, `:set all`, queries (`opt?`), toggles (`opt!`, `invopt`), multi-argument commands (`:set nu rnu ts=4 et`), and live preview: `number`/`relativenumber`, `hlsearch`, `incsearch`, `ignorecase`, `smartcase`, `expandtab`, `autoindent`, `tabstop`, `shiftwidth`, `readonly`, `fileencoding`/`fenc`, `fileformat`/`ff`, `filetype`/`ft`, `scrolloff`, `colorcolumn`, `cursorline`/`cursorcolumn`, `wrap`/`breakindent`, `list`, `paste`, `ruler`, `wildmenu`, `mouse`, `jedi`, and `tildeop`.
 - Rich Vim-style Ex commands: `:e`, `:enew`, `:r`/`:read` (`file` & `!cmd`), `:w`/`:w!` (incl. range, `>>` append, `!cmd` pipe), `:sav`/`:saveas`, `:up`, `:x`/`:xa`/`:wa`/`:wq`/`:wqa`/`:q`/`:qa`/`:cq` (plus `ZZ`/`ZQ`), `:so`/`:source`, `:f`/`:file`, `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, `:ls`/`:b` (names, 1-based indices, `#` alternate), `:bn`/`:bp`/`:bf`/`:bl`/`:bd`/`:sb`, `:sp`/`:vsp`/`:clo`/`:on`, `:tabe`/`:tabc`/`:tabo`/`:tabn`/`:tabp`/`:tabfir`/`:tabl`/`:tabm`/`:tabs`, `:u`/`:undo`, `:red`/`:redo`, `:noh`, generalized range editing (`:$`/`±N`, `:s`, `:g`/`:v`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:[range]!cmd`, `:[range]norm[!]`), and in-editor inspection splits (`:reg`, `:marks`, `:mes`, `:ver`, `:compression`, `:help`). Auto completion for Python source code uses Jedi, and code checking runs asynchronously via Pyflakes.
 - Colorschemes can be changed at runtime.
 
@@ -102,7 +102,7 @@ To run all tests, install the development dependencies (pytest, pytest-cov, pyte
 pip install -e ".[dev]"
 ```
 
-Run unit tests via the test runner script (executes all 424 tests in parallel and enforces ≥85% test coverage):
+Run unit tests via the test runner script (executes all 466 tests in parallel and enforces ≥85% test coverage):
 
 ```sh
 bash scripts/runtest.sh
@@ -116,8 +116,8 @@ python -m pytest tests
 
 Developer helper scripts are provided in `scripts/`:
 
-- `scripts/runtest.sh`: run the full test suite in parallel with coverage enforcement (424 passed)
-- `scripts/type-check.sh`: run `mypy .` (typing, 67 source files checked against the 3.10 floor)
+- `scripts/runtest.sh`: run the full test suite in parallel with coverage enforcement (466 passed)
+- `scripts/type-check.sh`: run `mypy .` (typing, 79 source files checked against the 3.10 floor)
 - `scripts/lint-check-and-fix.sh`: run `ruff check --fix .` (linting)
 - `scripts/code-format.sh`: run `ruff format` (formatting)
 

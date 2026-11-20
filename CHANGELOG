@@ -1,6 +1,90 @@
 CHANGELOG
 =========
 
+0.15.0: 2026-11-20
+-------------------
+
+Ex command completeness, Round 8 audit hardening & ``vith/commands/`` modularization:
+
+Ex commands & ``:set`` ergonomics (Phases 1–4):
+
+- Added full Vim Ex command parity across files and configuration:
+  ``:[addr]r`` / ``:read`` (files via I/O backends and ``!cmd`` with combined
+  ``2>&1`` output), ``:sav`` / ``:saveas`` with strict Vim ``:w {file}`` copy
+  semantics, ``:up`` / ``:update``, ``:x`` / ``:xit`` / ``:exit``,
+  ``:wa`` / ``:wall``, ``:xa`` / ``:xall``, ``:wqall``, ``:enew`` / ``:ene``,
+  ``:f`` / ``:file`` (status & rename), ``:so`` / ``:source`` (in-TUI config
+  reload), and ``%`` / ``#`` command-line filename expansion with chainable
+  ``:p`` / ``:h`` / ``:t`` / ``:r`` / ``:e`` modifiers.
+- Completed buffer, window, and tab Ex commands: ``:ls`` / ``:files``,
+  ``:b #`` alternate buffer tracking, ``:bf`` / ``:bfirst``, ``:bl`` / ``:blast``,
+  ``:bnext`` / ``:bprev`` / ``:bprevious``, targeted ``:bd`` / ``:bdelete`` /
+  ``:bw`` / ``:bwipeout``, ``:sb`` / ``:sbuffer``, ``:clo`` / ``:close``,
+  ``:on``, ``:tabo`` / ``:tabonly``, ``:tabfir`` / ``:tabfirst`` /
+  ``:tabr`` / ``:tabrewind``, ``:tabl`` / ``:tablast``, ``:tabm`` / ``:tabmove``,
+  and ``:tabs``.
+- Extracted the shared Ex range engine (``vith/commands/ranges.py``) and added
+  generalized bare address jumps (``:$``, ``.``, ``±N``, ``'<``, ``'>``) and
+  range line-editing commands: ``:d`` / ``:delete``, ``:y`` / ``:yank``,
+  ``:pu`` / ``:put``, ``:m`` / ``:move``, ``:t`` / ``:co`` / ``:copy``,
+  ``:j`` / ``:join``, ``:sort``, ``:retab``, ``:g`` / ``:global`` and
+  ``:v`` / ``:vglobal``, ``:[range]!{cmd}`` external filter, ``:[range]w``
+  (partial write, ``>>`` append, ``!cmd`` pipe), ``:[range]norm[!]`` /
+  ``:normal[!]`` isolated key replay, ``:u`` / ``:undo``, ``:red`` / ``:redo``,
+  and ``:noh`` / ``:nohlsearch``.
+- Upgraded ``:set`` / ``:setlocal`` with bare ``:set``, ``:set all``, queries
+  (``opt?``), toggles (``opt!`` / ``invopt``), multi-argument option lists, and
+  live preview; added ``smartcase`` (``scs``), ``shiftwidth`` (``sw``),
+  ``readonly`` (``ro``), ``autoindent`` (``ai``), ``fileencoding`` (``fenc``),
+  and ``fileformat`` (``ff``); rendered all multi-line informational commands
+  (``:ls``, ``:ver``, ``:mes``, ``:reg``, ``:marks``, ``:tabs``, ``:set``,
+  ``:comp``, ``:help``) in read-only scratch splits via ``Editor.show_info``.
+
+Round 8 audit & hardening (findings 130–150, all closed):
+
+- Exempted the active buffer's own file from the explicit-write overwrite guard
+  (``:w %``, ``:wq %``, ``:up %``, ``:x %``, ``:sav <current>``; finding 130);
+  shared ``close_or_exit()`` across the quit family and aligned ``ZZ`` with
+  ``:x`` so multi-window dirty buffers survive ``:wq`` (131); scoped ``:only``
+  to the active tab and added dirty-buffer guards + ``!`` to ``:only``,
+  ``:tabclose``, and ``:tabonly`` (132).
+- Fixed ``:e`` / ``:e!`` reload crashes on read-only and directory buffers
+  (133); synchronized mouse click focus into ``WindowArrangement`` (134);
+  published substitute search/replacement state from ``:g/.../s`` (135);
+  excluded the ``/`` search toolbar from Insert-mode Tab indentation (136);
+  made ``:r !``, ``:[range]!``, and ``:w !`` byte-preserving via UTF-8
+  ``surrogateescape`` (137).
+- Validated TOML option types/bounds and widened top-level ``.vithrc`` TOML
+  detection (138); implemented Vim's ``:s`` replacement dialect (``&``, ``\&``,
+  ``~``, ``\r``, ``\n``, ``\0``–``\9``, ``\u``/``\U``/``\l``/``\L``/``\e``/``\E``;
+  139); preserved ``fileformat`` (``dos``/``unix``/``mac``) across reads,
+  writes, partial writes, and ``:w >>`` (140).
+- Measured cell columns with ``get_cwidth`` so double-width CJK/emoji align in
+  ``j``/``k`` and visual-block rectangles (141); hardened the shared ReDoS
+  guard for overlapping alternations and counted repeats (142); fixed
+  ``:[range]normal`` final-address clamping (143), ``:retab`` without ``!`` on
+  space-only indents (144), ``:cq`` CLI non-zero exit code propagation (145),
+  and ``show_message`` Thai renderer gate latching (146).
+- Resolved low-severity Vim deviations (colorscheme ``E185``, ``:f`` path
+  normalization, backend ``:w >>``, single-character registers on ``:d``/``:y``/``:pu``,
+  ``:setlocal`` validation, smartcase escape handling; 147), dead-code and
+  backend-lookup duplication (``find_backend``; 148), algorithm/cache hot spots
+  (indexed ``:g`` move/copy, truncated register previews, versioned
+  word-completer cache, extensionless lexer sniff retry, ``:reg`` display for
+  ``:d``/``:y`` registers; 149), and readability/test/docs cleanups (150).
+
+Architecture & code quality:
+
+- Split the 3,554-line ``vith/commands/commands.py`` monolith into 11 cohesive
+  submodules directly under ``vith/commands/`` (``registry``, ``common``,
+  ``buffers``, ``tabs``, ``files``, ``options``, ``info``, ``substitution``,
+  ``editing``, ``normal``, ``global_cmd``) re-exported via
+  ``vith/commands/__init__.py``, and deduplicated shared substitution, range,
+  register, file-write, ``:set``/preview, and ``:normal`` helpers.
+- Updated ``README.md``, ``vith/help.py``, and the ``docs/`` OKF v0.2 bundle.
+- Full test suite passing: 466 passed (89.79% coverage), mypy clean on 79
+  source files (Python 3.10 target), ruff clean.
+
 0.14.0: 2026-11-13
 -------------------
 

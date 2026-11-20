@@ -7,9 +7,9 @@ sources:
   - docs/bugs/
 verified: machine-confirmed
 generated:
-  by: "OpenCode"
-  at: "2026-11-09T16:55:03Z"
-timestamp: "2026-11-09T16:55:03Z"
+  by: "Antigravity (Gemini 4 Neon)"
+  at: "2026-11-20T05:15:00Z"
+timestamp: "2026-11-20T05:15:00Z"
 ---
 
 # Findings Bundle Log

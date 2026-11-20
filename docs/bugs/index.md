@@ -10,9 +10,9 @@ verified: machine-confirmed
 stale_after: 2027-05-19T00:00:00Z
 tags: [bugs, findings, audit, round-6, round-7, round-8]
 generated:
-  by: "OpenCode"
-  at: "2026-11-19T19:15:00Z"
-timestamp: "2026-11-19T19:15:00Z"
+  by: "Antigravity (Gemini 4 Neon)"
+  at: "2026-11-20T05:15:00Z"
+timestamp: "2026-11-20T05:15:00Z"
 ---
 
 # vith Findings Bundle
@@ -30,8 +30,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 5 (2026-11-09, hg rev 256 / `v0.11.1` — [093](093.md)–[109](109.md), `fix_status: fixed`)**: 17 machine-confirmed findings from a fresh full-project re-audit of the *fully-fixed* tree (4 parallel auditors + dynamic probes: 6 000 random command strings, 4 000 random window/tab ops, end-to-end preview/substitute/paste/undo flows). Two documented fixes are **regressed** — [093](093.md) (091 previewer still leaks `ignore_case`) and [102](102.md) (090's lazy-import hoist was never applied) — plus new Vim-semantics defects ([094](094.md)–[096](096.md)), an incomplete [081](081.md) gate fix ([097](097.md)), a renderer state leak ([098](098.md)), tooling/test-quality gaps ([099](099.md)–[101](101.md)), and cleanup inventories ([103](103.md)–[109](109.md)). All 17 findings fixed finding-by-finding across hg rev 258–275 (217 passed / 1 skipped, `mypy .` 56 files clean, ruff clean, Python 3.10 floor intact).
 * **Round 6 (2026-11-09, hg rev 283+ — [110](110.md)–[115](115.md), `fix_status: fixed`)**: 6 deep-audit inventories covering wrong-logic bugs ([110](110.md)), robustness and `None`-safety ([111](111.md)), dead code ([112](112.md)), duplicate logic ([113](113.md)), unoptimized algorithms and memory growth ([114](114.md)), and low readability ([115](115.md)). All items across all 6 inventories resolved with regression tests (247 passed, `mypy .` 57 files clean, ruff clean).
 * **Round 7 addendum (2026-11-09–10, user field reports — [124](124.md)–[126](126.md), `fix_status: fixed`)**: missing `:next` / `:previous` file cycling ([124](124.md)), a tab-bar click crash from a two-argument mouse handler ([125](125.md)), and `:next` duplicating the tab-bar entry in multi-tab sessions ([126](126.md), 124 follow-up). Each fixed one-by-one with regression tests (279 passed, `mypy .` 57 files clean, ruff clean).
-* **Round 8 (2026-11-19, hg rev 358 — [130](130.md)–[150](150.md), `fix_status: open`)**: 17 defects and 4 inventories from a fresh full-project re-audit focused on the post-`v0.14.0` Ex command work. Highlights: `:w %`/`:sav <current>` same-file rejection ([130](130.md)); `:wq`/`ZZ` exiting the app and discarding other windows ([131](131.md)); `:only`/`:tabonly`/`:tabclose` scope and dirty-guard gaps ([132](132.md)); `:e` crashes on read-only/directory buffers ([133](133.md)); mouse-focus dispatch to the wrong buffer ([134](134.md)); `:g` substitute bookkeeping ([135](135.md)); search-buffer Tab ([136](136.md)); non-UTF-8 shell crashes ([137](137.md)); TOML validation/detection ([138](138.md)); Vim `&`/`~` replacement semantics ([139](139.md)); CRLF loss ([140](140.md)); CJK visual-column drift ([141](141.md)); ReDoS guard bypass ([142](142.md)); plus `:normal` range, `:retab`, `:cq`, Thai-gate, and cleanup/perf/readability inventories. All 21 were subsequently fixed in the Round 8 fix arc (one commit per finding,
-or grouped for tightly related items).
+* **Round 8 (2026-11-19–20, hg rev 358 → fixed rev 360–381 — [130](130.md)–[150](150.md), `fix_status: fixed`)**: 17 defects and 4 inventories from a fresh full-project re-audit focused on the post-`v0.14.0` Ex command work. Highlights: `:w %`/`:sav <current>` same-file rejection ([130](130.md)); `:wq`/`ZZ` exiting the app and discarding other windows ([131](131.md)); `:only`/`:tabonly`/`:tabclose` scope and dirty-guard gaps ([132](132.md)); `:e` crashes on read-only/directory buffers ([133](133.md)); mouse-focus dispatch to the wrong buffer ([134](134.md)); `:g` substitute bookkeeping ([135](135.md)); search-buffer Tab ([136](136.md)); non-UTF-8 shell crashes ([137](137.md)); TOML validation/detection ([138](138.md)); Vim `&`/`~` replacement semantics ([139](139.md)); CRLF loss ([140](140.md)); CJK visual-column drift ([141](141.md)); ReDoS guard bypass ([142](142.md)); plus `:normal` range, `:retab`, `:cq`, Thai-gate, and cleanup/perf/readability inventories. All 21 were fixed in the Round 8 fix arc (rev 360–381, one commit per finding or tightly related group), followed by splitting `vith/commands/commands.py` into flat submodules under `vith/commands/` in rev 382.
 * **Round 7 (2026-11-09, upstream triage — [116](116.md)–[123](123.md), `fix_status: fixed`)**: 8 worth-fixing upstream `prompt-toolkit/pyvim` issues that still reproduced in `vith`, filed as new findings and fixed one-by-one with regression tests (274 passed, `mypy .` 57 files clean, ruff clean): `ZZ`/`ZQ` ([116](116.md)), `:w!` read-only ([117](117.md)), `>>`/`<<` vs `tabstop` ([118](118.md)), `Ctrl-[` ([119](119.md)), counted `i`/`a` ([120](120.md)), extensionless highlight ([121](121.md)), `*` history ([122](122.md)), `:s` ReDoS guard ([123](123.md)).
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
@@ -326,12 +325,14 @@ findings were merged and the open set renumbered into contiguous 063–075
 ## Round 8 Findings (2026-11-19 full re-audit, hg rev 358 → `fix_status: fixed`)
 
 **Resolution note:** all 21 Round 8 findings (130–150) were fixed one-by-one with
-regression tests, each verified with `scripts/runtest.sh`, `type-check.sh`,
-`lint-check-and-fix.sh` and `code-format.sh`. Final gates: **466 passed**, `mypy .`
-clean (69 files), ruff clean. The write/quit/tab families were deduplicated via
-shared helpers; shell I/O, TOML validation, fileformat, display-width and renderer
-gate paths were hardened; the four inventories were resolved with targeted
-cleanups, cache fixes and documentation updates.
+regression tests across hg rev 360–381, each verified with `scripts/runtest.sh`,
+`type-check.sh`, `lint-check-and-fix.sh` and `code-format.sh`. Final gates:
+**466 passed**, `mypy .` clean (69 files at rev 381; 79 files after splitting
+`vith/commands/commands.py` into flat submodules in rev 382), ruff clean. The
+write/quit/tab families were deduplicated via shared helpers; shell I/O, TOML
+validation, fileformat, display-width and renderer gate paths were hardened; the
+four inventories were resolved with targeted cleanups, cache fixes and
+documentation updates.
 
 **Scope and method:** a fresh read-only full-project re-audit after the `v0.14.0`
 Ex-command work (hg rev 358 `ff583fcf26ba`, 424 tests passing). Source, tests,

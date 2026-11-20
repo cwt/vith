@@ -4,7 +4,11 @@ title: "Thai & Lao Script Support Plan for vith"
 description: "Detailed root-cause analysis, cell-cluster architecture (adapted from szn), Sara Am differential rendering refresh, version-gated prompt_toolkit integration, and test matrix for Thai/Lao in vith - IMPLEMENTED and machine-verified."
 status: stable
 sources:
-  - ../vith/thai.py
+  - ../vith/thai/__init__.py
+  - ../vith/thai/classify.py
+  - ../vith/thai/clusters.py
+  - ../vith/thai/words.py
+  - ../vith/thai/patches.py
   - ../vith/editor.py
   - ../vith/editor_buffer.py
   - ../vith/key_bindings.py
@@ -571,7 +575,7 @@ We will add `tests/test_thai.py` covering every layer and edge case:
 
 ### 5.1 Implementation Record & Refinements Beyond Initial Draft (2026-11-06)
 
-* **Implemented Modules**: [`vith/thai.py`](../vith/thai.py)[^src-thai], [`vith/key_bindings.py`](../vith/key_bindings.py)[^src-key-bindings], [`vith/editor.py`](../vith/editor.py)[^src-editor], and [`tests/test_thai.py`](../tests/test_thai.py)[^src-test-thai] (18 unit tests in `tests/test_thai.py` and 6 in `tests/test_thai_motions.py`, 100+ total passing; verified with `mypy --python-version 3.10` and `ast.parse(..., feature_version=(3, 10))`).
+* **Implemented Modules**: [`vith/thai/`](../vith/thai/)[^src-thai] (originally `vith/thai.py`, reorganized into `classify.py`, `clusters.py`, `words.py`, `patches.py`), [`vith/key_bindings.py`](../vith/key_bindings.py)[^src-key-bindings], [`vith/editor.py`](../vith/editor.py)[^src-editor], and [`tests/test_thai.py`](../tests/test_thai.py)[^src-test-thai] (18 unit tests in `tests/test_thai.py` and 6 in `tests/test_thai_motions.py`, 100+ total passing at initial landing; verified with `mypy --python-version 3.10` and `ast.parse(..., feature_version=(3, 10))`).
 * **Refinements Discovered During Implementation**:
   1. **`KeyProcessor._fix_vi_cursor_position` Cell-Cluster Clamp**: `prompt_toolkit`'s `KeyProcessor._call_handler` invokes `_fix_vi_cursor_position` after every Vi command, which previously executed `buff.cursor_position -= 1` whenever the cursor reached EOL in Navigation mode — parking the cursor on a trailing combining mark (e.g. `◌่` at `col=6` of `"ผู้ใหญ่"`). `install_prompt_toolkit_thai_patches()` wraps `_fix_vi_cursor_position` to clamp to `prev_cell_offset(line, len(line), 1)` at EOL and `snap_to_cell_start(line, col)` mid-line.
   2. **`Document.find_start_of_previous_word` & `find_boundaries_of_current_word` + Normal-Mode `e`/`E`**: In `prompt_toolkit/key_binding/bindings/vi.py`, `b`/`B` call `Document.find_start_of_previous_word` (rather than `find_previous_word_beginning`), `iw`/`aw`/`*`/`#` call `Document.find_boundaries_of_current_word`, and `e`/`E` compute `end - 1` (which would land on a trailing combining mark in Normal mode when a word ends with `base + comb*`). Wrapping `find_start_of_previous_word` and `find_boundaries_of_current_word` and binding Normal-mode `e`/`E` (`~vi_waiting_for_text_object_mode`) to `prev_cell_offset(doc.text, pos + end, 1)` keeps both Normal-mode `e` and operator-pending `de`/`ce`/`ye` cell-cluster-safe.
@@ -582,7 +586,7 @@ We will add `tests/test_thai.py` covering every layer and edge case:
 ## References
 
 [^src-setup]: `pyproject.toml` (PEP 621 project config specifying `prompt_toolkit>=3.0.0,<3.1.0`) — [../pyproject.toml](../pyproject.toml)
-[^src-thai]: `vith/thai.py` (Thai & Lao cell-cluster scanners, two-tier word breaking, SARA AM renderer pre-pass, version-gated `prompt_toolkit` patch installer) — [../vith/thai.py](../vith/thai.py)
+[^src-thai]: `vith/thai/` (Thai & Lao cell-cluster scanners, two-tier word breaking, SARA AM renderer pre-pass, version-gated `prompt_toolkit` patch installer; split from `vith/thai.py`) — [../vith/thai/__init__.py](../vith/thai/__init__.py)
 [^src-editor]: `vith/editor.py` (`Editor._create_application`, `Editor.__init__`) — [../vith/editor.py](../vith/editor.py)
 [^src-key-bindings]: `vith/key_bindings.py` (`create_key_bindings`) — [../vith/key_bindings.py](../vith/key_bindings.py)
 [^src-layout]: `vith/layout.py` (`EditorLayout`, `WindowStatusBarRuler`) — [../vith/layout.py](../vith/layout.py)

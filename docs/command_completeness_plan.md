@@ -4,7 +4,18 @@ title: "Ex Command Completeness Plan for vith"
 description: "Phased architecture and implementation plan for missing crucial and popular Vim Ex (:) commands in vith — covering quick-win aliases (:ls, :x, :wa, :noh, :undo/:redo), :read / :saveas / :source, generalized range-editing commands (:d, :y, :pu, :sort, :g/:v, :m/:t, :j, :[range]!cmd, :norm), tab/buffer completeness, filename expansion (%/#), and :set ergonomics."
 status: stable
 sources:
-  - ../vith/commands/commands.py
+  - ../vith/commands/__init__.py
+  - ../vith/commands/registry.py
+  - ../vith/commands/common.py
+  - ../vith/commands/buffers.py
+  - ../vith/commands/tabs.py
+  - ../vith/commands/files.py
+  - ../vith/commands/options.py
+  - ../vith/commands/info.py
+  - ../vith/commands/substitution.py
+  - ../vith/commands/editing.py
+  - ../vith/commands/normal.py
+  - ../vith/commands/global_cmd.py
   - ../vith/commands/ranges.py
   - ../vith/commands/grammar.py
   - ../vith/commands/handler.py
@@ -35,7 +46,7 @@ stale_after: 2027-05-19T00:00:00Z
 tags: [commands, ex-mode, vim-parity, grammar, completer, preview, planning]
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-20T00:56:00Z"
+  at: "2026-11-20T05:15:00Z"
 ---
 
 # Ex Command Completeness Plan for `vith`
@@ -290,7 +301,7 @@ Upgrade `:set` / `:setlocal` / `:setl` across `grammar.py`[^src-grammar], `comma
 | File | Phases | Planned Changes |
 | :--- | :--- | :--- |
 | `vith/commands/ranges.py` *(new)* | P3 | Extracted & generalized address/range parsing + shared line-mutation helper |
-| [`../vith/commands/commands.py`](../vith/commands/commands.py) | P1–P4 | Command handlers, aliases, `:read`, `:saveas`, `:source`, `:set` multi/query/toggle, range commands, new options catalog |
+| [`../vith/commands/__init__.py`](../vith/commands/__init__.py) & domain submodules (`registry`, `common`, `buffers`, `tabs`, `files`, `options`, `info`, `substitution`, `editing`, `normal`, `global_cmd`) | P1–P4 + rev 382 | Command handlers, aliases, `:read`, `:saveas`, `:source`, `:set` multi/query/toggle, range commands, new options catalog (split out of `commands.py` in rev 382) |
 | [`../vith/commands/grammar.py`](../vith/commands/grammar.py) | P2–P4 | Generalized range prefix, `:r !cmd`, `:bd <target>`, `:g`/`:v`, `:[range]!cmd`, multi-token `:set`, `$`/`±N` jumps |
 | [`../vith/commands/handler.py`](../vith/commands/handler.py) | P2–P4 | Range dispatch, `%`/`#` expansion hook, generalized address jump |
 | [`../vith/commands/completer.py`](../vith/commands/completer.py) | P1–P4 | Completion for new commands, `:bd`/`:sb`, `:r`/`:sav`/`:so`, `:r !`, `:set` forms |
@@ -347,15 +358,17 @@ All four phases are implemented and verified against every repository quality ga
 | **Phase 1 — Quick wins, aliases & in-editor info splits** | rev 334–342 (`c891211c6181`..`b50c6ea1804b`) | [`../tests/test_ex_commands.py`](../tests/test_ex_commands.py) | Implemented & verified |
 | **Phase 2 — `:read`, `:saveas`, `:source`, buffer & tab completeness** | rev 343–347 (`ae0ce42369ee`..`71ee52d012a0`) | [`../tests/test_read_command.py`](../tests/test_read_command.py) | Implemented & verified |
 | **Phase 3 — Shared `ranges.py`, Ex line editing, `:g`/`:v`, `:[range]!cmd`, `:norm`** | rev 348–353 (`e5e6c3959450`..`61b691023a5b`) | [`../tests/test_range_commands.py`](../tests/test_range_commands.py) | Implemented & verified |
-| **Phase 4 — `%`/`#` expansion, `:set` upgrades & new options, `:reg`, `:marks`, docs** | rev 354–357+ (`1c3e05b8ed07`..`95285cde066d`) | [`../tests/test_set_ergonomics.py`](../tests/test_set_ergonomics.py) | Implemented & verified |
+| **Phase 4 — `%`/`#` expansion, `:set` upgrades & new options, `:reg`, `:marks`, docs** | rev 354–358 (`1c3e05b8ed07`..`ff583fcf26ba`) | [`../tests/test_set_ergonomics.py`](../tests/test_set_ergonomics.py) | Implemented & verified |
+| **Round 8 audit hardening (findings 130–150)** | rev 360–381 (`f8bff32f0395`..`944c89885685`) | [`../tests/test_round8_semantics.py`](../tests/test_round8_semantics.py), [`../tests/test_round8_perf.py`](../tests/test_round8_perf.py) | Implemented & verified |
+| **Commands package modularization & deduplication** | rev 382 (`d69e85bba667`) | Full regression suite (466 tests) | Implemented & verified |
 
-Final verification gates: **424 passed**, **87.91% coverage** (`>= 85%` gate), `mypy .` clean on **67 source files** (Python 3.10 floor, 0 errors/notes), `ruff check` and `ruff format` clean.
+Final verification gates (`v0.15.0`): **466 passed**, **89.79% coverage** (`>= 85%` gate), `mypy .` clean on **79 source files** (Python 3.10 floor, 0 errors/notes), `ruff check` and `ruff format` clean.
 
 ---
 
 ## References
 
-[^src-commands]: `vith/commands/commands.py` (command registry, `:set` catalog, `substitute`, write/quit/buffer handlers) — [../vith/commands/commands.py](../vith/commands/commands.py)
+[^src-commands]: `vith/commands/` (`__init__.py` and domain submodules `registry.py`, `common.py`, `buffers.py`, `tabs.py`, `files.py`, `options.py`, `info.py`, `substitution.py`, `editing.py`, `normal.py`, `global_cmd.py`, split out of `commands.py` in rev 382) — [../vith/commands/__init__.py](../vith/commands/__init__.py)
 [^src-grammar]: `vith/commands/grammar.py` (`COMMAND_GRAMMAR`, `_longest_first`) — [../vith/commands/grammar.py](../vith/commands/grammar.py)
 [^src-handler]: `vith/commands/handler.py` (`handle_command`, `_go_to_line`) — [../vith/commands/handler.py](../vith/commands/handler.py)
 [^src-completer]: `vith/commands/completer.py` (`create_command_completer`, `BufferNameCompleter`, `FiletypeCompleter`) — [../vith/commands/completer.py](../vith/commands/completer.py)

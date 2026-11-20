@@ -6,7 +6,7 @@ __all__ = ('CommandPreviewer',)
 
 def _build_preview_maps():
     """
-    Per-alias lookup maps derived from the commands.py `:set` catalog —
+    Per-alias lookup maps derived from the options.py `:set` catalog —
     the single source of truth shared with the command handlers
     (docs/bugs/073.md, closing the 028 two-tables drift).
     """
