@@ -5,7 +5,7 @@ from __future__ import annotations
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
-from vith.commands.commands import _format_register_preview
+from vith.commands import _format_register_preview
 from vith.completion import DocumentWordsCompleter
 from vith.editor_buffer import EditorBuffer
 from vith.lexer import DocumentLexer

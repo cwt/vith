@@ -234,7 +234,7 @@ def test_substitute_unknown_flag_shows_error(editor, editor_buffer):
 
 def test_substitute_active_buffer_none_guard(editor):
     # 103: substitute with no active editor buffer does not raise AttributeError
-    from vith.commands.commands import substitute
+    from vith.commands import substitute
 
     substitute(editor, None, None, 'foo', 'bar', '')
     # cleanly returned without exception
@@ -277,7 +277,7 @@ def test_substitute_rejects_nested_quantifier(editor, editor_buffer):
 def test_substitute_rejects_common_catastrophic_shapes(editor, editor_buffer):
     # 123: other nested-quantifier shapes are rejected; the buffer and the
     # search history stay untouched.
-    from vith.commands.commands import _strip_regex_literals
+    from vith.commands import _strip_regex_literals
 
     assert _strip_regex_literals(r'\(a+\)+') == 'a++'
     given_sample_text(editor_buffer, 'aaa bbb\n')

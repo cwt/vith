@@ -367,7 +367,7 @@ def test_source_reloads_toml_and_python_rc_without_prompting(editor, tmp_path, m
 
 
 def test_alternate_buffer_bfirst_blast_and_ls_marker(editor, tmp_path):
-    from vith.commands.commands import buffer_list_lines
+    from vith.commands import buffer_list_lines
 
     f1 = tmp_path / 'first.txt'
     f2 = tmp_path / 'second.txt'
@@ -469,7 +469,7 @@ def test_targeted_bdelete_bwipeout_and_sbuffer_with_completion(editor, tmp_path)
 
 
 def test_tab_completeness_commands_and_tabs_info_split(editor, tmp_path):
-    from vith.commands.commands import tabs_lines
+    from vith.commands import tabs_lines
 
     # Empty arrangement guards.
     handle_command(editor, ':tabs')

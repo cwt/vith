@@ -157,7 +157,7 @@ def test_command_stacks_normalize_on_base(monkeypatch):
     # while the module-level name keeps the original callable.
     from unittest.mock import MagicMock
 
-    from vith.commands import commands as commands_mod
+    import vith.commands as commands_mod
 
     calls = []
 
@@ -281,7 +281,7 @@ def test_goto_buffer_pattern_with_untitled_buffers_is_guarded(editor, monkeypatc
 def test_ls_pager_one_based_and_no_name(editor):
     # 087: `:ls` pager numbers must match the 1-based `:b <n>` numbering and
     # untitled buffers must print a name instead of repr(None).
-    from vith.commands.commands import buffer_list_lines
+    from vith.commands import buffer_list_lines
 
     editor.load_initial_files([None])
     lines = buffer_list_lines(editor)
@@ -349,7 +349,7 @@ def test_split_commands_focus_new_window(editor, monkeypatch):
 def test_wqa_force_and_empty_arrangement_command_guards(editor, tmp_path, monkeypatch):
     # 110 item 2: `:wqa!` is registered with `accepts_force=True`.
     # 111 items 6 & 7: commands and `_go_to_line` guard against `None` active/current buffers.
-    from vith.commands.commands import _confirm_unsaved_changes
+    from vith.commands import _confirm_unsaved_changes
     from vith.commands.handler import handle_command
 
     exited = []
@@ -385,8 +385,8 @@ def test_press_enter_to_continue_shared_helper(monkeypatch):
     # 113 item 5 / 115 item 10: `rc_file` reuses `press_enter_to_continue` from `commands`.
     import builtins
 
+    import vith.commands as commands_mod
     from vith import rc_file
-    from vith.commands import commands as commands_mod
 
     assert rc_file.press_enter_to_continue is commands_mod.press_enter_to_continue
 

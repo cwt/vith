@@ -360,7 +360,7 @@ def test_create_layout_from_node_unknown_node_raises_value_error(editor):
 
 def test_untitled_buffer_label_consistency(editor):
     # 107: UNTITLED_LABEL is consistent across EditorBuffer and commands
-    from vith.commands.commands import buffer_list_lines
+    from vith.commands import buffer_list_lines
     from vith.editor_buffer import UNTITLED_LABEL
 
     assert UNTITLED_LABEL == '[New file]'

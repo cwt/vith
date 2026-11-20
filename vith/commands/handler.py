@@ -2,16 +2,11 @@ import os
 import shlex
 from typing import Any
 
-from .commands import (
-    call_command_handler,
-    filter_range_command,
-    has_command_handler,
-    parse_substitute_args,
-    parse_substitute_range,
-    substitute,
-)
+from .files import filter_range_command
 from .grammar import COMMAND_GRAMMAR
 from .ranges import NO_SUCH_LINE_TEXT, resolve_line_address
+from .registry import call_command_handler, has_command_handler
+from .substitution import parse_substitute_args, parse_substitute_range, substitute
 
 __all__ = ('expand_command_filenames', 'handle_command')
 

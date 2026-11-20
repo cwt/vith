@@ -11,7 +11,7 @@ import os
 import traceback
 from typing import TYPE_CHECKING, Any, Callable
 
-from .commands.commands import (
+from .commands import (
     SET_INT_OPTIONS,
     SET_TOGGLE_GROUPS,
     press_enter_to_continue,

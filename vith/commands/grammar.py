@@ -1,7 +1,7 @@
 from prompt_toolkit.contrib.regular_languages.compiler import compile
 
-from .commands import get_commands_taking_locations
 from .ranges import ADDR_GRAMMAR, RANGE_GRAMMAR
+from .registry import get_commands_taking_locations
 
 
 def _longest_first(name: str) -> tuple[int, str]:

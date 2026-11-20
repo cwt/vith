@@ -764,7 +764,7 @@ def test_version_and_ver_commands_open_read_only_info_split(editor):
     import prompt_toolkit
 
     from vith import __version__ as vith_version
-    from vith.commands.commands import version_lines
+    from vith.commands import version_lines
 
     # Works even when no buffer is open (empty arrangement).
     empty_lines = version_lines(editor)
@@ -811,7 +811,7 @@ def test_version_and_ver_commands_open_read_only_info_split(editor):
 
 
 def test_messages_and_mes_commands_open_read_only_info_split(editor):
-    from vith.commands.commands import messages_lines
+    from vith.commands import messages_lines
 
     editor.load_initial_files([None])
     wa = editor.window_arrangement
@@ -866,7 +866,7 @@ def test_phase1_commands_appear_in_command_completer(editor):
     from prompt_toolkit.completion import CompleteEvent
     from prompt_toolkit.document import Document
 
-    from vith.commands.commands import get_commands
+    from vith.commands import get_commands
     from vith.commands.completer import create_command_completer
 
     registered = set(get_commands())

@@ -432,7 +432,7 @@ def create_key_bindings(editor):
         Write the active buffer if modified and quit (`ZZ` is Vim's `:x`,
         docs/bugs/131.md).
         """
-        from .commands.commands import write_if_modified_and_quit
+        from .commands import write_if_modified_and_quit
 
         write_if_modified_and_quit(editor, None)
         editor.sync_with_prompt_toolkit()
@@ -442,7 +442,7 @@ def create_key_bindings(editor):
         """
         Quit without saving (`ZQ`, Vim `:q!` parity).
         """
-        from .commands.commands import quit
+        from .commands import quit
 
         quit(editor, force=True)
         editor.sync_with_prompt_toolkit()

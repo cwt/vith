@@ -307,7 +307,7 @@ def test_set_process_name_darwin_empty_argv(
 def test_cq_exit_code_propagates(editor: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     # 145: `:cq` requests result 1, Editor.run returns it, and the CLI exits
     # with that status (normal quits still exit 0).
-    from vith.commands.commands import quit_nonzero
+    from vith.commands import quit_nonzero
 
     calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     monkeypatch.setattr(editor.application, "exit", lambda *a, **kw: calls.append((a, kw)))

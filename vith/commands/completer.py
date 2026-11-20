@@ -6,8 +6,9 @@ from prompt_toolkit.contrib.completers.system import SystemCompleter
 from prompt_toolkit.contrib.regular_languages.completion import GrammarCompleter
 from prompt_toolkit.document import Document
 
-from .commands import SET_COMMANDS, SET_TOGGLE_GROUPS, get_commands
 from .grammar import COMMAND_GRAMMAR
+from .options import SET_EXTRA_TOGGLE_ON_NAMES, SET_TOGGLE_GROUPS
+from .registry import SET_COMMANDS, get_commands
 
 __all__ = ('create_command_completer', 'FiletypeCompleter')
 
@@ -30,10 +31,8 @@ def _set_option_candidates(prefix: str) -> list[str]:
         for _display, _attr, on_names, _off in SET_TOGGLE_GROUPS:
             for name in on_names:
                 candidates.add('inv' + name)
-        candidates.add('invtildeop')
-        candidates.add('invtop')
-        candidates.add('invreadonly')
-        candidates.add('invro')
+        for name in SET_EXTRA_TOGGLE_ON_NAMES:
+            candidates.add('inv' + name)
     return sorted(name for name in candidates if name.startswith(prefix))
 
 

@@ -196,7 +196,7 @@ def test_expand_error_on_empty_editor_shows_message(editor):
 
 
 def test_set_query_toggle_and_multi_argument(editor, tmp_path):
-    from vith.commands.commands import set_options_lines
+    from vith.commands import set_options_lines
 
     f = tmp_path / 'sample.py'
     f.write_text('x = 1\n', encoding='utf-8')
@@ -299,7 +299,7 @@ def test_set_query_toggle_and_multi_argument(editor, tmp_path):
 
 
 def test_bare_set_when_all_defaults(editor):
-    from vith.commands.commands import set_options_lines
+    from vith.commands import set_options_lines
 
     _open_files(editor, [None])
     lines = set_options_lines(editor, show_all=False)
@@ -422,7 +422,7 @@ def test_shiftwidth_option_and_indent_bindings(editor, tmp_path):
 
 
 def test_readonly_option_toggles_and_write_guard(editor, tmp_path):
-    from vith.commands.commands import set_options_lines
+    from vith.commands import set_options_lines
     from vith.commands.preview import CommandPreviewer
 
     f = tmp_path / 'locked.txt'
@@ -515,7 +515,7 @@ def test_autoindent_option_enter_and_open_lines(editor, tmp_path):
 
 
 def test_fileencoding_option_validation_and_write(editor, tmp_path):
-    from vith.commands.commands import set_options_lines
+    from vith.commands import set_options_lines
 
     f = tmp_path / 'encoded.txt'
     f.write_text('caf\u00e9\n', encoding='utf-8')
@@ -561,7 +561,7 @@ def test_registers_command_and_info_split(editor, tmp_path):
     from prompt_toolkit.clipboard import ClipboardData
     from prompt_toolkit.selection import SelectionType
 
-    from vith.commands.commands import registers_lines
+    from vith.commands import registers_lines
 
     f = tmp_path / 'reg.txt'
     f.write_text('first line\nsecond line\n', encoding='utf-8')
@@ -601,7 +601,7 @@ def test_registers_command_and_info_split(editor, tmp_path):
 
 
 def test_marks_command_and_mark_navigation(editor, tmp_path):
-    from vith.commands.commands import marks_lines
+    from vith.commands import marks_lines
 
     f = tmp_path / 'marks.txt'
     f.write_text('  first line\n    second line\nthird line\n', encoding='utf-8')

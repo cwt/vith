@@ -1,5 +1,5 @@
-from .commands import SET_INT_OPTIONS, SET_LIST_OPTIONS, SET_TOGGLE_GROUPS, parse_set_tokens
 from .grammar import COMMAND_GRAMMAR
+from .options import SET_INT_OPTIONS, SET_LIST_OPTIONS, SET_TOGGLE_GROUPS, parse_set_tokens
 
 __all__ = ('CommandPreviewer',)
 
@@ -32,9 +32,22 @@ def _build_preview_maps():
     return toggles, toggle_on_attrs, ints, lists
 
 
+def _build_saved_editor_attrs():
+    """Editor attributes snapshotted and restored around `:set` / `:colo` previews."""
+    attrs = ['current_style', '_hlsearch_suppressed']
+    for _display, attribute, _on, _off in SET_TOGGLE_GROUPS:
+        attrs.append(attribute)
+    for _display, attribute, _names, _min in SET_INT_OPTIONS:
+        attrs.append(attribute)
+    for _display, attribute, _names in SET_LIST_OPTIONS:
+        attrs.append(attribute)
+    return tuple(attrs)
+
+
 _TOGGLE_PREVIEWS, _TOGGLE_ON_ATTRS, _INT_VALUE_PREVIEWS, _LIST_VALUE_PREVIEWS = (
     _build_preview_maps()
 )
+_SAVED_EDITOR_ATTRS = _build_saved_editor_attrs()
 
 
 class CommandPreviewer:
@@ -52,33 +65,13 @@ class CommandPreviewer:
         """
         e = self.editor
 
-        self._style = e.current_style
-        self._show_line_numbers = e.show_line_numbers
-        self._highlight_search = e.highlight_search
-        self._hlsearch_suppressed = getattr(e, '_hlsearch_suppressed', False)
-        self._show_ruler = e.show_ruler
-        self._relative_number = e.relative_number
-        self._cursorcolumn = e.cursorcolumn
-        self._cursorline = e.cursorline
-        self._colorcolumn = e.colorcolumn
-        self._tabstop = e.tabstop
-        self._shiftwidth = e.shiftwidth
-        self._scroll_offset = e.scroll_offset
-        # The full `:set` catalog is previewable, so the whole state must be
-        # restorable — a preview abort (Esc) used to leak inverted values for
-        # every option outside the list below (docs/bugs/091.md).
-        self._paste_mode = e.paste_mode
-        self._show_wildmenu = e.show_wildmenu
-        self._expand_tab = e.expand_tab
-        self._incsearch = e.incsearch
-        self._ignore_case = e.ignore_case
-        self._smartcase = e.smartcase
-        self._autoindent = e.autoindent
-        self._display_unprintable_characters = e.display_unprintable_characters
-        self._enable_jedi = e.enable_jedi
-        self._wrap_lines = e.wrap_lines
-        self._break_indent = e.break_indent
-        self._enable_mouse_support = e.enable_mouse_support
+        # The full `:set` catalog is previewable, so every catalog attribute
+        # (derived directly from the shared catalog tables) is snapshotted and
+        # restored on abort (docs/bugs/091.md).
+        self._saved_attrs = {
+            attr: getattr(e, attr, False) if attr == '_hlsearch_suppressed' else getattr(e, attr)
+            for attr in _SAVED_EDITOR_ATTRS
+        }
         # Buffer-local `:set filetype`, `tabstop`, and `shiftwidth` preview state
         # (lives on the active EditorBuffer, not on the Editor).
         self._filetype_buffer = None
@@ -101,30 +94,8 @@ class CommandPreviewer:
         """
         e = self.editor
 
-        e.current_style = self._style
-        e.show_line_numbers = self._show_line_numbers
-        e.highlight_search = self._highlight_search
-        e._hlsearch_suppressed = self._hlsearch_suppressed
-        e.show_ruler = self._show_ruler
-        e.relative_number = self._relative_number
-        e.cursorcolumn = self._cursorcolumn
-        e.cursorline = self._cursorline
-        e.colorcolumn = self._colorcolumn
-        e.tabstop = self._tabstop
-        e.shiftwidth = self._shiftwidth
-        e.scroll_offset = self._scroll_offset
-        e.paste_mode = self._paste_mode
-        e.show_wildmenu = self._show_wildmenu
-        e.expand_tab = self._expand_tab
-        e.incsearch = self._incsearch
-        e.ignore_case = self._ignore_case
-        e.smartcase = self._smartcase
-        e.autoindent = self._autoindent
-        e.display_unprintable_characters = self._display_unprintable_characters
-        e.enable_jedi = self._enable_jedi
-        e.wrap_lines = self._wrap_lines
-        e.break_indent = self._break_indent
-        e.enable_mouse_support = self._enable_mouse_support
+        for attr, value in self._saved_attrs.items():
+            setattr(e, attr, value)
         eb = getattr(self, '_filetype_buffer', None)
         if eb is not None:
             try:
@@ -176,21 +147,16 @@ class CommandPreviewer:
         if set_option == 'all' or set_option.endswith('?'):
             return
 
+        invert_target = None
         if set_option.endswith('!'):
-            if set_value is not None:
-                return
-            attr = _TOGGLE_ON_ATTRS.get(set_option[:-1])
-            if attr is not None:
-                new_val = not bool(getattr(e, attr))
-                setattr(e, attr, new_val)
-                if attr == 'highlight_search' and new_val:
-                    e._hlsearch_suppressed = False
-            return
+            invert_target = set_option[:-1]
+        elif set_option.startswith('inv') and set_option not in _TOGGLE_PREVIEWS:
+            invert_target = set_option[3:]
 
-        if set_option.startswith('inv') and set_option not in _TOGGLE_PREVIEWS:
+        if invert_target is not None:
             if set_value is not None:
                 return
-            attr = _TOGGLE_ON_ATTRS.get(set_option[3:])
+            attr = _TOGGLE_ON_ATTRS.get(invert_target)
             if attr is not None:
                 new_val = not bool(getattr(e, attr))
                 setattr(e, attr, new_val)
