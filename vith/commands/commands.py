@@ -2988,7 +2988,9 @@ def _retab_line(line: str, old_ts: int, new_ts: int, expand_tab: bool, force: bo
                     out.append(_encode_retab_ws(start_col, col, new_ts, True))
                 else:
                     out.append(run)
-            elif start_col == 0 or has_tab or (force and len(run) >= 2):
+            elif has_tab or (force and len(run) >= 2):
+                # Vim `:retab` only rewrites whitespace runs containing a tab;
+                # `:retab!` also converts space-only runs (docs/bugs/144.md).
                 out.append(_encode_retab_ws(start_col, col, new_ts, False))
             else:
                 out.append(run)

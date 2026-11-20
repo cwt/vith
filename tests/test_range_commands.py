@@ -316,9 +316,15 @@ def test_retab_command_expand_and_unexpand_with_tabstop(editor):
     handle_command(editor, ':u')
     assert eb.buffer.document.lines == ['\thello', '  \tworld', '\tkeep']
 
-    # With expandtab=False, `:retab` converts leading indent only; `:retab!` converts interior runs too.
+    # With expandtab=False, plain `:retab` only rewrites runs containing a
+    # tab; a space-only indent is left alone (docs/bugs/144.md).
     editor.expand_tab = False
     eb.buffer.text = '    a   b'
+    handle_command(editor, ':retab')
+    assert eb.buffer.text == '    a   b'
+
+    # A leading run with a tab is still re-encoded without `!`.
+    eb.buffer.text = '  \ta   b'
     handle_command(editor, ':retab')
     assert eb.buffer.text == '\ta   b'
 
