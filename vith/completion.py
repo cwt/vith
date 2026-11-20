@@ -55,7 +55,7 @@ class DocumentWordsCompleter(Completer):
         self._cached_key = None
         self._other_words_sorted = []
 
-    def get_completions(self, document, complete_event):
+    def get_completions(self, document, complete_event, version=None):
         word_before_cursor = document.get_word_before_cursor()
         if not word_before_cursor:
             return
@@ -69,7 +69,13 @@ class DocumentWordsCompleter(Completer):
         # line_start, so the non-cursor word cache keeps hitting across keystrokes
         # without slicing + hashing the whole document per Tab
         # (docs/bugs/072.md, docs/bugs/109.md).
-        key = (len(doc_lines), row, line_start, len(document.text) - len(doc_lines[row]))
+        key = (
+            len(doc_lines),
+            row,
+            line_start,
+            len(document.text) - len(doc_lines[row]),
+            version,
+        )
 
         # Cache the words from all *other* lines; only recompute them when
         # the surrounding text (or the cursor line) changed.
@@ -131,7 +137,12 @@ class DocumentCompleter(Completer):
         else:
             completer = self._words_completer
 
-        # Call completer.
+        # Call completer. Pass the buffer text version so non-cursor word
+        # caches invalidate after edits on other lines (docs/bugs/149.md).
+        if completer is self._words_completer:
+            return completer.get_completions(
+                document, complete_event, getattr(editor_buffer, '_text_version', None)
+            )
         return completer.get_completions(document, complete_event)
 
 

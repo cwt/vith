@@ -1349,10 +1349,11 @@ def _format_register_type(selection_type: Any) -> str:
 
 
 def _format_register_preview(text: str, max_len: int = 200) -> str:
-    preview = text.replace('\r', '^M').replace('\n', '^J').replace('\t', '^I')
-    if len(preview) > max_len:
-        return preview[: max_len - 3] + '...'
-    return preview
+    # Truncate before escaping so a multi-megabyte yank is not copied three
+    # times just to display 200 characters (docs/bugs/149.md).
+    if len(text) > max_len:
+        text = text[: max_len - 3] + '...'
+    return text.replace('\r', '^M').replace('\n', '^J').replace('\t', '^I')
 
 
 def _register_sort_key(name: str) -> tuple[int, str]:
@@ -1387,6 +1388,14 @@ def registers_lines(editor: Any) -> list[str]:
         if data is not None and data.text:
             rtype = _format_register_type(getattr(data, 'type', SelectionType.CHARACTERS))
             rows.append(f'  {rtype}  "{name}   {_format_register_preview(data.text)}')
+
+    # Registers written by `:d {x}` / `:y {x}` (docs/bugs/147.md).
+    for name in sorted(getattr(editor, 'registers', {}), key=_register_sort_key):
+        text = editor.registers[name]
+        if text:
+            rows.append(
+                f'  {_format_register_type(SelectionType.LINES)}  "{name}   {_format_register_preview(text)}'
+            )
 
     if not rows:
         return []
@@ -3209,20 +3218,33 @@ def _global_execute_move_or_copy(
     visual_marks = getattr(eb, 'visual_marks', None)
     tagged: list[tuple[int | None, str]] = [(idx, text) for idx, text in enumerate(lines)]
     last_row = marked_rows[0]
+    # Track each original row's current position instead of re-scanning the
+    # growing list for every marked line (docs/bugs/149.md).
+    positions = {row: row for row in marked_rows}
 
     for line_id in marked_rows:
-        cur_pos = next(pos for pos, (tid, _) in enumerate(tagged) if tid == line_id)
+        cur_pos = positions[line_id]
         dest, err = resolve_insert_address(dest_addr, cur_pos, len(tagged), visual_marks)
         if err is not None or dest is None:
             editor.show_message(err)
             return
         if is_move:
             item = tagged.pop(cur_pos)
+            for other, pos in positions.items():
+                if other != line_id and pos > cur_pos:
+                    positions[other] = pos - 1
             insert_at = dest if dest <= cur_pos else dest - 1
             tagged.insert(insert_at, item)
+            for other, pos in positions.items():
+                if pos >= insert_at:
+                    positions[other] = pos + 1
+            positions[line_id] = insert_at
             last_row = insert_at
         else:
             tagged.insert(dest, (None, tagged[cur_pos][1]))
+            for other, pos in positions.items():
+                if pos >= dest:
+                    positions[other] = pos + 1
             last_row = dest
 
     result_lines = [text for _, text in tagged]

@@ -46,6 +46,7 @@ class DocumentLexer(Lexer):
         self.editor_buffer = editor_buffer
         self._cached_location: str | None = None
         self._cached_filetype: str | None = None
+        self._cached_text_version: int = -1
         self._pygments_lexer: Any = None
         self._syntax_sync: Any = None
         self._directory_lexer: Any = None
@@ -112,10 +113,14 @@ class DocumentLexer(Lexer):
     def _ensure_lexer(self, location: str | None) -> bool:
         """Load/cache the Pygments lexer for this location."""
         override = getattr(self.editor_buffer, 'filetype_override', None)
+        text_version = getattr(getattr(self.editor_buffer, 'buffer', None), '_text_version', 0)
+        miss_is_fresh = self._pygments_lexer is not None or (
+            _STREAMING_AVAILABLE and self._cached_text_version == text_version
+        )
         if (
             self._cached_location == location
             and self._cached_filetype == override
-            and (_STREAMING_AVAILABLE or self._pygments_lexer is not None)
+            and miss_is_fresh
         ):
             # Already looked up: reuse the result (including a cached miss,
             # so we don't re-scan the Pygments registry on every edit).
@@ -133,11 +138,13 @@ class DocumentLexer(Lexer):
                 else:
                     self._cached_location = location
                     self._cached_filetype = override
+                    self._cached_text_version = text_version
                     self._pygments_lexer = lexer_inst
                     self._syntax_sync = RegexSync.from_pygments_lexer_cls(lexer_inst.__class__)
                     return True
                 self._cached_location = location
                 self._cached_filetype = override
+                self._cached_text_version = text_version
                 return self._pygments_lexer is not None
             # Invalid override: fall through to filename detection instead
             # of crashing (the `:set` handler rejects these, so this only
@@ -155,6 +162,7 @@ class DocumentLexer(Lexer):
                     self._pygments_lexer = PygmentsLexer(sniffed.__class__, sync_from_start=False)
             self._cached_location = location
             self._cached_filetype = override
+            self._cached_text_version = text_version
             self._syntax_sync = None
             return self._pygments_lexer is not None
 
@@ -174,12 +182,14 @@ class DocumentLexer(Lexer):
             if lexer_inst is None:
                 self._cached_location = location
                 self._cached_filetype = override
+                self._cached_text_version = text_version
                 self._pygments_lexer = None
                 self._syntax_sync = None
                 return False
 
         self._cached_location = location
         self._cached_filetype = override
+        self._cached_text_version = text_version
         self._pygments_lexer = lexer_inst
         self._syntax_sync = RegexSync.from_pygments_lexer_cls(lexer_inst.__class__)
         return True
