@@ -347,6 +347,18 @@ def test_retab_command_expand_and_unexpand_with_tabstop(editor):
     assert eb.tabstop == 2
 
 
+def test_global_command_redos_guard_catches_exotic_patterns(editor):
+    # 142: `:g` shares the hardened ReDoS guard.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'a\nb'
+    for command in (':g/(a|aa)+$/d', ':g/(a{1,3})+$/d'):
+        editor.message = None
+        handle_command(editor, command)
+        assert 'Unsafe pattern' in editor.message, command
+        assert eb.buffer.text == 'a\nb'
+
+
 def test_global_substitute_publishes_last_search_and_replacement(editor):
     # 135: `:g/pat/s/search/replace/` must leave the *substitute* pattern and
     # replacement in the shared state, not the enclosing global pattern.

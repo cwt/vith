@@ -541,6 +541,22 @@ def test_global_substitute_vim_replacement_semantics(editor):
     assert eb.buffer.document.lines == ['fooX bar', 'keep']
 
 
+def test_redos_guard_catches_overlap_and_counted_repeats(editor, editor_buffer):
+    # 142: the guard also rejects `(a|aa)+$` and `(a{1,3})+$` while leaving
+    # disjoint alternations such as `(a|b)+$` usable.
+    given_sample_text(editor_buffer, 'aaa!')
+    for pattern in ('(a|aa)+$', '(a{1,3})+$'):
+        editor.message = None
+        handle_command(editor, ':s/%s/X/' % pattern)
+        assert 'Unsafe pattern' in editor.message, pattern
+        assert editor_buffer.buffer.text == 'aaa!'
+
+    editor.message = None
+    handle_command(editor, ':s/(a|b)+/X/')
+    assert editor.message is None
+    assert editor_buffer.buffer.text == 'X!'
+
+
 def test_substitute_rejects_unsupported_escape(editor, editor_buffer):
     given_sample_text(editor_buffer, 'foo bar')
     editor.message = None

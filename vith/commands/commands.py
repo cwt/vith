@@ -49,6 +49,43 @@ _NO_FILE_NAME = 'No file name'
 # `([a-z]+)*$` or `(\w+\s?)+`. Escaped characters and `[...]` classes are
 # stripped first, so `[a+]+` and `\(a+\)+` stay allowed.
 _UNSAFE_NESTED_QUANTIFIER = re.compile(r'\([^()]*[+*?][^()]*\)[+*]')
+_UNSAFE_QUANTIFIED_GROUP = re.compile(r'\(([^()]*)\)([+*])')
+_UNSAFE_COUNTED_REPEAT = re.compile(r'\{\d+(?:,\d*)?\}')
+_MAX_SUBSTITUTE_PATTERN_LENGTH = 2000
+_MAX_SUBSTITUTE_LINE_LENGTH = 2_000_000
+
+
+def _has_overlapping_alternatives(body: str) -> bool:
+    """Whether a group body has alternatives where one prefixes another."""
+    alternatives = [part for part in body.split('|') if part]
+    for index, first in enumerate(alternatives):
+        for second in alternatives[index + 1 :]:
+            if first.startswith(second) or second.startswith(first):
+                return True
+    return False
+
+
+def _unsafe_regex(editor: Any, pattern_text: str) -> bool:
+    """
+    Conservative catastrophic-backtracking guard shared by `:s` and `:g`
+    (docs/bugs/123.md, 142.md). Overlapping alternations (`(a|aa)+$`) and
+    counted repeats inside a quantified group (`(a{1,3})+$`) are rejected in
+    addition to the original nested-quantifier rule. Disjoint alternations
+    such as `(a|b)+$` remain allowed.
+    """
+    if len(pattern_text) > _MAX_SUBSTITUTE_PATTERN_LENGTH:
+        editor.show_message('Unsafe pattern (nested quantifier): too long')
+        return True
+    stripped = _strip_regex_literals(pattern_text)
+    if _UNSAFE_NESTED_QUANTIFIER.search(stripped):
+        editor.show_message('Unsafe pattern (nested quantifier): %s' % pattern_text)
+        return True
+    for match in _UNSAFE_QUANTIFIED_GROUP.finditer(stripped):
+        body = match.group(1)
+        if _has_overlapping_alternatives(body) or _UNSAFE_COUNTED_REPEAT.search(body):
+            editor.show_message('Unsafe pattern (nested quantifier): %s' % pattern_text)
+            return True
+    return False
 
 
 def _strip_regex_literals(pattern_text):
@@ -2445,8 +2482,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     # Reject patterns prone to catastrophic backtracking before compiling:
     # nested quantifiers freeze the whole editor on innocent input
     # (docs/bugs/123.md). Escaped and class-wrapped quantifiers are exempt.
-    if _UNSAFE_NESTED_QUANTIFIER.search(_strip_regex_literals(search)):
-        editor.show_message('Unsafe pattern (nested quantifier): %s' % search)
+    if _unsafe_regex(editor, search):
         return
 
     # Parse and validate flags (docs/bugs/083.md, docs/bugs/094.md).
@@ -3054,8 +3090,7 @@ def _global_execute_substitute(
         return
     if replace is None:
         replace = editor.last_substitute_text
-    if _UNSAFE_NESTED_QUANTIFIER.search(_strip_regex_literals(search)):
-        editor.show_message('Unsafe pattern (nested quantifier): %s' % search)
+    if _unsafe_regex(editor, search):
         return
 
     options, flag_err = _parse_substitute_flags(
@@ -3187,8 +3222,7 @@ def global_command(editor: Any, variables: Any) -> None:
         editor.show_message('No previous regular expression')
         return
 
-    if _UNSAFE_NESTED_QUANTIFIER.search(_strip_regex_literals(pattern_text)):
-        editor.show_message('Unsafe pattern (nested quantifier): %s' % pattern_text)
+    if _unsafe_regex(editor, pattern_text):
         return
 
     regex_flags = re.IGNORECASE if _should_ignore_case(editor, pattern_text) else 0
