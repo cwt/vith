@@ -148,7 +148,7 @@ def test_format_cold_text_stats():
 
     lines = format_cold_text_stats(stats)
     assert lines[0] == 'Cold-text compression: zstd level 1'
-    assert 'ratio 20.0% of raw' in lines[1]
+    assert 'size 20.0% of raw' in lines[1]
     assert 'n/a' in lines[2]
     assert 'total:' in lines[3]
 

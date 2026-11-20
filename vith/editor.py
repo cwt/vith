@@ -205,7 +205,7 @@ class Editor:
         self.colorcolumn = []  # ':set colorcolumn'. List of integers.
         self.fileformat = 'unix'  # ':set fileformat' (dos/unix/mac).
         # Simple line-register storage for `:d {x}` / `:y {x}` / `:pu {x}`.
-        self.registers: dict[str, str] = {}
+        self.registers = {}
 
         # Snapshot factory defaults for bare `:set` (changed-from-default display).
         self._default_options = {

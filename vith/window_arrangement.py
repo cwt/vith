@@ -515,8 +515,8 @@ class WindowArrangement:
 
     def resolve_buffer(self, buffer_name):
         """
-        Resolve a buffer selector (`#`, exact location, unique substring, or
-        1-based buffer number) to an `EditorBuffer`. Reports Vim errors
+        Resolve a buffer selector (`#`, exact location, 1-based buffer number,
+        or unique substring) to an `EditorBuffer`. Reports Vim errors
         (`E23`, `E93`, `E94`) and returns `None` when unresolved.
         """
         assert isinstance(buffer_name, str)

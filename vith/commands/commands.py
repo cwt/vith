@@ -1944,7 +1944,7 @@ def set_options_lines(editor: Any, show_all: bool = False) -> list[str]:
             entries.append(_format_toggle_value(display, cur))
 
     tilde_cur = bool(editor.application.vi_state.tilde_operator)
-    if show_all or tilde_cur is not False:
+    if show_all or tilde_cur:
         entries.append(_format_toggle_value('tildeop', tilde_cur))
 
     ro_cur = _is_buffer_read_only(eb.buffer) if eb is not None else False
