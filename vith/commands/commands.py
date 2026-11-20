@@ -769,16 +769,48 @@ def quit_all(editor, force=False):
     quit(editor, all_=True, force=force)
 
 
+def _normalized_write_target(location: str | None) -> str | None:
+    """Normalize a write path for same-file comparison (tilde/symlink safe)."""
+    if not location:
+        return None
+    return os.path.realpath(os.path.abspath(os.path.expanduser(location)))
+
+
+def _is_same_write_target(eb: Any, location: str | None) -> bool:
+    """Whether `location` names the buffer's own file."""
+    target = _normalized_write_target(location)
+    current = _normalized_write_target(eb.location)
+    return target is not None and current is not None and target == current
+
+
+def _reject_existing_write_target(editor: Any, eb: Any, location: str | None, force: bool) -> bool:
+    """
+    Shared overwrite guard for explicit write targets (docs/bugs/130.md).
+
+    Returns True (after showing the standard message) when a write to an
+    existing *foreign* file must be blocked. The active buffer's own file is
+    exempt, matching Vim's `:w %`, `:wq %`, `:up %`, `:x %` and
+    `:sav <current>` without `!`.
+    """
+    if not location or force:
+        return False
+    if _is_same_write_target(eb, location):
+        return False
+    if os.path.exists(os.path.expanduser(location)):
+        editor.show_message('File exists (add ! to override)')
+        return True
+    return False
+
+
 def write(editor, location, force=False):
     """
     Write file. Returns whether the buffer was written.
     """
-    if location and not force and os.path.exists(os.path.expanduser(location)):
-        editor.show_message('File exists (add ! to override)')
-        return False
     eb = editor.window_arrangement.active_editor_buffer
     if eb is None or (location is None and eb.location is None):
         editor.show_message(_NO_FILE_NAME)
+        return False
+    if _reject_existing_write_target(editor, eb, location, force):
         return False
     return eb.write(location, force=force)
 
@@ -911,13 +943,11 @@ def write_command(editor: Any, variables: Any) -> None:
         if not target:
             editor.show_message(_NO_FILE_NAME)
             return
-        if not force:
-            if location is None:
-                editor.show_message('Use ! to write partial buffer')
-                return
-            if os.path.exists(os.path.expanduser(target)):
-                editor.show_message('File exists (add ! to override)')
-                return
+        if not force and location is None:
+            editor.show_message('Use ! to write partial buffer')
+            return
+        if _reject_existing_write_target(editor, eb, location, force):
+            return
         payload = '\n'.join(lines[start_row : end_row + 1]) + '\n'
         _write_payload_to_location(editor, eb, target, payload)
         return
@@ -1000,12 +1030,11 @@ def save_as(editor, location, force=False):
     if not location:
         editor.show_message('E471: Argument required')
         return False
-    if not force and os.path.exists(os.path.expanduser(location)):
-        editor.show_message('File exists (add ! to override)')
-        return False
     eb = editor.window_arrangement.active_editor_buffer
     if eb is None:
         editor.show_message(_NO_FILE_NAME)
+        return False
+    if _reject_existing_write_target(editor, eb, location, force):
         return False
     return eb.write(location, force=force, rename=True)
 

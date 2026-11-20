@@ -6,6 +6,7 @@ docs/bugs/007.md): failed writes must be reported without quitting.
 from __future__ import annotations
 
 from vith.commands.handler import handle_command
+from vith.window_arrangement import EditorBuffer
 
 
 def _editor_with_text(editor, editor_buffer, text):
@@ -226,3 +227,66 @@ def test_edit_clean_buffer_succeeds(editor, editor_buffer, tmp_path):
 
     handle_command(editor, ':e %s' % target)
     assert editor.window_arrangement.active_editor_buffer.location == str(target)
+
+
+def _named_dirty_buffer(editor, tmp_path, name='current.txt'):
+    """A named buffer whose on-disk file exists and whose text was modified."""
+    path = tmp_path / name
+    path.write_text('old\n')
+    eb = EditorBuffer(editor)
+    eb.location = str(path)
+    eb._file_content = 'old'
+    eb.buffer.text = 'new'
+    editor.window_arrangement._add_editor_buffer(eb, show_in_current_window=True)
+    editor.sync_with_prompt_toolkit()
+    editor.message = None
+    assert eb.has_unsaved_changes
+    return eb, path
+
+
+def test_w_current_file_by_name_succeeds(editor, editor_buffer, tmp_path):
+    # 130: :w <current-path> must not be blocked by the overwrite guard.
+    eb, path = _named_dirty_buffer(editor, tmp_path)
+    handle_command(editor, ':w %s' % path)
+    assert editor.message is None
+    assert path.read_text() == 'new\n'
+    assert not eb.has_unsaved_changes
+
+
+def test_w_percent_succeeds(editor, editor_buffer, tmp_path):
+    # 130: Vim's `:w %` writes the current file without `!`.
+    _, path = _named_dirty_buffer(editor, tmp_path)
+    handle_command(editor, ':w %')
+    assert editor.message is None
+    assert path.read_text() == 'new\n'
+
+
+def test_write_forms_on_current_file_succeed(editor, editor_buffer, tmp_path, monkeypatch):
+    # 130: :wq % / :up % / :x % / :sav <current> all use the same exemption.
+    exits = []
+    monkeypatch.setattr(editor.application, 'exit', lambda *a, **kw: exits.append(1))
+
+    for command in (':wq %', ':up %', ':x %'):
+        _, path = _named_dirty_buffer(editor, tmp_path, name=command[2:4] + '.txt')
+        handle_command(editor, command)
+        assert editor.message is None, command
+        assert path.read_text() == 'new\n', command
+        editor.message = None
+
+    assert len(exits) == 2  # :wq and :x quit; :up only writes
+
+    eb, path = _named_dirty_buffer(editor, tmp_path, name='saveas.txt')
+    handle_command(editor, ':sav %s' % path)
+    assert editor.message is None
+    assert path.read_text() == 'new\n'
+    assert eb.location == str(path)
+
+
+def test_w_foreign_existing_file_still_blocked(editor, editor_buffer, tmp_path):
+    # 130: the exemption is limited to the buffer's own file.
+    _named_dirty_buffer(editor, tmp_path)
+    other = tmp_path / 'other.txt'
+    other.write_text('occupado')
+    handle_command(editor, ':w %s' % other)
+    assert editor.message == 'File exists (add ! to override)'
+    assert other.read_text() == 'occupado'
