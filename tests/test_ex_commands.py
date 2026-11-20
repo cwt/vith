@@ -170,6 +170,102 @@ def test_close_empty_arrangement_is_safe(editor):
     handle_command(editor, ':close!')
 
 
+def test_wq_closes_only_current_window(editor, tmp_path, monkeypatch):
+    # 131: `:wq` must close the current window, not exit the application and
+    # discard other windows' unsaved changes.
+    exits = _record_exits(editor, monkeypatch)
+    a = tmp_path / 'a.txt'
+    b = tmp_path / 'b.txt'
+    a.write_text('A0\n')
+    b.write_text('B0\n')
+    editor.load_initial_files([str(a)])
+    wa = editor.window_arrangement
+    eb_a = wa.active_editor_buffer
+    eb_a.buffer.text = 'A-dirty'
+    eb_b = EditorBuffer(editor, str(b))
+    eb_b.buffer.text = 'B-dirty'
+    wa._add_editor_buffer(eb_b)
+    wa.active_tab.hsplit(eb_b)
+    wa.active_tab.active_window = wa.active_tab.windows()[0]
+    assert wa.active_editor_buffer is eb_a
+
+    handle_command(editor, ':wq')
+
+    assert a.read_text() == 'A-dirty\n'
+    assert not eb_a.has_unsaved_changes
+    assert exits == []
+    assert wa.active_tab.window_count() == 1
+    assert eb_b.has_unsaved_changes
+
+
+def test_q_allows_dirty_buffer_visible_in_two_windows(editor, tmp_path, monkeypatch):
+    # 131: `:q` uses :close's visible-count rule — a dirty buffer that stays
+    # visible in another window must not block the close.
+    exits = _record_exits(editor, monkeypatch)
+    target = tmp_path / 'shared.txt'
+    target.write_text('x\n')
+    editor.load_initial_files([str(target)])
+    wa = editor.window_arrangement
+    eb = wa.active_editor_buffer
+    eb.buffer.text = 'dirty'
+
+    handle_command(editor, ':sp')
+    assert wa.active_tab.window_count() == 2
+    handle_command(editor, ':q')
+    assert exits == []
+    assert wa.active_tab.window_count() == 1
+    assert editor.message is None
+
+    # On the last window the same dirty buffer blocks `:q`.
+    editor.message = None
+    handle_command(editor, ':q')
+    assert exits == []
+    assert editor.message == 'No write since last change (add ! to override)'
+    assert wa.active_tab.window_count() == 1
+
+
+def test_zz_maps_to_x(editor, tmp_path, monkeypatch):
+    # 131: `ZZ` is Vim's `:x` — it does not rewrite a clean file and it quits
+    # a clean unnamed buffer.
+    from unittest.mock import MagicMock
+
+    from vith.key_bindings import create_key_bindings
+
+    exits = _record_exits(editor, monkeypatch)
+    binding = [b for b in create_key_bindings(editor).bindings if b.keys == ('Z', 'Z')][0]
+
+    target = tmp_path / 'clean.txt'
+    target.write_text('clean\n')
+    editor.load_initial_files([str(target)])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb._file_content = 'clean'
+    eb._has_unsaved_changes = False
+    writes = []
+    original_write = eb.write
+
+    def counting_write(*args, **kwargs):
+        writes.append(1)
+        return original_write(*args, **kwargs)
+
+    monkeypatch.setattr(eb, 'write', counting_write)
+    binding.handler(MagicMock())
+    assert writes == []
+    assert exits == [1]
+
+    # Clean unnamed buffer: `:x` succeeds (no "No file name") and quits.
+    exits.clear()
+    editor.message = None
+    editor.load_initial_files([])
+    wa = editor.window_arrangement
+    eb2 = EditorBuffer(editor, text='something')
+    wa._add_editor_buffer(eb2, show_in_current_window=True)
+    eb2._file_content = 'something'
+    eb2._has_unsaved_changes = False
+    binding.handler(MagicMock())
+    assert exits == [1]
+    assert editor.message is None
+
+
 def test_wqall_writes_all_dirty_buffers_and_exits(editor, tmp_path, monkeypatch):
     f1 = tmp_path / 'one.txt'
     f2 = tmp_path / 'two.txt'

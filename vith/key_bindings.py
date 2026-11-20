@@ -428,11 +428,12 @@ def create_key_bindings(editor):
     @kb.add('Z', 'Z', filter=in_navigation_mode)
     def write_and_quit_current(event):
         """
-        Write the active buffer and quit (`ZZ`, Vim parity).
+        Write the active buffer if modified and quit (`ZZ` is Vim's `:x`,
+        docs/bugs/131.md).
         """
-        from .commands.commands import write_and_quit
+        from .commands.commands import write_if_modified_and_quit
 
-        write_and_quit(editor, None)
+        write_if_modified_and_quit(editor, None)
         editor.sync_with_prompt_toolkit()
 
     @kb.add('Z', 'Q', filter=in_navigation_mode)

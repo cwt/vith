@@ -271,8 +271,9 @@ def test_zq_quits_without_saving(editor, tmp_path, monkeypatch):
     assert exits == [1]
 
 
-def test_zz_without_filename_does_not_quit(editor, monkeypatch):
-    # 116: `ZZ` on an untitled buffer reports the missing name and stays.
+def test_zz_without_filename_quits_when_clean(editor, monkeypatch):
+    # 116/131: `ZZ` is Vim's `:x`; a clean untitled buffer needs no file name
+    # and quits. A dirty untitled buffer still reports "No file name".
     from unittest.mock import MagicMock
 
     from vith.key_bindings import create_key_bindings
@@ -284,6 +285,14 @@ def test_zz_without_filename_does_not_quit(editor, monkeypatch):
     binding = [b for b in kb.bindings if b.keys == ("Z", "Z")][0]
     binding.handler(MagicMock())
 
+    assert exits == [1]
+    assert editor.message is None
+
+    # Dirty untitled buffer cannot be written, so `:x` aborts.
+    exits.clear()
+    editor.message = None
+    editor.window_arrangement.active_editor_buffer.buffer.text = "unsaved"
+    binding.handler(MagicMock())
     assert exits == []
     assert editor.message == "No file name"
 

@@ -727,6 +727,57 @@ def buffer_edit(editor, location, force=False):
         editor.window_arrangement.open_buffer(location, show_in_current_window=True)
 
 
+def _buffer_visible_count(window_arrangement: Any, editor_buffer: Any) -> int:
+    """Number of windows currently showing `editor_buffer` (across all tabs)."""
+    return sum(
+        1
+        for tab in window_arrangement.tab_pages
+        for win in tab.windows()
+        if win.editor_buffer is editor_buffer
+    )
+
+
+def _exit_if_no_unsaved_changes(editor: Any, force: bool) -> bool:
+    """Exit the application unless an unsaved buffer blocks it (`:qa` rule)."""
+    window_arrangement = editor.window_arrangement
+    if not force and any(eb.has_unsaved_changes for eb in window_arrangement.editor_buffers):
+        editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
+        return False
+    editor.application.exit()
+    return True
+
+
+def close_or_exit(editor: Any, force: bool = False) -> bool:
+    """
+    Shared quit-family helper: close the current window, exiting only when it
+    is the last one (docs/bugs/131.md).
+
+    A dirty buffer blocks the close only when this is its last visible window —
+    the same rule as `:close` (docs/bugs/067.md, 095.md). Hidden buffers or
+    dirty buffers in other windows never block a single-window close.
+    """
+    wa = editor.window_arrangement
+    active_tab = wa.active_tab
+    has_multiple_windows = len(wa.tab_pages) > 1 or (
+        active_tab is not None and active_tab.window_count() > 1
+    )
+
+    if has_multiple_windows:
+        active_eb = wa.active_editor_buffer
+        if (
+            not force
+            and active_eb is not None
+            and active_eb.has_unsaved_changes
+            and _buffer_visible_count(wa, active_eb) <= 1
+        ):
+            editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
+            return False
+        wa.close_window()
+        return True
+
+    return _exit_if_no_unsaved_changes(editor, force)
+
+
 @cmd('q', accepts_force=True)
 @cmd('quit', accepts_force=True)
 def quit(editor, all_=False, force=False):
@@ -734,30 +785,9 @@ def quit(editor, all_=False, force=False):
     Quit. With several windows/tabs open this closes the current window (Vim
     semantics); the editor exits only on the last window.
     """
-    window_arrangement = editor.window_arrangement
-    ebs = window_arrangement.editor_buffers
-    active_tab = window_arrangement.active_tab
-    has_multiple_windows = len(window_arrangement.tab_pages) > 1 or (
-        active_tab is not None and active_tab.window_count() > 1
-    )
-
-    # ":q" closes the current window (or the whole tab when it has a single
-    # window); hidden buffers or dirty buffers in other windows do not block it
-    # (docs/bugs/067.md, docs/bugs/095.md).
-    if not all_ and has_multiple_windows:
-        active_eb = window_arrangement.active_editor_buffer
-        if not force and active_eb is not None and active_eb.has_unsaved_changes:
-            editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
-            return
-        window_arrangement.close_window()
-        return
-
-    # When closing the last window or quitting all (:qa), any unsaved buffer blocks exit.
-    if not force and any(eb.has_unsaved_changes for eb in ebs):
-        editor.show_message(_NO_WRITE_SINCE_LAST_CHANGE_TEXT)
-        return
-
-    editor.application.exit()
+    if all_:
+        return _exit_if_no_unsaved_changes(editor, force)
+    return close_or_exit(editor, force)
 
 
 @cmd('qa', accepts_force=True)
@@ -1066,8 +1096,8 @@ def write_if_modified_and_quit(editor, location, force=False):
     and close the current window / exit (`:x` / `:xit` / `:exit`).
     """
     if not update(editor, location, force=force):
-        return
-    quit(editor, all_=False, force=force)
+        return False
+    return quit(editor, all_=False, force=force)
 
 
 @location_cmd('wq', accepts_force=True)
@@ -1076,7 +1106,8 @@ def write_and_quit(editor, location, force=False):
     Write file and quit. Does not quit when the write failed.
     """
     if write(editor, location, force=force):
-        editor.application.exit()
+        return quit(editor, all_=False, force=force)
+    return False
 
 
 @cmd('cq')
