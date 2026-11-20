@@ -342,10 +342,11 @@ def apply_toml_config(
             setattr(editor, attr_name, validated)
 
     # Apply colorscheme:
-    if 'colorscheme' in editor_table:
-        editor.use_colorscheme(str(editor_table['colorscheme']))
-    elif 'colo' in editor_table:
-        editor.use_colorscheme(str(editor_table['colo']))
+    scheme = editor_table.get('colorscheme', editor_table.get('colo'))
+    if scheme is not None:
+        if not editor.use_colorscheme(str(scheme), report=False):
+            _report_rc_error('E185: Cannot find color scheme %s' % scheme, error_handler)
+            all_ok = False
 
     # Apply colorcolumn (validated independently of the :set catalog):
     if 'colorcolumn' in editor_table or 'cc' in editor_table:

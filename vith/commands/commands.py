@@ -764,7 +764,12 @@ def file_info(editor, location):
         return
 
     if location is not None:
-        eb.location = location
+        # `:f {name}` renames the buffer; normalize metadata the same way
+        # writes do (docs/bugs/147.md).
+        normalized = os.path.abspath(os.path.expanduser(location))
+        eb.location = normalized
+        eb.is_new = not os.path.exists(normalized)
+        eb.isdir = os.path.isdir(normalized)
         eb._detected_filetype = None
         eb.run_reporter()
         note_document_text(eb.location)
@@ -967,19 +972,32 @@ def _file_payload(eb: Any, lines: list[str]) -> str:
 
 
 def _write_append_file(editor: Any, eb: Any, target: str, payload: str, force: bool) -> None:
-    """Append `payload` to `target` (`:[range]w[!] >> {file}`)."""
-    expanded = os.path.expanduser(target)
-    if not force and not os.path.exists(expanded):
+    """
+    Append `payload` to `target` through the editor's I/O backends
+    (`:[range]w[!] >> {file}`, docs/bugs/147.md).
+    """
+    io = next(
+        (backend for backend in editor.io_backends if backend.can_open_location(target)),
+        None,
+    )
+    if io is None:
+        editor.show_message('Unknown location: %r' % target)
+        return
+    exists = io.exists(target)
+    if exists is False and not force:
         editor.show_message('File does not exist (add ! to create)')
         return
     try:
+        old_text = ''
+        if exists:
+            old_text, _encoding = io.read(target)
+        io.write(target, old_text + payload, eb.encoding)
+    except UnicodeEncodeError:
         try:
-            with open(expanded, 'a', encoding=eb.encoding) as fh:
-                fh.write(payload)
-        except UnicodeEncodeError:
-            with open(expanded, 'a', encoding='utf-8') as fh:
-                fh.write(payload)
-    except OSError as exc:
+            io.write(target, old_text + payload, 'utf-8')
+        except Exception as exc:
+            editor.show_message('%s' % exc)
+    except Exception as exc:
         editor.show_message('%s' % exc)
 
 
@@ -1648,7 +1666,7 @@ def color_scheme(editor, variables):
     """
     colorscheme = variables.get('colorscheme')
     if colorscheme:
-        editor.use_colorscheme(colorscheme)
+        editor.use_colorscheme(colorscheme, report=True)
 
 
 def _set_int_option(editor, value, attribute, display_name, minimum, is_local=False) -> bool:
@@ -1762,6 +1780,22 @@ _TOGGLE_ON_MAP: dict[str, tuple[str, str]] = {}
 _TOGGLE_OFF_MAP: dict[str, tuple[str, str]] = {}
 _INT_OPTION_MAP: dict[str, tuple[str, str, int]] = {}
 _LIST_OPTION_MAP: dict[str, tuple[str, str]] = {}
+
+#: Options with real buffer-local semantics, accepted by `:setlocal`.
+_LOCAL_SET_OPTION_NAMES = frozenset(
+    (
+        'tabstop',
+        'ts',
+        'shiftwidth',
+        'sw',
+        'filetype',
+        'ft',
+        'fileencoding',
+        'fenc',
+        'fileformat',
+        'ff',
+    )
+)
 
 
 def _register_generated_set_options() -> None:
@@ -1965,6 +1999,11 @@ def _apply_set_token(
     queries: list[str],
 ) -> bool:
     """Apply a single `:set` / `:setlocal` token; returns `False` on error."""
+    if is_local and not opt.endswith('?') and opt not in _LOCAL_SET_OPTION_NAMES:
+        # Only genuinely buffer-local options may be set with `:setlocal`
+        # (docs/bugs/147.md); the rest would silently mutate global state.
+        editor.show_message('E%i: %s is not a buffer-local option' % (518, opt))
+        return False
     if opt == 'all':
         if value is not None:
             editor.show_message(f'E474: Invalid argument: {opt}={value}')
@@ -2582,11 +2621,27 @@ def _apply_optional_line_count(
     return (new_start, new_end), None
 
 
+def _register_name(variables: Any, editor: Any) -> str | None:
+    """
+    Resolve a Vim register name from an Ex command argument (docs/bugs/147.md).
+    Returns `''` for the unnamed register, a single-character name, or None
+    when the argument is invalid (after reporting E488).
+    """
+    raw = variables.get('cmd_arg')
+    if raw is None or str(raw).strip() == '':
+        return ''
+    name = str(raw).strip()
+    if len(name) == 1 and (name.isalnum() or name in ('"', '0')):
+        return name
+    editor.show_message(f'E488: Trailing characters: {raw}')
+    return None
+
+
 @_cmd('delete')
 @_cmd('d')
 def delete_lines(editor, variables):
     """
-    Delete addressed lines and place them on the clipboard (`:[range]d [count]`).
+    Delete addressed lines into a register (`:[range]d [reg]`).
     """
     if variables.get('force'):
         editor.show_message('No ! allowed')
@@ -2603,17 +2658,18 @@ def delete_lines(editor, variables):
         editor.show_message(err)
         return
 
-    lines = list(eb.buffer.document.lines)
-    bounds, count_err = _apply_optional_line_count(
-        bounds[0], bounds[1], variables.get('cmd_arg'), len(lines)
-    )
-    if count_err is not None or bounds is None:
-        editor.show_message(count_err)
+    register = _register_name(variables, editor)
+    if register is None:
         return
 
+    lines = list(eb.buffer.document.lines)
     start_row, end_row = bounds
     deleted = lines[start_row : end_row + 1]
-    editor.application.clipboard.set_data(ClipboardData('\n'.join(deleted), SelectionType.LINES))
+    deleted_text = '\n'.join(deleted)
+    if register:
+        editor.registers[register] = deleted_text
+    else:
+        editor.application.clipboard.set_data(ClipboardData(deleted_text, SelectionType.LINES))
 
     remaining = lines[:start_row] + lines[end_row + 1 :]
     if not remaining:
@@ -2630,7 +2686,7 @@ def delete_lines(editor, variables):
 @_cmd('y')
 def yank_lines(editor, variables):
     """
-    Copy addressed lines to the clipboard (`:[range]y [count]`).
+    Copy addressed lines into a register (`:[range]y [reg]`).
     """
     if variables.get('force'):
         editor.show_message('No ! allowed')
@@ -2644,17 +2700,18 @@ def yank_lines(editor, variables):
         editor.show_message(err)
         return
 
-    lines = eb.buffer.document.lines
-    bounds, count_err = _apply_optional_line_count(
-        bounds[0], bounds[1], variables.get('cmd_arg'), len(lines)
-    )
-    if count_err is not None or bounds is None:
-        editor.show_message(count_err)
+    register = _register_name(variables, editor)
+    if register is None:
         return
 
+    lines = eb.buffer.document.lines
     start_row, end_row = bounds
     yanked = lines[start_row : end_row + 1]
-    editor.application.clipboard.set_data(ClipboardData('\n'.join(yanked), SelectionType.LINES))
+    yanked_text = '\n'.join(yanked)
+    if register:
+        editor.registers[register] = yanked_text
+    else:
+        editor.application.clipboard.set_data(ClipboardData(yanked_text, SelectionType.LINES))
     line_word = 'line' if len(yanked) == 1 else 'lines'
     editor.show_message(f'{len(yanked)} {line_word} yanked')
 
@@ -2666,8 +2723,8 @@ def put_lines(editor, variables):
     Insert clipboard text after the addressed line, or before with `!`
     (`:[addr]pu[!]`).
     """
-    if variables.get('cmd_arg'):
-        editor.show_message(f"E488: Trailing characters: {variables['cmd_arg']}")
+    register = _register_name(variables, editor)
+    if register is None:
         return
     eb = editor.window_arrangement.active_editor_buffer
     if eb is None:
@@ -2695,12 +2752,19 @@ def put_lines(editor, variables):
     if variables.get('force'):
         insert_index = max(0, insert_index - 1)
 
-    clip_data = editor.application.clipboard.get_data()
-    if clip_data is None or clip_data.text == '':
-        editor.show_message('E353: Nothing in register "')
-        return
+    if register:
+        raw_text = editor.registers.get(register)
+        if raw_text is None:
+            editor.show_message('E353: Nothing in register %s' % register)
+            return
+    else:
+        clip_data = editor.application.clipboard.get_data()
+        if clip_data is None or clip_data.text == '':
+            editor.show_message('E353: Nothing in register "')
+            return
+        raw_text = clip_data.text
 
-    clip_text = clip_data.text.replace('\r\n', '\n')
+    clip_text = raw_text.replace('\r\n', '\n')
     if clip_text.endswith('\n'):
         clip_text = clip_text[:-1]
     segment = clip_text.split('\n')

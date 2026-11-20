@@ -11,6 +11,7 @@ Usage::
 from __future__ import annotations
 
 import os
+import re
 from collections import deque
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -203,6 +204,8 @@ class Editor:
         self.cursorcolumn = False  # ':set cursorcolumn'
         self.colorcolumn = []  # ':set colorcolumn'. List of integers.
         self.fileformat = 'unix'  # ':set fileformat' (dos/unix/mac).
+        # Simple line-register storage for `:d {x}` / `:y {x}` / `:pu {x}`.
+        self.registers: dict[str, str] = {}
 
         # Snapshot factory defaults for bare `:set` (changed-from-default display).
         self._default_options = {
@@ -501,18 +504,28 @@ class Editor:
         """
         if not self.ignore_case:
             return False
-        if self.smartcase and pattern and any(ch.isupper() for ch in pattern):
-            return False
+        if self.smartcase and pattern:
+            # Regex escapes/classes (`\S`, `[A-Z]`) are not literal uppercase
+            # characters and must not disable smartcase (docs/bugs/147.md).
+            literals = re.sub(r'\[[^\]]*\]|\\.', '', pattern)
+            if any(ch.isupper() for ch in literals):
+                return False
         return True
 
-    def use_colorscheme(self, name='default'):
+    def use_colorscheme(self, name='default', *, report: bool = True) -> bool:
         """
-        Apply new colorscheme. (By name.)
+        Apply new colorscheme by name. Returns whether it was found.
+
+        `:colorscheme` reports E185 for an unknown name; command previews
+        apply candidate styles silently (docs/bugs/147.md).
         """
         try:
             self.current_style = get_editor_style_by_name(name)
         except pygments.util.ClassNotFound:
-            pass
+            if report:
+                self.show_message('E185: Cannot find color scheme %s' % name)
+            return False
+        return True
 
     def sync_with_prompt_toolkit(self):
         """

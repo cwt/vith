@@ -44,7 +44,7 @@ Ranges & Line Editing:
     Addresses: N, ., $, %, '<, '>, +N, -N (e.g. :$, :+3, :'<,'>)
     :[range]s/pat/rep/[g][i][I][n][p]  Regex substitute (any delimiter)
     :[range]g[!]/pat/[cmd] / :v/...    Global / inverse global (d, y, p, s, m, t, norm)
-    :[range]d [count] / :y [count]     Delete / yank lines to clipboard
+    :[range]d [reg] / :y [reg]         Delete / yank lines to a register
     :[addr]pu[!]                       Put clipboard after (or before with !) [addr]
     :[range]m addr / :[range]t addr    Move / copy (:co) lines after addr (0 allowed)
     :[range]j[!] [count]               Join lines (! joins verbatim)

@@ -160,7 +160,7 @@ class CommandPreviewer:
             case 'colorscheme' | 'colo':
                 colorscheme = variables.get('colorscheme')
                 if colorscheme:
-                    e.use_colorscheme(colorscheme)
+                    e.use_colorscheme(colorscheme, report=False)
 
             # Preview `:set` commands through the shared catalog above (the
             # same table the `:set` handlers are generated from, docs/bugs/
