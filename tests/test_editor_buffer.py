@@ -296,6 +296,59 @@ def test_reload_vanished_file_keeps_contents(editor, tmp_path):
     assert buffer_.is_new is False
 
 
+def test_reload_read_only_and_directory_buffers(editor, tmp_path):
+    # 133: `:e` on a directory or a `:set ro` buffer must not raise
+    # EditReadOnlyBuffer, and the read-only state survives the reload.
+    from prompt_toolkit.filters import to_filter
+
+    from vith.commands.handler import handle_command
+
+    directory = tmp_path / 'a-directory'
+    directory.mkdir()
+    eb_dir = EditorBuffer(editor, str(directory))
+    assert eb_dir.isdir
+    assert eb_dir.buffer.read_only()
+    editor.window_arrangement._add_editor_buffer(eb_dir, show_in_current_window=True)
+    editor.message = None
+    handle_command(editor, ':e')
+    assert editor.message is None
+    assert eb_dir.buffer.read_only()
+
+    target = tmp_path / 'set-ro.txt'
+    target.write_text('old\n')
+    eb_file = EditorBuffer(editor, str(target))
+    eb_file.buffer.read_only = to_filter(True)
+    editor.window_arrangement._add_editor_buffer(eb_file, show_in_current_window=True)
+    target.write_text('new\n')
+    handle_command(editor, ':e!')
+    assert editor.message is None
+    assert eb_file.buffer.text == 'new'
+    assert eb_file.buffer.read_only()
+
+
+def test_reload_clears_stale_diagnostics_and_filetype(editor, tmp_path, monkeypatch):
+    # 133: a successful reload must drop pyflakes state and cached filetype.
+    from vith.editor_buffer import EditorBuffer
+
+    target = tmp_path / 'stale.py'
+    target.write_text('x = 1\n')
+    eb = EditorBuffer(editor, str(target))
+    eb._detected_filetype = 'python'
+    eb.report_errors = ['stale']
+    eb.report_errors_by_line = {0: ['stale']}
+    reporter_calls = []
+    monkeypatch.setattr(eb, 'run_reporter', lambda: reporter_calls.append(1))
+
+    target.write_text('y = 2\n')
+    eb.reload()
+
+    assert eb.buffer.text == 'y = 2'
+    assert eb.report_errors == []
+    assert eb.report_errors_by_line == {}
+    assert eb._detected_filetype is None
+    assert reporter_calls  # reporter refreshed on the reloaded text
+
+
 def test_thai_gate_latched_on_multiline_paste_and_undo(editor_buffer, monkeypatch):
     # 097: multi-line paste or undo with Thai on non-cursor rows latches the Thai gate
     from vith.thai import _THAI_GATE, reset_thai_text_gate

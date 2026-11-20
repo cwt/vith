@@ -5,6 +5,7 @@ from typing import Any
 
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.document import Document
+from prompt_toolkit.filters import to_filter
 
 from vith.cold_text import ColdTextBuffer, make_cold_text_compressor
 from vith.completion import DocumentCompleter
@@ -311,12 +312,37 @@ class EditorBuffer:
             return
         cursor_position = min(self.buffer.cursor_position, len(text))
 
-        self.buffer.document = Document(text, cursor_position)
+        # A read-only buffer (directory, failed read, or `:set ro`) rejects a
+        # document assignment with EditReadOnlyBuffer. Lift the filter only
+        # for the assignment and restore it afterwards (docs/bugs/133.md).
+        read_only_filter = self.buffer.read_only
+        was_read_only = (
+            bool(read_only_filter()) if callable(read_only_filter) else bool(read_only_filter)
+        )
+        if was_read_only:
+            self.buffer.read_only = to_filter(False)
+        try:
+            self.buffer.document = Document(text, cursor_position)
+        finally:
+            self.buffer.read_only = read_only_filter
+            if self.isdir:
+                # `:e` may replace a file with a directory: keep the explorer
+                # read-only, even if the old filter allowed editing.
+                self.buffer.read_only = to_filter(True)
+
         self._file_content = text
         self._has_unsaved_changes = False
+        self._last_text_len = len(text)
+        self._last_line_count = self.buffer.document.text.count('\n') + 1
+        self._detected_filetype = None
+        # Diagnostics/lexer state belongs to the previous content; discard it
+        # before the reporter runs on the reloaded text (docs/bugs/133.md).
+        self.report_errors = []
+        self.report_errors_by_line = {}
         # Feed the sticky Thai-gate with the reloaded text, else the first
         # render after reload runs unsanitized until the next edit.
         note_document_text(text)
+        self.run_reporter()
 
     def _write_with_backend(self, io, target_location, payload):
         """
