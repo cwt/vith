@@ -16,6 +16,7 @@ from .ranges import (
     is_buffer_read_only,
     replace_buffer_lines,
     resolve_range_str,
+    splice_buffer_lines,
 )
 
 NO_WRITE_SINCE_LAST_CHANGE_TEXT = 'No write since last change (add ! to override)'
@@ -183,16 +184,34 @@ def split_text_to_lines(raw_text: str) -> tuple[str, list[str]]:
     return normalized, normalized.split('\n')
 
 
-def insert_lines_at(eb: Any, insert_index: int, segment: list[str]) -> tuple[list[str], int]:
+def splice_lines_at(
+    editor: Any,
+    eb: Any,
+    insert_index: int,
+    segment: list[str],
+    *,
+    cursor_at_end: bool = False,
+    inserted_text: str = '',
+) -> bool:
     """
-    Insert `segment` at `insert_index`, replacing the lone empty line when
-    `eb` is currently empty. Returns `(new_lines, first_inserted_row)`.
+    Splice `segment` into `eb` at `insert_index` (replacing the lone empty
+    line when `eb` is currently empty) without copying untouched buffer lines.
     """
     if eb.buffer.text == '':
-        return list(segment), 0
-    new_lines = list(eb.buffer.document.lines)
-    new_lines[insert_index:insert_index] = segment
-    return new_lines, insert_index
+        start_row, end_row, first_row = 0, 0, 0
+    else:
+        start_row, end_row, first_row = insert_index, insert_index - 1, insert_index
+    cursor_row = first_row + len(segment) - 1 if cursor_at_end else first_row
+    return splice_buffer_lines(
+        editor,
+        eb,
+        start_row,
+        end_row,
+        segment,
+        cursor_row,
+        first_non_blank=True,
+        inserted_text=inserted_text,
+    )
 
 
 def store_lines_in_register(editor: Any, lines: list[str], register: str = '') -> None:
@@ -228,6 +247,26 @@ def apply_deleted_lines(
         remaining = ['']
     clamped_row = min(target_row, len(remaining) - 1)
     if not replace_buffer_lines(editor, eb, remaining, clamped_row, first_non_blank=True):
+        return
+    if len(deleted) >= 2:
+        editor.show_message(f'{len(deleted)} fewer lines')
+
+
+def apply_deleted_range(
+    editor: Any,
+    eb: Any,
+    start_row: int,
+    end_row: int,
+    deleted: list[str],
+    *,
+    register: str = '',
+) -> None:
+    """
+    Save contiguous `deleted` lines into `register`/clipboard, splice rows
+    `start_row..end_row` out of `eb`, and report multi-line deletions.
+    """
+    store_lines_in_register(editor, deleted, register=register)
+    if not splice_buffer_lines(editor, eb, start_row, end_row, [], start_row, first_non_blank=True):
         return
     if len(deleted) >= 2:
         editor.show_message(f'{len(deleted)} fewer lines')

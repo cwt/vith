@@ -8,18 +8,20 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from prompt_toolkit.utils import get_cwidth
+
 from vith.thai import note_document_text
 
 from .common import (
     active_writable_buffer,
-    apply_deleted_lines,
-    insert_lines_at,
+    apply_deleted_range,
     report_yanked_lines,
     resolve_command_range,
+    splice_lines_at,
     split_text_to_lines,
     store_lines_in_register,
 )
-from .ranges import parse_range, replace_buffer_lines, resolve_insert_address
+from .ranges import parse_range, resolve_insert_address, splice_buffer_lines
 from .registry import _cmd, cmd
 
 
@@ -103,11 +105,10 @@ def delete_lines(editor: Any, variables: Any) -> None:
     if register is None:
         return
 
-    lines = list(eb.buffer.document.lines)
+    lines = eb.buffer.document.lines
     start_row, end_row = bounds
-    deleted = lines[start_row : end_row + 1]
-    remaining = lines[:start_row] + lines[end_row + 1 :]
-    apply_deleted_lines(editor, eb, remaining, deleted, start_row, register=register)
+    deleted = list(lines[start_row : end_row + 1])
+    apply_deleted_range(editor, eb, start_row, end_row, deleted, register=register)
 
 
 @_cmd('yank')
@@ -187,14 +188,12 @@ def put_lines(editor: Any, variables: Any) -> None:
     if not segment:
         segment = ['']
 
-    new_lines, first_row = insert_lines_at(eb, insert_index, segment)
-    cursor_row = first_row + len(segment) - 1
-    replace_buffer_lines(
+    splice_lines_at(
         editor,
         eb,
-        new_lines,
-        cursor_row,
-        first_non_blank=True,
+        insert_index,
+        segment,
+        cursor_at_end=True,
         inserted_text=clip_text,
     )
 
@@ -241,13 +240,19 @@ def move_lines(editor: Any, variables: Any) -> None:
         editor.show_message('E134: Cannot move a range of lines into itself')
         return
 
-    lines = list(eb.buffer.document.lines)
-    moved = lines[start_row : end_row + 1]
-    remaining = lines[:start_row] + lines[end_row + 1 :]
-    insert_at = dest if dest <= start_row else dest - len(moved)
-    remaining[insert_at:insert_at] = moved
-    cursor_row = insert_at + len(moved) - 1
-    replace_buffer_lines(editor, eb, remaining, cursor_row, first_non_blank=True)
+    lines = eb.buffer.document.lines
+    span_start = min(start_row, dest)
+    span_end = max(end_row, dest - 1)
+    moved = list(lines[start_row : end_row + 1])
+    if dest <= start_row:
+        reordered = moved + list(lines[dest:start_row])
+        cursor_row = dest + len(moved) - 1
+    else:
+        reordered = list(lines[end_row + 1 : dest]) + moved
+        cursor_row = dest - 1
+    splice_buffer_lines(
+        editor, eb, span_start, span_end, reordered, cursor_row, first_non_blank=True
+    )
 
 
 @_cmd('copy')
@@ -270,14 +275,15 @@ def copy_lines(editor: Any, variables: Any) -> None:
         return
 
     start_row, end_row = bounds
-    lines = list(eb.buffer.document.lines)
-    copied = lines[start_row : end_row + 1]
-    lines[dest:dest] = copied
+    lines = eb.buffer.document.lines
+    copied = list(lines[start_row : end_row + 1])
     cursor_row = dest + len(copied) - 1
-    replace_buffer_lines(
+    splice_buffer_lines(
         editor,
         eb,
-        lines,
+        dest,
+        dest - 1,
+        copied,
         cursor_row,
         first_non_blank=True,
         inserted_text='\n'.join(copied),
@@ -298,7 +304,7 @@ def join_lines(editor: Any, variables: Any) -> None:
     if bounds is None:
         return
 
-    lines = list(eb.buffer.document.lines)
+    lines = eb.buffer.document.lines
     start_row, end_row = bounds
     cmd_arg = variables.get('cmd_arg')
     if cmd_arg:
@@ -328,8 +334,7 @@ def join_lines(editor: Any, variables: Any) -> None:
             else:
                 joined = joined + stripped
 
-    new_lines = lines[:start_row] + [joined] + lines[end_row + 1 :]
-    replace_buffer_lines(editor, eb, new_lines, start_row, first_non_blank=True)
+    splice_buffer_lines(editor, eb, start_row, end_row, [joined], start_row, first_non_blank=True)
 
 
 _FIRST_INT_RE = re.compile(r'-?\d+')
@@ -368,8 +373,7 @@ def sort_lines(editor: Any, variables: Any) -> None:
                 return
 
     start_row, end_row = bounds
-    lines = list(eb.buffer.document.lines)
-    segment = lines[start_row : end_row + 1]
+    segment = eb.buffer.document.lines[start_row : end_row + 1]
 
     def text_key(line: str) -> str:
         return line.casefold() if ignore_case else line
@@ -402,8 +406,9 @@ def sort_lines(editor: Any, variables: Any) -> None:
                 deduped.append(line)
         sorted_segment = deduped
 
-    new_lines = lines[:start_row] + sorted_segment + lines[end_row + 1 :]
-    replace_buffer_lines(editor, eb, new_lines, start_row, first_non_blank=True)
+    splice_buffer_lines(
+        editor, eb, start_row, end_row, sorted_segment, start_row, first_non_blank=True
+    )
 
 
 def _encode_retab_ws(start_col: int, end_col: int, new_ts: int, expand_tab: bool) -> str:
@@ -426,7 +431,10 @@ def _encode_retab_ws(start_col: int, end_col: int, new_ts: int, expand_tab: bool
 
 
 def _retab_line(line: str, old_ts: int, new_ts: int, expand_tab: bool, force: bool) -> str:
-    from prompt_toolkit.utils import get_cwidth
+    # Fast-return lines that cannot contain any rewritable whitespace run
+    # (docs/bugs/151.md).
+    if '\t' not in line and (expand_tab or not force or '  ' not in line):
+        return line
 
     out: list[str] = []
     col = 0
@@ -458,10 +466,16 @@ def _retab_line(line: str, old_ts: int, new_ts: int, expand_tab: bool, force: bo
             else:
                 out.append(run)
         else:
-            ch = line[i]
-            out.append(ch)
-            col += max(0, get_cwidth(ch))
-            i += 1
+            start_i = i
+            while i < length and line[i] not in (' ', '\t'):
+                i += 1
+            chunk = line[start_i:i]
+            out.append(chunk)
+            if chunk.isascii() and chunk.isprintable():
+                col += len(chunk)
+            else:
+                for ch in chunk:
+                    col += max(0, get_cwidth(ch))
 
     return ''.join(out)
 
@@ -496,11 +510,13 @@ def retab_lines(editor: Any, variables: Any) -> None:
     force = bool(variables.get('force'))
     expand_tab = bool(getattr(editor, 'expand_tab', True))
     start_row, end_row = bounds
-    lines = list(eb.buffer.document.lines)
-    for row in range(start_row, end_row + 1):
-        lines[row] = _retab_line(lines[row], old_ts, new_ts, expand_tab, force)
+    lines = eb.buffer.document.lines
+    retabbed = [
+        _retab_line(lines[row], old_ts, new_ts, expand_tab, force)
+        for row in range(start_row, end_row + 1)
+    ]
 
     if cmd_arg is not None:
         eb.tabstop = new_ts
 
-    replace_buffer_lines(editor, eb, lines, start_row, first_non_blank=True)
+    splice_buffer_lines(editor, eb, start_row, end_row, retabbed, start_row, first_non_blank=True)

@@ -27,6 +27,7 @@ __all__ = (
     'resolve_line_address',
     'resolve_range',
     'resolve_range_str',
+    'splice_buffer_lines',
 )
 
 MODIFIABLE_OFF_TEXT = "E21: Cannot make changes, 'modifiable' is off"
@@ -224,6 +225,41 @@ def is_buffer_read_only(buff: Any) -> bool:
     return bool(read_only)
 
 
+def _commit_buffer_text(
+    editor: Any,
+    eb: Any,
+    new_text: str,
+    cursor_row: int,
+    *,
+    col: int = 0,
+    first_non_blank: bool = True,
+    inserted_text: str = '',
+) -> bool:
+    """
+    Commit `new_text` to `eb.buffer` while uniformly enforcing read-only guard,
+    undo snapshot, single `Document` construction, sticky Thai/Lao gate
+    notification, and clamped cursor placement.
+    """
+    if is_buffer_read_only(eb.buffer):
+        editor.show_message(MODIFIABLE_OFF_TEXT)
+        return False
+
+    eb.buffer.save_to_undo_stack()
+
+    doc = Document(new_text)
+    eb.buffer.document = doc
+    note_document_text(inserted_text or new_text)
+
+    target_row = max(0, min(cursor_row, len(doc.lines) - 1))
+    line_text = doc.lines[target_row]
+    if first_non_blank:
+        target_col = len(line_text) - len(line_text.lstrip())
+    else:
+        target_col = max(0, min(col, len(line_text)))
+    eb.buffer.cursor_position = doc.translate_row_col_to_index(target_row, target_col)
+    return True
+
+
 def replace_buffer_lines(
     editor: Any,
     eb: Any,
@@ -246,19 +282,88 @@ def replace_buffer_lines(
         editor.show_message(MODIFIABLE_OFF_TEXT)
         return False
 
-    eb.buffer.save_to_undo_stack()
-
     normalized_lines = lines if lines else ['']
     new_text = '\n'.join(normalized_lines)
-    doc = Document(new_text)
-    eb.buffer.document = doc
-    note_document_text(inserted_text or new_text)
+    return _commit_buffer_text(
+        editor,
+        eb,
+        new_text,
+        cursor_row,
+        col=col,
+        first_non_blank=first_non_blank,
+        inserted_text=inserted_text,
+    )
 
-    target_row = max(0, min(cursor_row, len(doc.lines) - 1))
-    line_text = doc.lines[target_row]
-    if first_non_blank:
-        target_col = len(line_text) - len(line_text.lstrip())
+
+def splice_buffer_lines(
+    editor: Any,
+    eb: Any,
+    start_row: int,
+    end_row: int,
+    replacement_lines: list[str],
+    cursor_row: int,
+    *,
+    col: int = 0,
+    first_non_blank: bool = True,
+    inserted_text: str = '',
+) -> bool:
+    """
+    Replace inclusive 0-based rows `start_row..end_row` (or insert before
+    `start_row` when `end_row == start_row - 1`) with `replacement_lines` by
+    splicing `Document.text` directly at line offsets, avoiding a full-buffer
+    `list[str]` copy and `'\n'.join` across untouched rows (docs/bugs/151.md).
+    """
+    if is_buffer_read_only(eb.buffer):
+        editor.show_message(MODIFIABLE_OFF_TEXT)
+        return False
+
+    doc = eb.buffer.document
+    old_text = doc.text
+    line_count = len(doc.lines)
+    replace_start = max(0, min(start_row, line_count))
+    replace_stop = max(replace_start, min(end_row + 1, line_count))
+
+    mid = '\n'.join(replacement_lines)
+    if replace_start == 0 and replace_stop == line_count:
+        new_text = mid
+    elif not replacement_lines:
+        if replace_start == replace_stop:
+            new_text = old_text
+        elif replace_start == 0:
+            end_idx = doc.translate_row_col_to_index(replace_stop, 0)
+            new_text = old_text[end_idx:]
+        elif replace_stop == line_count:
+            start_idx = doc.translate_row_col_to_index(replace_start, 0)
+            new_text = old_text[: start_idx - 1]
+        else:
+            start_idx = doc.translate_row_col_to_index(replace_start, 0)
+            end_idx = doc.translate_row_col_to_index(replace_stop, 0)
+            new_text = old_text[:start_idx] + old_text[end_idx:]
     else:
-        target_col = max(0, min(col, len(line_text)))
-    eb.buffer.cursor_position = doc.translate_row_col_to_index(target_row, target_col)
-    return True
+        if replace_start == 0:
+            prefix = ''
+        elif replace_start == line_count:
+            prefix = old_text + '\n'
+        else:
+            start_idx = doc.translate_row_col_to_index(replace_start, 0)
+            prefix = old_text[:start_idx]
+
+        if replace_stop == line_count:
+            suffix = ''
+        elif replace_stop == 0:
+            suffix = '\n' + old_text
+        else:
+            end_idx = doc.translate_row_col_to_index(replace_stop, 0)
+            suffix = old_text[end_idx - 1 :]
+
+        new_text = prefix + mid + suffix
+
+    return _commit_buffer_text(
+        editor,
+        eb,
+        new_text,
+        cursor_row,
+        col=col,
+        first_non_blank=first_non_blank,
+        inserted_text=inserted_text or mid,
+    )

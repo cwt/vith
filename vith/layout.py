@@ -253,6 +253,9 @@ class BufferListOverlay(ConditionalContainer):
     """
 
     def __init__(self, editor):
+        cached_search_string = ''
+        cached_search_pattern = None
+
         def highlight_location(location, pattern, search_string, default_token):
             """
             Return a tokenlist with the `search_string` highlighted.
@@ -285,6 +288,8 @@ class BufferListOverlay(ConditionalContainer):
             return result
 
         def get_tokens():
+            nonlocal cached_search_string, cached_search_pattern
+
             wa = editor.window_arrangement
             buffer_infos = wa.list_open_buffers()
 
@@ -292,9 +297,14 @@ class BufferListOverlay(ConditionalContainer):
             input_params = editor.command_buffer.text.lstrip().split(None, 1)
             search_string = input_params[1] if len(input_params) > 1 else ''
 
-            # Compile the search pattern once per frame (used to re-escape
-            # and re-compile it for every buffer row; docs/bugs/072.md).
-            search_pattern = re.compile(re.escape(search_string)) if search_string else None
+            # Cache the compiled search pattern keyed by `search_string` across
+            # frames while typing `:b` (docs/bugs/072.md, 151.md).
+            if search_string != cached_search_string:
+                cached_search_string = search_string
+                cached_search_pattern = (
+                    re.compile(re.escape(search_string)) if search_string else None
+                )
+            search_pattern = cached_search_pattern
 
             if search_string:
 
@@ -714,6 +724,17 @@ class EditorLayout:
         if active_tab is None:
             return
         layout = create_layout_from_node(active_tab.root)
+        # Retain frames belonging to live inactive tabs so tab switches preserve
+        # scroll offsets and `DocumentLexer`/`BufferControl` caches, while still
+        # dropping frames for closed tabs/windows/buffers (docs/bugs/151.md).
+        for tab in self.window_arrangement.tab_pages:
+            if tab is active_tab:
+                continue
+            for win in tab.windows():
+                key = (win, win.editor_buffer)
+                frame = existing_frames.get(key)
+                if frame is not None:
+                    self._frames[key] = frame
         self._fc.content = layout
 
     def _create_window_frame(self, editor_buffer, arrangement_window=None):

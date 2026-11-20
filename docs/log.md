@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-20T08:35:00Z"
-timestamp: "2026-11-20T08:35:00Z"
+  at: "2026-11-20T08:45:00Z"
+timestamp: "2026-11-20T08:45:00Z"
 ---
 
 # Documentation Bundle Log
@@ -49,3 +49,4 @@ This file tracks all modifications, extensions, and updates to the `vith` OKF do
 | 2026-11-20T04:15:00Z | [bugs/index.md](bugs/index.md), [bugs/130.md](bugs/130.md)…[bugs/150.md](bugs/150.md), [bugs/log.md](bugs/log.md), [../README.md](../README.md), [../vith/help.py](../vith/help.py) | Findings closed (Round 8) | Closed all 21 Round 8 findings ([130](bugs/130.md)–[150](bugs/150.md)) across hg rev 360–381 with regression tests: write/quit/tab guards, read-only reload, mouse focus, `:g` substitute state, search-buffer Tab, byte-safe shell I/O, TOML validation, Vim replacement semantics, `fileformat`, CJK display widths, ReDoS guard, `:norm`/`:retab`/`:cq`, Thai message gate, and inventories 147–150 (**466 passed**, `mypy .` 69 files clean, ruff clean). |
 | 2026-11-20T05:15:00Z | [index.md](index.md), [log.md](log.md), [command_completeness_plan.md](command_completeness_plan.md), [thai_support_plan.md](thai_support_plan.md), [speed_latency_plan.md](speed_latency_plan.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [../README.md](../README.md), [../CHANGELOG](../CHANGELOG), [../vith/help.py](../vith/help.py) | Updated (`v0.15.0` release & commands split) | Bumped version to `0.15.0`, added `CHANGELOG` release notes covering Ex command completeness, Round 8 fixes (130–150), and the `vith/commands/` flat submodule refactor (rev 382), fixed stale counts/statuses/relative paths across `README.md`, `vith/help.py`, and the `docs/` OKF bundle (**466 passed**, 89.79% coverage, `mypy .` 79 files clean, ruff clean). |
 | 2026-11-20T08:35:00Z | [bugs/151.md](bugs/151.md), [bugs/152.md](bugs/152.md), [bugs/153.md](bugs/153.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [index.md](index.md), [log.md](log.md) | Appended & re-validated (Round 9) | Validated all 15 sub-items across the 3 open Round 9 inventories ([151](bugs/151.md)–[153](bugs/153.md)) against `v0.15.0` (rev 384) and corrected line numbers, caveats, empirical evidence, fix directions, and bundle indexes/logs (`152` elevated to `medium` for the confirmed `:set ro` bypass + stale dirty flag on symlink `:w`; `153#1` re-attributed from `preview.py` to `vith/lexer.py:1-23`). No source files changed. |
+| 2026-11-20T08:45:00Z | [bugs/151.md](bugs/151.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [index.md](index.md), [log.md](log.md) | Finding closed (151) | Closed [151](bugs/151.md) with `splice_buffer_lines`, inactive-tab frame retention, $O(n)$/$O(m\sqrt{n})$ `:g` move/copy (4k `:g/x/m 0` **765.3 ms → 2.36 ms**), visible-buffer Thai gate decay/re-latch + single-pass SARA-AM scan, cached `:b` regex, and `:retab` fast paths (**474 passed**, 90.01% coverage, `mypy` 80 files clean, `ruff` clean). |

@@ -253,35 +253,59 @@ def reset_thai_text_gate() -> None:
 
 def reset_thai_text_gate_if_all_buffers_ascii(window_arrangement) -> None:
     """
-    Decay the sticky Thai-gate latch once every open buffer currently holds
-    ASCII-only content (mixed-session renderer cost; used to stay latched
-    forever, docs/bugs/072.md — improving on the old 075 row 7). Called
-    from `Editor.sync_with_prompt_toolkit`, i.e. on buffer switches and
-    command executions, not per keystroke; the next Thai keystroke
-    re-latches immediately via `note_document_text`.
+    Synchronize the sticky Thai-gate latch with currently rendered content
+    (docs/bugs/072.md, 082.md, 151.md).
+
+    Called from `Editor.sync_with_prompt_toolkit` (on buffer/tab switches and
+    command executions, not per keystroke):
+
+    - Re-latches the gate if any *visible* buffer in the active tab holds
+      Thai/Lao text (necessary after decaying while viewing an ASCII tab).
+    - Decays the gate to ``False`` when every visible buffer's text, every
+      open buffer's location (shown by `TabsControl` and `BufferListOverlay`),
+      `editor.message`, `command_buffer`, and `search_buffer` are all ASCII.
     """
-    if not _THAI_GATE.value:
+    active_tab = getattr(window_arrangement, "active_tab", None)
+    visible_buffers = (
+        active_tab.visible_editor_buffers()
+        if active_tab is not None
+        else window_arrangement.editor_buffers
+    )
+
+    has_non_ascii_visible = False
+    for editor_buffer in visible_buffers:
+        text = editor_buffer.buffer.text
+        if not text.isascii():
+            has_non_ascii_visible = True
+            note_document_text(text)
+
+    if not _THAI_GATE.value or has_non_ascii_visible:
         return
+
     editor = window_arrangement.editor
+    # The tab bar (`TabsControl`) renders short names for all tabs and
+    # `BufferListOverlay` renders all open buffer locations; keep the gate
+    # armed whenever any open buffer has a non-ASCII location (docs/bugs/082.md).
     for editor_buffer in window_arrangement.editor_buffers:
-        if not editor_buffer.buffer.text.isascii():
-            return
-        # The status bar, overlay and report messages also render Thai from
-        # non-text sources (buffer *locations*, `editor.message`): a session
-        # whose buffers are all-ASCII but with a Thai-named file / Thai error
-        # banner still draws Thai cells, so the sanitizer must stay armed
-        # for them (docs/bugs/082.md).
         if editor_buffer.location and not editor_buffer.location.isascii():
             return
+
     message = getattr(editor, "message", None) or ""
     if not message.isascii():
         return
+
+    for aux_name in ("command_buffer", "search_buffer"):
+        aux_buf = getattr(editor, aux_name, None)
+        aux_text = getattr(aux_buf, "text", "") if aux_buf is not None else ""
+        if aux_text and not aux_text.isascii():
+            return
+
     _THAI_GATE.reset()
 
 
 def _cell_has_sara_am(cell: Char) -> bool:
     ch = cell.char
-    if not ch:
+    if not ch or ch.isascii():
         return False
     if is_sara_am(ord(ch[0])):
         return True
@@ -300,25 +324,22 @@ def _sanitize_and_invalidate_sara_am(
        re-emits both cells together.
     """
     for y, new_row in new_screen.data_buffer.items():
-        # 1. Clear stray width-0 combining cells not overwritten by a trailing
-        #    character. Snapshotting `list(new_row.items())` avoids any risk
-        #    if `new_row` is a `defaultdict` mutated during iteration
-        #    (docs/bugs/115.md).
+        # Single pass over `new_row`: clear stray width-0 combining cells and
+        # collect columns `x >= 1` holding SARA AM when differential
+        # invalidation applies (docs/bugs/114.md, 115.md, 151.md).
+        has_prev = previous_screen is not None and y in previous_screen.data_buffer
+        sara_am_xs: set[int] = set()
         for x, cell in list(new_row.items()):
             if cell.width == 0 and cell.char != "":
                 new_row[x] = Char(char=" ", style=cell.style)
+            elif has_prev and x >= 1 and _cell_has_sara_am(cell):
+                sara_am_xs.add(x)
 
         # 2. SARA AM neighbor invalidation for differential rendering.
-        if previous_screen is None or y not in previous_screen.data_buffer:
+        if not has_prev or previous_screen is None:
             continue
         prev_row = previous_screen.data_buffer[y]
 
-        # Single-pass collection of columns `x >= 1` where either `new_row` or
-        # `prev_row` actually holds SARA AM (docs/bugs/114.md). Rows without
-        # SARA AM skip sorting and neighbor inspection entirely.
-        sara_am_xs: set[int] = {
-            x for x, cell in new_row.items() if x >= 1 and _cell_has_sara_am(cell)
-        }
         for x, cell in prev_row.items():
             if x >= 1 and _cell_has_sara_am(cell):
                 sara_am_xs.add(x)

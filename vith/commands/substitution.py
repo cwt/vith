@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .ranges import parse_range as parse_substitute_range
-from .ranges import replace_buffer_lines, resolve_range
+from .ranges import resolve_range, splice_buffer_lines
 
 # Heuristic guard against catastrophic backtracking (docs/bugs/123.md): a
 # group that contains a quantifier and is itself quantified, e.g. `(a+)+`,
@@ -384,7 +384,9 @@ def apply_substitute_to_rows(
     prepared: _PreparedSubstitute,
 ) -> None:
     """Apply a compiled substitution across `target_rows` of `lines` in `eb`."""
-    new_lines = list(lines)
+    changed_rows: dict[int, str] = {}
+    first_changed_row: int | None = None
+    last_changed_row: int | None = None
     last_substituted_row: int | None = None
     total_matches = 0
     matched_lines = 0
@@ -392,16 +394,20 @@ def apply_substitute_to_rows(
     for row in target_rows:
         try:
             result, count = prepared.pattern.subn(
-                prepared.repl, new_lines[row], count=prepared.options.sub_count
+                prepared.repl, lines[row], count=prepared.options.sub_count
             )
         except re.error as exc:
             editor.show_message('Invalid regex: %s' % exc)
             return
         if count > 0:
-            new_lines[row] = result
+            changed_rows[row] = result
             total_matches += count
             matched_lines += 1
             last_substituted_row = row
+            if first_changed_row is None or row < first_changed_row:
+                first_changed_row = row
+            if last_changed_row is None or row > last_changed_row:
+                last_changed_row = row
 
     if total_matches == 0:
         editor.show_message('Pattern not found')
@@ -415,8 +421,21 @@ def apply_substitute_to_rows(
         _record_substitute_state(editor, search_state, prepared.search, prepared.replace)
         return
 
+    assert first_changed_row is not None
+    assert last_changed_row is not None
     assert last_substituted_row is not None
-    if not replace_buffer_lines(editor, eb, new_lines, last_substituted_row, first_non_blank=True):
+    span_lines = [
+        changed_rows.get(row, lines[row]) for row in range(first_changed_row, last_changed_row + 1)
+    ]
+    if not splice_buffer_lines(
+        editor,
+        eb,
+        first_changed_row,
+        last_changed_row,
+        span_lines,
+        last_substituted_row,
+        first_non_blank=True,
+    ):
         return
 
     _record_substitute_state(editor, search_state, prepared.search, prepared.replace)
@@ -454,7 +473,7 @@ def substitute(
         editor.show_message(range_error)
         return
 
-    apply_substitute_to_rows(editor, eb, list(buffer_lines), line_numbers, prepared)
+    apply_substitute_to_rows(editor, eb, buffer_lines, line_numbers, prepared)
 
 
 __all__ = (

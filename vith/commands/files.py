@@ -16,12 +16,12 @@ from .buffers import quit
 from .common import (
     NO_FILE_NAME_TEXT,
     active_writable_buffer,
-    insert_lines_at,
     resolve_command_range,
     run_shell,
+    splice_lines_at,
     split_text_to_lines,
 )
-from .ranges import is_buffer_read_only, replace_buffer_lines, resolve_insert_address
+from .ranges import is_buffer_read_only, resolve_insert_address, splice_buffer_lines
 from .registry import _cmd, cmd, location_cmd
 
 
@@ -131,13 +131,12 @@ def read_command(editor: Any, variables: Any) -> None:
             editor.show_message(f'"{source_label}" 0L')
         return
 
-    new_lines, first_row = insert_lines_at(eb, insert_index, inserted_lines)
-    if not replace_buffer_lines(
+    if not splice_lines_at(
         editor,
         eb,
-        new_lines,
-        first_row,
-        first_non_blank=True,
+        insert_index,
+        inserted_lines,
+        cursor_at_end=False,
         inserted_text=normalized,
     ):
         return
@@ -372,7 +371,7 @@ def filter_range_command(editor: Any, range_str: str | None, shell_cmd: str) -> 
         return
 
     start_row, end_row = bounds
-    lines = list(eb.buffer.document.lines)
+    lines = eb.buffer.document.lines
     stdin_text = '\n'.join(lines[start_row : end_row + 1]) + '\n'
 
     proc = run_shell(editor, cmd_text, payload=stdin_text)
@@ -380,12 +379,14 @@ def filter_range_command(editor: Any, range_str: str | None, shell_cmd: str) -> 
         return
 
     output, replacement = split_text_to_lines(proc.stdout or '')
-    new_lines = lines[:start_row] + replacement + lines[end_row + 1 :]
-    cursor_row = min(start_row, max(0, len(new_lines) - 1))
-    replace_buffer_lines(
+    new_line_count = len(lines) - (end_row - start_row + 1) + len(replacement)
+    cursor_row = min(start_row, max(0, new_line_count - 1))
+    splice_buffer_lines(
         editor,
         eb,
-        new_lines,
+        start_row,
+        end_row,
+        replacement,
         cursor_row,
         first_non_blank=True,
         inserted_text=output,

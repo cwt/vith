@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -58,6 +59,105 @@ def _global_execute_substitute(
     apply_substitute_to_rows(editor, eb, lines, marked_rows, prepared)
 
 
+class _IndexedLineChunks:
+    """
+    Chunked line sequence with O(1) chunk lookup per marked `line_id` and
+    O(sqrt(n)) index/pop/insert operations for general `:g/.../m` and `:g/.../t`
+    destinations (docs/bugs/151.md).
+    """
+
+    def __init__(self, lines: list[str], marked_rows: list[int]) -> None:
+        marked_set = set(marked_rows)
+        chunk_size = max(64, math.isqrt(max(1, len(lines))))
+        self._max_chunk = chunk_size * 2
+        self._chunks: list[list[tuple[int | None, str]]] = []
+        self._chunk_of: dict[int, list[tuple[int | None, str]]] = {}
+        self._total = len(lines)
+
+        for start in range(0, len(lines), chunk_size):
+            stop = min(start + chunk_size, len(lines))
+            chunk: list[tuple[int | None, str]] = [
+                (idx if idx in marked_set else None, lines[idx]) for idx in range(start, stop)
+            ]
+            self._chunks.append(chunk)
+            for idx in range(start, stop):
+                if idx in marked_set:
+                    self._chunk_of[idx] = chunk
+
+    def __len__(self) -> int:
+        return self._total
+
+    def index_of(self, line_id: int) -> int:
+        target_chunk = self._chunk_of[line_id]
+        offset = 0
+        for chunk in self._chunks:
+            if chunk is target_chunk:
+                for local_idx, (lid, _text) in enumerate(chunk):
+                    if lid == line_id:
+                        return offset + local_idx
+                break
+            offset += len(chunk)
+        raise KeyError(line_id)
+
+    def _locate(self, pos: int) -> tuple[int, int]:
+        offset = 0
+        for chunk_idx, chunk in enumerate(self._chunks):
+            end = offset + len(chunk)
+            if pos < end:
+                return chunk_idx, pos - offset
+            offset = end
+        return len(self._chunks) - 1, len(self._chunks[-1])
+
+    def text_at(self, pos: int) -> str:
+        chunk_idx, local_idx = self._locate(pos)
+        return self._chunks[chunk_idx][local_idx][1]
+
+    def pop_at(self, pos: int) -> tuple[int | None, str]:
+        chunk_idx, local_idx = self._locate(pos)
+        chunk = self._chunks[chunk_idx]
+        item = chunk.pop(local_idx)
+        if item[0] is not None:
+            self._chunk_of.pop(item[0], None)
+        if not chunk:
+            del self._chunks[chunk_idx]
+        self._total -= 1
+        return item
+
+    def insert_at(self, pos: int, item: tuple[int | None, str]) -> None:
+        if not self._chunks:
+            new_chunk = [item]
+            self._chunks.append(new_chunk)
+            if item[0] is not None:
+                self._chunk_of[item[0]] = new_chunk
+            self._total = 1
+            return
+
+        if pos >= self._total:
+            chunk_idx = len(self._chunks) - 1
+            chunk = self._chunks[chunk_idx]
+            chunk.append(item)
+        else:
+            chunk_idx, local_idx = self._locate(pos)
+            chunk = self._chunks[chunk_idx]
+            chunk.insert(local_idx, item)
+
+        if item[0] is not None:
+            self._chunk_of[item[0]] = chunk
+        self._total += 1
+
+        if len(chunk) >= self._max_chunk:
+            mid = len(chunk) // 2
+            right = chunk[mid:]
+            del chunk[mid:]
+            self._chunks.insert(chunk_idx + 1, right)
+            for lid, _text in right:
+                if lid is not None:
+                    self._chunk_of[lid] = right
+
+    def to_lines(self) -> list[str]:
+        return [text for chunk in self._chunks for _lid, text in chunk]
+
+
 def _global_execute_move_or_copy(
     editor: Any,
     eb: Any,
@@ -73,40 +173,52 @@ def _global_execute_move_or_copy(
         editor.show_message('E14: Invalid address')
         return
 
+    # O(n) single-pass fast path for the common static endpoint addresses
+    # (`0` and `$`), matching Vim's two-pass order (`:g/pat/m 0` reverses
+    # matches at top; `:g/pat/m $` preserves order at EOF; docs/bugs/151.md).
+    stripped_dest = dest_addr.strip()
+    if stripped_dest == '0':
+        moved_or_copied = [lines[row] for row in reversed(marked_rows)]
+        if is_move:
+            marked_set = set(marked_rows)
+            remaining = [line for idx, line in enumerate(lines) if idx not in marked_set]
+            result_lines = moved_or_copied + remaining
+        else:
+            result_lines = moved_or_copied + list(lines)
+        replace_buffer_lines(editor, eb, result_lines, 0, first_non_blank=True)
+        return
+
+    if stripped_dest == '$':
+        moved_or_copied = [lines[row] for row in marked_rows]
+        if is_move:
+            marked_set = set(marked_rows)
+            remaining = [line for idx, line in enumerate(lines) if idx not in marked_set]
+            result_lines = remaining + moved_or_copied
+        else:
+            result_lines = list(lines) + moved_or_copied
+        replace_buffer_lines(editor, eb, result_lines, len(result_lines) - 1, first_non_blank=True)
+        return
+
     visual_marks = getattr(eb, 'visual_marks', None)
-    tagged: list[tuple[int | None, str]] = [(idx, text) for idx, text in enumerate(lines)]
+    chunks = _IndexedLineChunks(lines, marked_rows)
     last_row = marked_rows[0]
-    # Track each original row's current position instead of re-scanning the
-    # growing list for every marked line (docs/bugs/149.md).
-    positions = {row: row for row in marked_rows}
 
     for line_id in marked_rows:
-        cur_pos = positions[line_id]
-        dest, err = resolve_insert_address(dest_addr, cur_pos, len(tagged), visual_marks)
+        cur_pos = chunks.index_of(line_id)
+        dest, err = resolve_insert_address(dest_addr, cur_pos, len(chunks), visual_marks)
         if err is not None or dest is None:
             editor.show_message(err)
             return
         if is_move:
-            item = tagged.pop(cur_pos)
-            for other, pos in positions.items():
-                if other != line_id and pos > cur_pos:
-                    positions[other] = pos - 1
+            item = chunks.pop_at(cur_pos)
             insert_at = dest if dest <= cur_pos else dest - 1
-            tagged.insert(insert_at, item)
-            for other, pos in positions.items():
-                if pos >= insert_at:
-                    positions[other] = pos + 1
-            positions[line_id] = insert_at
+            chunks.insert_at(insert_at, item)
             last_row = insert_at
         else:
-            tagged.insert(dest, (None, tagged[cur_pos][1]))
-            for other, pos in positions.items():
-                if pos >= dest:
-                    positions[other] = pos + 1
+            chunks.insert_at(dest, (None, chunks.text_at(cur_pos)))
             last_row = dest
 
-    result_lines = [text for _, text in tagged]
-    replace_buffer_lines(editor, eb, result_lines, last_row, first_non_blank=True)
+    replace_buffer_lines(editor, eb, chunks.to_lines(), last_row, first_non_blank=True)
 
 
 @_cmd('vglobal')
@@ -157,7 +269,7 @@ def global_command(editor: Any, variables: Any) -> None:
 
     invert = command in ('v', 'vglobal') or force
     start_row, end_row = bounds
-    lines = list(eb.buffer.document.lines)
+    lines = eb.buffer.document.lines
     marked_rows = [
         row
         for row in range(start_row, end_row + 1)
