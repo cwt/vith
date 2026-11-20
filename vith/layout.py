@@ -55,6 +55,30 @@ from .welcome_message import WELCOME_MESSAGE_HEIGHT, WELCOME_MESSAGE_TOKENS, WEL
 __all__ = ('EditorLayout',)
 
 
+class _FocusSyncingBufferControl(BufferControl):
+    """
+    ``BufferControl`` that mirrors ``focus_on_click`` focus changes back into
+    ``WindowArrangement`` (docs/bugs/134.md).
+
+    prompt-toolkit's click handler only changes ``layout.current_control``;
+    Ex commands resolve their target through ``active_editor_buffer``. Without
+    this hook a mouse click leaves the two notions of "active window" out of
+    sync and commands mutate the previously focused buffer.
+    """
+
+    def __init__(self, on_focus, **kwargs):
+        super().__init__(**kwargs)
+        self._on_focus = on_focus
+
+    def mouse_handler(self, mouse_event):
+        app = get_app()
+        before = app.layout.current_control
+        result = super().mouse_handler(mouse_event)
+        if app.layout.current_control is self and before is not self:
+            self._on_focus()
+        return result
+
+
 def _try_char(character, backup, encoding=None):
     """
     Return `character` if it can be encoded using sys.stdout, else return the
@@ -664,7 +688,7 @@ class EditorLayout:
                     key = (node, node.editor_buffer)
                     frame = existing_frames.get(key)
                     if frame is None:
-                        frame, pt_window = self._create_window_frame(node.editor_buffer)
+                        frame, pt_window = self._create_window_frame(node.editor_buffer, node)
 
                         # Link layout Window to arrangement.
                         node.pt_window = pt_window
@@ -692,9 +716,11 @@ class EditorLayout:
         layout = create_layout_from_node(active_tab.root)
         self._fc.content = layout
 
-    def _create_window_frame(self, editor_buffer):
+    def _create_window_frame(self, editor_buffer, arrangement_window=None):
         """
         Create a Window for the buffer, with underneath a status bar.
+
+        `arrangement_window` links click focus back to the arrangement.
         """
 
         @Condition
@@ -719,8 +745,12 @@ class EditorLayout:
         def get_colorcolumns():
             return [ColorColumn(pos) for pos in self.editor.colorcolumn]
 
+        def on_focus():
+            if arrangement_window is not None:
+                self.window_arrangement.set_active_window(arrangement_window)
+
         window = Window(
-            self._create_buffer_control(editor_buffer),
+            self._create_buffer_control(editor_buffer, on_focus),
             allow_scroll_beyond_bottom=True,
             scroll_offsets=ScrollOffsets(
                 left=0,
@@ -758,7 +788,7 @@ class EditorLayout:
             ]
         ), window
 
-    def _create_buffer_control(self, editor_buffer):
+    def _create_buffer_control(self, editor_buffer, on_focus=None):
         """
         Create a new BufferControl for a given location.
         """
@@ -813,7 +843,8 @@ class EditorLayout:
             DisplayMultipleCursors(),
         ]
 
-        return BufferControl(
+        return _FocusSyncingBufferControl(
+            on_focus=on_focus if on_focus is not None else lambda: None,
             lexer=DocumentLexer(editor_buffer),
             include_default_input_processors=False,
             input_processors=input_processors,

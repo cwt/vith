@@ -365,6 +365,18 @@ class WindowArrangement:
             return
         self.active_tab.cycle_focus()
 
+    def set_active_window(self, window):
+        """
+        Make `window` the active window (and its tab the active tab), so that
+        Ex commands resolve their target to the clicked split (docs/bugs/134.md).
+        """
+        for tab_index, tab in enumerate(self.tab_pages):
+            for candidate in tab.windows():
+                if candidate is window:
+                    self.active_tab_index = tab_index
+                    tab.active_window = window
+                    return
+
     def _update_alternate_buffer(self, previous_eb, new_eb):
         """Record `previous_eb` as the alternate buffer (`#`) when switching."""
         if (

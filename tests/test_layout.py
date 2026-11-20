@@ -397,6 +397,50 @@ def test_editor_layout_update_noop_when_active_tab_is_none(editor):
     editor.editor_layout.update()
 
 
+def test_mouse_focus_syncs_active_window(editor, tmp_path):
+    # 134: clicking a split must update WindowArrangement.active_window so that
+    # subsequent Ex commands edit the focused buffer.
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.data_structures import Point
+    from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
+
+    from vith.commands.handler import handle_command
+    from vith.editor_buffer import EditorBuffer
+
+    a = tmp_path / 'focus-a.txt'
+    b = tmp_path / 'focus-b.txt'
+    a.write_text('A1\nA2\nA3\n')
+    b.write_text('B1\nB2\nB3\n')
+    editor.load_initial_files([str(a)])
+    wa = editor.window_arrangement
+    eb_a = wa.active_editor_buffer
+    eb_b = EditorBuffer(editor, str(b))
+    wa._add_editor_buffer(eb_b)
+    wa.active_tab.hsplit(eb_b)
+    wa.active_tab.active_window = wa.active_tab.windows()[0]
+    assert wa.active_editor_buffer is eb_a
+
+    editor.editor_layout.update()
+    control_b = next(
+        frame.children[0].content
+        for (_node, editor_buffer), frame in editor.editor_layout._frames.items()
+        if editor_buffer is eb_b
+    )
+    click = MouseEvent(
+        position=Point(0, 0),
+        event_type=MouseEventType.MOUSE_UP,
+        button=MouseButton.LEFT,
+        modifiers=frozenset(),
+    )
+    with set_app(editor.application):
+        control_b.mouse_handler(click)
+
+    assert wa.active_editor_buffer is eb_b
+    handle_command(editor, ':2d')
+    assert eb_b.buffer.text == 'B1\nB3'
+    assert eb_a.buffer.text == 'A1\nA2\nA3'
+
+
 def test_highlight_location_uses_spans_instead_of_per_char_tokens(editor):
     # 109: highlight_location builds span fragments rather than per-character tokens
     from vith.layout import BufferListOverlay
