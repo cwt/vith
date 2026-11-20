@@ -335,12 +335,18 @@ class WindowArrangement:
 
     def keep_only_current_window(self):
         """
-        Close all other windows, except the current one.
+        Close all other windows in the active tab, except the current one.
+
+        `:only` is tab-local: other tab pages keep their splits and buffers
+        (docs/bugs/132.md).
         """
         if self.active_tab is None or self.active_tab.active_window is None:
             return
-        self.tab_pages = [TabPage(self.active_tab.active_window)]
-        self.active_tab_index = 0
+        active_window = self.active_tab.active_window
+        self.active_tab.root = VSplit([active_window])
+        self.active_tab.active_window = active_window
+        self.active_tab._invalidate_windows_cache()
+        self._auto_close_new_empty_buffers()
 
     def keep_only_current_tab(self):
         """

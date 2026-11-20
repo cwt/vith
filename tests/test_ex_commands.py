@@ -170,6 +170,74 @@ def test_close_empty_arrangement_is_safe(editor):
     handle_command(editor, ':close!')
 
 
+def test_only_is_tab_local_and_guards_dirty_windows(editor, tmp_path):
+    # 132: `:only` closes windows in the current tab only and reports E445
+    # when a dirty buffer would lose its last visible window.
+    a = tmp_path / 'only-a.txt'
+    b = tmp_path / 'only-b.txt'
+    c = tmp_path / 'only-c.txt'
+    for path in (a, b, c):
+        path.write_text('x\n')
+    editor.load_initial_files([str(a)])
+    wa = editor.window_arrangement
+    handle_command(editor, ':sp')
+    handle_command(editor, ':tabe %s' % b)
+    assert len(wa.tab_pages) == 2
+    handle_command(editor, ':tabp')
+
+    eb_c = EditorBuffer(editor, str(c))
+    eb_c.buffer.text = 'dirty C'
+    wa._add_editor_buffer(eb_c)
+    wa.active_tab.hsplit(eb_c)
+    # Keep A active so C is an "other window" with unsaved changes.
+    wa.active_tab.active_window = wa.active_tab.windows()[0]
+    assert wa.active_editor_buffer is not eb_c
+    assert wa.active_tab.window_count() == 3
+
+    handle_command(editor, ':only')
+    assert editor.message == 'E445: Other window contains changes'
+    assert wa.active_tab.window_count() == 3
+
+    editor.message = None
+    handle_command(editor, ':only!')
+    assert wa.active_tab.window_count() == 1
+    assert len(wa.tab_pages) == 2  # the other tab page survives
+    assert wa.active_editor_buffer is not eb_c
+
+
+def test_tabonly_and_tabclose_guard_dirty_buffers(editor, tmp_path):
+    # 132: `:tabonly` / `:tabclose` report E37 unless `!` is given.
+    a = tmp_path / 'tabs-a.txt'
+    b = tmp_path / 'tabs-b.txt'
+    a.write_text('a\n')
+    b.write_text('b\n')
+    editor.load_initial_files([str(a)])
+    wa = editor.window_arrangement
+    handle_command(editor, ':tabe %s' % b)
+    assert len(wa.tab_pages) == 2
+    wa.active_editor_buffer.buffer.text = 'dirty B'
+
+    # `:tabclose` blocks while the dirty buffer's only tab would be removed.
+    handle_command(editor, ':tabc')
+    assert editor.message == 'E37: No write since last change (add ! to override)'
+    assert len(wa.tab_pages) == 2
+
+    handle_command(editor, ':tabc!')
+    assert len(wa.tab_pages) == 1
+
+    # Reopen a second tab, then `:tabonly` from the first tab must be guarded.
+    handle_command(editor, ':tabe %s' % b)
+    handle_command(editor, ':tabp')
+    wa.tab_pages[1].active_window.editor_buffer.buffer.text = 'dirty B again'
+    handle_command(editor, ':tabo')
+    assert editor.message == 'E37: No write since last change (add ! to override)'
+    assert len(wa.tab_pages) == 2
+
+    editor.message = None
+    handle_command(editor, ':tabo!')
+    assert len(wa.tab_pages) == 1
+
+
 def test_wq_closes_only_current_window(editor, tmp_path, monkeypatch):
     # 131: `:wq` must close the current window, not exit the application and
     # discard other windows' unsaved changes.

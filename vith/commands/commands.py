@@ -324,13 +324,30 @@ def _previous(editor, force=False):
         window_arrangement.go_to_previous_buffer()
 
 
-@cmd('on')
-@cmd('only')
-def only(editor):
+@cmd('on', accepts_force=True)
+@cmd('only', accepts_force=True)
+def only(editor, force=False):
     """
-    Keep only the current window.
+    Keep only the current window in the current tab (`:only`), leaving other
+    tab pages untouched (docs/bugs/132.md).
     """
-    editor.window_arrangement.keep_only_current_window()
+    wa = editor.window_arrangement
+    active_tab = wa.active_tab
+    if active_tab is None:
+        return
+    if not force and active_tab.window_count() > 1:
+        active_eb = wa.active_editor_buffer
+        for win in active_tab.windows():
+            eb = win.editor_buffer
+            if (
+                eb is not None
+                and eb is not active_eb
+                and eb.has_unsaved_changes
+                and _buffer_visible_count(wa, eb) <= 1
+            ):
+                editor.show_message('E445: Other window contains changes')
+                return
+    wa.keep_only_current_window()
 
 
 @cmd('clo', accepts_force=True)
@@ -1423,13 +1440,24 @@ def tab_new(editor, location):
     editor.window_arrangement.create_tab(location or None)
 
 
-@cmd('tabclose')
-@cmd('tabc')
-def tab_close(editor):
+@cmd('tabclose', accepts_force=True)
+@cmd('tabc', accepts_force=True)
+def tab_close(editor, force=False):
     """
-    Close tab page.
+    Close tab page (`:tabc` / `:tabclose`), with an E37 dirty-buffer guard
+    (docs/bugs/132.md).
     """
-    editor.window_arrangement.close_tab()
+    wa = editor.window_arrangement
+    active_tab = wa.active_tab
+    if active_tab is None or len(wa.tab_pages) <= 1:
+        return
+    if not force:
+        for win in active_tab.windows():
+            eb = win.editor_buffer
+            if eb is not None and eb.has_unsaved_changes and _buffer_visible_count(wa, eb) <= 1:
+                editor.show_message('E37: No write since last change (add ! to override)')
+                return
+    wa.close_tab()
 
 
 @cmd('tabnext')
@@ -1454,9 +1482,21 @@ def tab_previous(editor):
 @cmd('tabo', accepts_force=True)
 def tab_only(editor, force=False):
     """
-    Close all tab pages except the current tab (`:tabo` / `:tabonly`).
+    Close all tab pages except the current tab (`:tabo` / `:tabonly`), after
+    the E37 dirty-buffer guard (docs/bugs/132.md).
     """
-    editor.window_arrangement.keep_only_current_tab()
+    wa = editor.window_arrangement
+    active_tab = wa.active_tab
+    if not force:
+        for tab in wa.tab_pages:
+            if tab is active_tab:
+                continue
+            for win in tab.windows():
+                eb = win.editor_buffer
+                if eb is not None and eb.has_unsaved_changes and _buffer_visible_count(wa, eb) <= 1:
+                    editor.show_message('E37: No write since last change (add ! to override)')
+                    return
+    wa.keep_only_current_tab()
 
 
 @cmd('tabfirst')
