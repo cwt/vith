@@ -11,7 +11,11 @@ import os
 import traceback
 from typing import TYPE_CHECKING, Any, Callable
 
-from .commands.commands import press_enter_to_continue
+from .commands.commands import (
+    SET_INT_OPTIONS,
+    SET_TOGGLE_GROUPS,
+    press_enter_to_continue,
+)
 from .editor import Editor
 
 if TYPE_CHECKING:
@@ -80,6 +84,86 @@ _CONFIG_OPTION_MAP: dict[str, str] = {
     'cold_text_compression': 'cold_text_compression',
     'cold_text_compression_level': 'cold_text_compression_level',
 }
+
+# Derive the validation categories from the `:set` catalog so TOML and `:set`
+# cannot drift (docs/bugs/138.md).
+_TOGGLE_ATTRIBUTES = frozenset(attr for _display, attr, _on, _off in SET_TOGGLE_GROUPS)
+_INT_ATTRIBUTE_MINIMUMS = {attr: minimum for _display, attr, _names, minimum in SET_INT_OPTIONS}
+_MAX_OPTION_INT = 9999
+
+_TOML_DETECTION_KEYS = frozenset(
+    set(_CONFIG_OPTION_MAP)
+    | {'editor', 'tabstop', 'filetype_tabstops', 'hooks', 'colorscheme', 'colo', 'colorcolumn'}
+)
+
+
+def _parse_colorcolumn(value: Any) -> list[int]:
+    """Parse a TOML `colorcolumn` value into a list of positive integers."""
+    if isinstance(value, bool):
+        raise ValueError('boolean is not a colorcolumn')
+    if isinstance(value, int):
+        numbers = [value]
+    elif isinstance(value, str):
+        numbers = [int(part.strip()) for part in value.split(',') if part.strip()]
+    elif isinstance(value, (list, tuple)):
+        numbers = [int(item) for item in value]
+    else:
+        raise ValueError('expected integer, string or list')
+    if not numbers or any(number <= 0 for number in numbers):
+        raise ValueError('colorcolumn values must be positive')
+    return numbers
+
+
+def _validated_option(
+    editor: Editor,
+    config_key: str,
+    attr_name: str,
+    value: Any,
+    error_handler: Callable[[str], None] | None,
+) -> Any | None:
+    """
+    Validate one TOML option value, reporting through `error_handler` (never
+    raising) and returning the value to apply, or `None` when invalid.
+    """
+    if attr_name in _TOGGLE_ATTRIBUTES:
+        if not isinstance(value, bool):
+            _report_rc_error('Invalid value for %s: expected a boolean' % config_key, error_handler)
+            return None
+        return value
+
+    if attr_name in _INT_ATTRIBUTE_MINIMUMS:
+        minimum = _INT_ATTRIBUTE_MINIMUMS[attr_name]
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or not minimum <= value <= _MAX_OPTION_INT
+        ):
+            _report_rc_error(
+                'Invalid value for %s: expected an integer in %d..%d'
+                % (config_key, minimum, _MAX_OPTION_INT),
+                error_handler,
+            )
+            return None
+        return value
+
+    if attr_name == 'colorcolumn':
+        try:
+            return _parse_colorcolumn(value)
+        except (TypeError, ValueError):
+            _report_rc_error(
+                'Invalid value for %s: expected positive integers' % config_key, error_handler
+            )
+            return None
+
+    if attr_name == 'cold_text_compression_level' and (
+        isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 9
+    ):
+        _report_rc_error(
+            'Invalid value for %s: expected an integer in 0..9' % config_key, error_handler
+        )
+        return None
+
+    return value
 
 
 def find_config_file() -> str | None:
@@ -232,10 +316,19 @@ def apply_toml_config(
         if key in _CONFIG_OPTION_MAP or key in ('colorscheme', 'colo', 'colorcolumn'):
             editor_table.setdefault(key, value)
 
-    # Apply mapped editor options:
+    all_ok = True
+
+    # Validate and apply mapped editor options. Invalid values are reported
+    # (never raised) and skipped, leaving the previous value untouched.
     for config_key, attr_name in _CONFIG_OPTION_MAP.items():
         if config_key in editor_table:
-            setattr(editor, attr_name, editor_table[config_key])
+            validated = _validated_option(
+                editor, config_key, attr_name, editor_table[config_key], error_handler
+            )
+            if validated is None:
+                all_ok = False
+                continue
+            setattr(editor, attr_name, validated)
 
     # Apply colorscheme:
     if 'colorscheme' in editor_table:
@@ -243,15 +336,14 @@ def apply_toml_config(
     elif 'colo' in editor_table:
         editor.use_colorscheme(str(editor_table['colo']))
 
-    # Apply colorcolumn:
-    if 'colorcolumn' in editor_table:
-        val = editor_table['colorcolumn']
-        if isinstance(val, list):
-            editor.colorcolumn = [int(x) for x in val]
-        elif isinstance(val, str):
-            editor.colorcolumn = [int(x.strip()) for x in val.split(',') if x.strip()]
-        elif isinstance(val, int):
-            editor.colorcolumn = [val]
+    # Apply colorcolumn (validated independently of the :set catalog):
+    if 'colorcolumn' in editor_table or 'cc' in editor_table:
+        key = 'colorcolumn' if 'colorcolumn' in editor_table else 'cc'
+        validated = _validated_option(editor, key, 'colorcolumn', editor_table[key], error_handler)
+        if validated is None:
+            all_ok = False
+        else:
+            editor.colorcolumn = validated
 
     # Apply per-filetype tabstops:
     tabstop_table = toml_data.get('tabstop') or toml_data.get('filetype_tabstops')
@@ -274,7 +366,6 @@ def apply_toml_config(
     elif isinstance(hooks_section, list):
         enabled_hooks.extend(str(h) for h in hooks_section)
 
-    all_ok = True
     for hook_name in enabled_hooks:
         hook_path = _resolve_hook_path(hook_name, config_path=config_path, custom_dir=custom_dir)
         if hook_path:
@@ -367,13 +458,7 @@ def run_rc_file(
         try:
             data = tomllib.loads(content)
             # If it parsed as TOML and contains recognized tables/options, apply as TOML:
-            if (
-                'editor' in data
-                or 'tabstop' in data
-                or 'filetype_tabstops' in data
-                or 'hooks' in data
-                or any(k in _CONFIG_OPTION_MAP for k in data)
-            ):
+            if any(key in _TOML_DETECTION_KEYS for key in data):
                 return apply_toml_config(
                     editor, data, config_path=rc_file_str, error_handler=error_handler
                 )

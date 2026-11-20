@@ -140,6 +140,47 @@ def test_apply_toml_config_tabstops(editor):
     assert editor.filetype_tabstops["markdown"] == 4
 
 
+def test_apply_toml_config_validates_values(editor):
+    # 138: invalid TOML values are reported and skipped, never raised or
+    # assigned to editor attributes.
+    errors = []
+    editor.tabstop = 4
+    editor.colorcolumn = [80]
+
+    assert (
+        apply_toml_config(
+            editor,
+            {"editor": {"colorcolumn": ["x"], "tabstop": "four", "number": "yes"}},
+            error_handler=errors.append,
+        )
+        is False
+    )
+    assert editor.tabstop == 4
+    assert editor.colorcolumn == [80]
+    assert editor.show_line_numbers is True
+    assert len(errors) == 3
+    assert any("tabstop" in error for error in errors)
+    assert any("colorcolumn" in error for error in errors)
+
+    errors.clear()
+    assert (
+        apply_toml_config(editor, {"editor": {"tabstop": 999999}}, error_handler=errors.append)
+        is False
+    )
+    assert editor.tabstop == 4
+    assert errors
+
+
+def test_vithrc_detects_top_level_colorscheme_and_colorcolumn(editor, tmp_path):
+    # 138: `.vithrc` containing only top-level colorscheme/colorcolumn is TOML,
+    # not a Python script.
+    rc = tmp_path / ".vithrc"
+    rc.write_text('colorscheme = "emacs"\ncolorcolumn = [80, 100]\n')
+    assert run_rc_file(editor, rc) is True
+    assert editor.colorcolumn == [80, 100]
+    assert editor.current_style is not None
+
+
 def test_run_hook_file(editor, tmp_path):
     hook_file = tmp_path / "my_hook.py"
     hook_file.write_text("def configure(e):\n    e.custom_hook_ran = True\n")
