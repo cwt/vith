@@ -589,6 +589,28 @@ def test_range_write_partial_append_and_pipe_commands(editor, tmp_path):
     assert editor.message == 'shell returned 5'
 
 
+def test_normal_range_clamps_after_line_count_reduction(editor):
+    # 143: Vim clamps the final addressed line, so `dd` keeps processing the
+    # last remaining line instead of skipping rows whose original index vanished.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    editor.sync_with_prompt_toolkit()
+
+    eb.buffer.text = '1\n2\n3\n4\n5'
+    handle_command(editor, ':1,4normal dd')
+    assert eb.buffer.document.lines == ['2']
+    handle_command(editor, ':u')
+
+    eb.buffer.text = '1\n2\n3\n4\n5'
+    handle_command(editor, ':1,5normal dd')
+    assert eb.buffer.text == ''
+
+    # Insert-style commands still use the original row numbers.
+    eb.buffer.text = 'a\nb\nc'
+    handle_command(editor, ':1,3normal A!')
+    assert eb.buffer.document.lines == ['a!', 'b!', 'c!']
+
+
 def test_normal_command_range_undo_bang_thai_global_and_guards(editor):
     from prompt_toolkit.key_binding.vi_state import InputMode
 

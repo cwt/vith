@@ -3409,8 +3409,15 @@ def _execute_normal_on_rows(
             for raw_row in rows:
                 target_row = raw_row + line_offset if track_line_delta else raw_row
                 doc = buff.document
-                if target_row < 0 or target_row >= len(doc.lines):
+                if target_row < 0 or not doc.lines:
                     continue
+                if target_row >= len(doc.lines):
+                    if track_line_delta:
+                        continue
+                    # Vim addresses the range by current line number and
+                    # clamps the final address to the last line (docs/bugs/
+                    # 143.md): a line-deleting `:norm` still processes it.
+                    target_row = len(doc.lines) - 1
                 before_line_count = len(doc.lines)
 
                 vi_state.input_mode = InputMode.NAVIGATION
