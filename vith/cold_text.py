@@ -29,7 +29,7 @@ from prompt_toolkit.document import Document
 from quez import CompressedDeque, NullCompressor, ZlibCompressor
 from quez.compressors import Compressor
 
-from vith.thai import _cell_ordinal, _start_of_cell_ordinal
+from vith.thai.clusters import _cell_ordinal, _start_of_cell_ordinal
 
 try:
     from quez import LzoCompressor as _LzoCompressor

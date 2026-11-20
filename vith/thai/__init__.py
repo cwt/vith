@@ -21,9 +21,10 @@ Adapts the cell-cluster and differential renderer architecture from `szn`
 
 from __future__ import annotations
 
+from typing import Any
+
 from . import classify, clusters, patches, words
-from .classify import (  # noqa: F401
-    _THAI_COMBINING_CPS,  # internal/test re-export (not in __all__)
+from .classify import (
     is_combining_char,
     is_lao,
     is_sara_am,
@@ -35,38 +36,20 @@ from .classify import (  # noqa: F401
     is_thai_or_lao,
     is_thai_right_attaching,
 )
-from .clusters import (  # noqa: F401
-    _cell_ordinal,  # internal/test re-export (not in __all__)
-    _map_column_across_lines,  # internal/test re-export (not in __all__)
-    _start_of_cell_ordinal,  # internal/test re-export (not in __all__)
+from .clusters import (
     cell_starts,
     cell_stops,
     next_cell_offset,
     prev_cell_offset,
     snap_to_cell_start,
 )
-from .patches import (  # noqa: F401
-    _SARA_AM_POISON,  # internal/test re-export (not in __all__)
-    _THAI_GATE,  # internal/test re-export (not in __all__)
-    _install_renderer_patch,  # internal/test re-export (not in __all__)
-    _install_tabs_processor_patch,  # internal/test re-export (not in __all__)
-    _install_window_copy_body_patch,  # internal/test re-export (not in __all__)
-    _PtkTextObject,  # internal/test re-export (not in __all__)
-    _PtkZeroWidthEscape,  # internal/test re-export (not in __all__)
-    _sanitize_and_invalidate_sara_am,  # internal/test re-export (not in __all__)
-    _thai_install_selftest,  # internal/test re-export (not in __all__)
-    _ThaiTextGate,  # internal/test re-export (not in __all__)
+from .patches import (
     install_prompt_toolkit_thai_patches,
     note_document_text,
-    ptk_renderer,  # internal/test re-export (not in __all__)
     reset_thai_text_gate,
     reset_thai_text_gate_if_all_buffers_ascii,
 )
-from .words import (  # noqa: F401
-    _ORIGINAL_DOCUMENT_METHODS,  # internal/test re-export (not in __all__)
-    _ORIGINAL_KEY_PROCESSOR_METHODS,  # internal/test re-export (not in __all__)
-    _iter_word_spans,  # internal/test re-export (not in __all__)
-    _word_spans_for_line,  # internal/test re-export (not in __all__)
+from .words import (
     find_boundaries_of_current_word,
     find_next_word_beginning,
     find_next_word_ending,
@@ -115,3 +98,34 @@ __all__ = (
     "reset_thai_text_gate",
     "reset_thai_text_gate_if_all_buffers_ascii",
 )
+
+# Compatibility lookup for internal/test helpers that lived on the flat
+# `vith/thai.py` module before the package split (docs/bugs/075.md, 153.md).
+# Resolved lazily via PEP 562 `__getattr__` and hidden from `dir(vith.thai)`.
+_COMPAT_INTERNAL_SUBMODULES: dict[str, Any] = {
+    "_THAI_COMBINING_CPS": classify,
+    "_SARA_AM_POISON": patches,
+    "_THAI_GATE": patches,
+    "_install_renderer_patch": patches,
+    "_install_window_copy_body_patch": patches,
+    "_PtkTextObject": patches,
+    "_PtkZeroWidthEscape": patches,
+    "_sanitize_and_invalidate_sara_am": patches,
+    "_thai_install_selftest": patches,
+    "ptk_renderer": patches,
+    "_ORIGINAL_DOCUMENT_METHODS": words,
+    "_ORIGINAL_KEY_PROCESSOR_METHODS": words,
+    "_iter_word_spans": words,
+    "_word_spans_for_line": words,
+}
+
+
+def __getattr__(name: str) -> Any:
+    submodule = _COMPAT_INTERNAL_SUBMODULES.get(name)
+    if submodule is not None:
+        return getattr(submodule, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)

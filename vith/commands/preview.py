@@ -234,6 +234,8 @@ class CommandPreviewer:
             eb.filetype_override = None
             return
         try:
+            # Keep Pygments lexer lookup method-local (matching `options.py`)
+            # so standalone imports of `preview` stay free of eager lexer loads.
             from pygments.lexers import get_lexer_by_name
 
             lexer = get_lexer_by_name(value)

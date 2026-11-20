@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Any
 
 from prompt_toolkit.formatted_text.utils import split_lines
@@ -16,13 +17,11 @@ except ImportError:
 
 __all__ = ('DocumentLexer',)
 
+
 # Cache from Pygments token type to prompt_toolkit style class name.
 # (`pygments_token_to_classname` does a chain of `isinstance` checks, which
 # adds up over hundreds of tokens per keystroke.) Bounded to avoid unbounded
 # memory growth in long sessions.
-from functools import lru_cache
-
-
 @lru_cache(maxsize=4096)
 def _style_classname(token):
     return 'class:' + pygments_token_to_classname(token)
