@@ -304,6 +304,31 @@ def test_set_process_name_darwin_empty_argv(
     set_process_name("vith")
 
 
+def test_cq_exit_code_propagates(editor: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    # 145: `:cq` requests result 1, Editor.run returns it, and the CLI exits
+    # with that status (normal quits still exit 0).
+    from vith.commands.commands import quit_nonzero
+
+    calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(editor.application, "exit", lambda *a, **kw: calls.append((a, kw)))
+    quit_nonzero(editor)
+    assert calls == [((), {"result": 1})]
+
+    monkeypatch.setattr(editor.application, "run", lambda **kw: 1)
+    assert editor.run() == 1
+
+
+def test_run_vith_exits_with_editor_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_editor = MagicMock()
+    mock_editor.run.return_value = 1
+    monkeypatch.setattr(run_vith, "Editor", MagicMock(return_value=mock_editor))
+    monkeypatch.setattr(run_vith, "find_config_file", lambda: None)
+    monkeypatch.setattr(sys, "argv", ["vith"])
+    with pytest.raises(SystemExit) as exc_info:
+        run_vith.run()
+    assert exc_info.value.code == 1
+
+
 def test_set_process_name_darwin_exception_handled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

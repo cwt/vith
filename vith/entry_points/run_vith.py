@@ -51,7 +51,9 @@ def run():
 
     # Load files and run.
     editor.load_initial_files(locations, in_tab_pages=in_tab_pages, hsplit=hsplit, vsplit=vsplit)
-    editor.run()
+    result = editor.run()
+    if isinstance(result, int) and result:
+        sys.exit(result)
 
 
 if __name__ == '__main__':

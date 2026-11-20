@@ -1173,7 +1173,7 @@ def quit_nonzero(editor):
     # Note: the try/finally in `prompt_toolkit.Interface.read_input`
     # will ensure that the render output is reset, leaving the alternate
     # screen before quitting.
-    editor.application.exit()
+    editor.application.exit(result=1)
 
 
 @cmd('wall', accepts_force=True)

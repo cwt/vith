@@ -649,10 +649,12 @@ class Editor:
                 eb.run_reporter()
 
         try:
-            # Run eventloop of prompt_toolkit.
-            self.application.run(pre_run=pre_run)
+            # Run eventloop of prompt_toolkit, propagating the result set by
+            # `:cq` (docs/bugs/145.md).
+            result = self.application.run(pre_run=pre_run)
         finally:
             self._clear_terminal_title()
+        return result
 
     def enter_command_mode(self, initial_text: str = '') -> None:
         """
