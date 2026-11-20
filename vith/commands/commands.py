@@ -9,6 +9,7 @@ from prompt_toolkit.clipboard import ClipboardData
 from prompt_toolkit.filters import to_filter
 from prompt_toolkit.selection import SelectionType
 
+from vith.io.base import find_backend
 from vith.thai import note_document_text
 
 from .ranges import (
@@ -603,10 +604,7 @@ def _read_location_text(editor, location: str) -> str | None:
     Read text from `location` through `editor.io_backends` without mutating any
     `EditorBuffer` metadata (`location`, `is_new`, `isdir`, `encoding`).
     """
-    io = next(
-        (backend for backend in editor.io_backends if backend.can_open_location(location)),
-        None,
-    )
+    io = find_backend(editor.io_backends, location)
     if io is None:
         editor.show_message(f"E484: Can't open file {location}")
         return None
@@ -928,10 +926,7 @@ def write(editor, location, force=False):
 
 def _write_payload_to_location(editor: Any, eb: Any, target: str, payload: str) -> bool:
     """Write `payload` to `target` via `editor.io_backends` without mutating `eb`."""
-    io = next(
-        (backend for backend in editor.io_backends if backend.can_open_location(target)),
-        None,
-    )
+    io = find_backend(editor.io_backends, target)
     if io is None:
         editor.show_message('Unknown location: %r' % target)
         return False
@@ -976,10 +971,7 @@ def _write_append_file(editor: Any, eb: Any, target: str, payload: str, force: b
     Append `payload` to `target` through the editor's I/O backends
     (`:[range]w[!] >> {file}`, docs/bugs/147.md).
     """
-    io = next(
-        (backend for backend in editor.io_backends if backend.can_open_location(target)),
-        None,
-    )
+    io = find_backend(editor.io_backends, target)
     if io is None:
         editor.show_message('Unknown location: %r' % target)
         return
@@ -2605,20 +2597,6 @@ def substitute(editor, range_start, range_end, search, replace, flags):
 
     if options.print_last:
         editor.show_message(eb.buffer.document.lines[row])
-
-
-def _apply_optional_line_count(
-    start_row: int, end_row: int, cmd_arg: str | None, line_count: int
-) -> tuple[tuple[int, int] | None, str | None]:
-    """Adjust `(start_row, end_row)` for an optional Ex line count (`:2d 3`)."""
-    if not cmd_arg:
-        return (start_row, end_row), None
-    count = int(cmd_arg)
-    if count < 1:
-        return None, f'E488: Trailing characters: {cmd_arg}'
-    new_start = end_row
-    new_end = min(line_count - 1, new_start + count - 1)
-    return (new_start, new_end), None
 
 
 def _register_name(variables: Any, editor: Any) -> str | None:

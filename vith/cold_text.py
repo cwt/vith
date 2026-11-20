@@ -236,16 +236,11 @@ class ColdTextBuffer(Buffer):
             src_row = min(doc.cursor_position_row, len(lines) - 1)
             src_line = lines[src_row]
             ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)))
-        elif len(remembered) == 3:
+        else:
             # Unchanged sticky: reuse cached visual ordinal without rescanning
             # `src_line` on every repeated `j`/`k` motion (docs/bugs/113.md).
             src_col, src_row, ordinal = remembered
             src_row = min(src_row, len(lines) - 1)
-        else:
-            src_col, src_row = remembered
-            src_row = min(src_row, len(lines) - 1)
-            src_line = lines[src_row]
-            ordinal = _cell_ordinal(src_line, min(src_col, len(src_line)))
 
         if up:
             target_row = max(0, doc.cursor_position_row - count)

@@ -62,7 +62,6 @@ from .clusters import (  # noqa: F401
     _cell_ordinal,
     _map_column_across_lines,
     _start_of_cell_ordinal,
-    cell_starts,
     next_cell_offset,
     prev_cell_offset,
     snap_to_cell_start,

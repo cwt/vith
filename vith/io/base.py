@@ -1,6 +1,11 @@
 from abc import ABCMeta, abstractmethod
 
-__all__ = ('EditorIO',)
+__all__ = ('EditorIO', 'find_backend')
+
+
+def find_backend(backends, location):
+    """First I/O backend in `backends` that can open `location` (docs/bugs/148.md)."""
+    return next((backend for backend in backends if backend.can_open_location(location)), None)
 
 
 class EditorIO(metaclass=ABCMeta):

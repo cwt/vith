@@ -233,7 +233,6 @@ def replace_buffer_lines(
     col: int = 0,
     first_non_blank: bool = True,
     inserted_text: str = '',
-    save_undo: bool = True,
 ) -> bool:
     """
     Replace `eb.buffer`'s text with `lines` while uniformly enforcing:
@@ -247,8 +246,7 @@ def replace_buffer_lines(
         editor.show_message(MODIFIABLE_OFF_TEXT)
         return False
 
-    if save_undo:
-        eb.buffer.save_to_undo_stack()
+    eb.buffer.save_to_undo_stack()
 
     normalized_lines = lines if lines else ['']
     new_text = '\n'.join(normalized_lines)

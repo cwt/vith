@@ -9,6 +9,7 @@ from prompt_toolkit.filters import to_filter
 
 from vith.cold_text import ColdTextBuffer, make_cold_text_compressor
 from vith.completion import DocumentCompleter
+from vith.io.base import find_backend
 from vith.reporting import checks_python_file, report
 from vith.thai import note_document_text
 
@@ -271,10 +272,7 @@ class EditorBuffer:
         location cannot be read at all (unknown backend or read failure) —
         callers must not silently treat `None` as a new empty file.
         """
-        io = next(
-            (b for b in self.editor.io_backends if b.can_open_location(location)),
-            None,
-        )
+        io = find_backend(self.editor.io_backends, location)
         if io is None:
             self.editor.show_message('Cannot read: %r' % location)
             return None
@@ -282,8 +280,8 @@ class EditorBuffer:
         exists = io.exists(location)
         self.isdir = io.isdir(location)
 
-        if exists in (True, NotImplemented):
-            # File could exist. Read it.
+        if exists:
+            # File exists. Read it.
             self.is_new = False
             try:
                 text, self.encoding = io.read(location)
@@ -451,10 +449,7 @@ class EditorBuffer:
             return False
 
         # Find I/O backend that handles this location.
-        io = next(
-            (b for b in self.editor.io_backends if b.can_open_location(target_location)),
-            None,
-        )
+        io = find_backend(self.editor.io_backends, target_location)
         if io is None:
             self.editor.show_message('Unknown location: %r' % target_location)
             return False
