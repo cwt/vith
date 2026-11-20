@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-20T09:47:00Z"
-timestamp: "2026-11-20T09:47:00Z"
+  at: "2026-11-20T09:51:00Z"
+timestamp: "2026-11-20T09:51:00Z"
 ---
 
 # Documentation Bundle Log
@@ -53,3 +53,4 @@ This file tracks all modifications, extensions, and updates to the `vith` OKF do
 | 2026-11-20T09:10:00Z | [bugs/152.md](bugs/152.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [index.md](index.md), [log.md](log.md) | Finding closed (152) | Closed [152](bugs/152.md) with catalog-derived `_default_options`/`_CONFIG_OPTION_MAP`, shared `_resolve_editor_buffer`/`apply_int_option_value`, shared `_resolve_address_1based`, unified `resolve_ignore_case`, and unified write-target normalization fixing the `:set ro` symlink bypass and stale dirty flag (**480 passed**, 90.18% coverage, `mypy` 81 files clean, `ruff` clean). |
 | 2026-11-20T09:15:00Z | [bugs/153.md](bugs/153.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [index.md](index.md), [log.md](log.md) | Finding closed (153) | Closed [153](bugs/153.md) with `vith/lexer.py` top-level import consolidation, `completer.py` class ordering, `cold_text.py` direct submodule import, and `vith/thai/__init__.py` PEP 562 `__getattr__`/`__dir__` surface tightening (**483 passed**, 90.20% coverage, `mypy` 82 files clean, `ruff` clean). All 153 findings across 9 audit rounds are now closed. |
 | 2026-11-20T09:47:00Z | [bugs/154.md](bugs/154.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [index.md](index.md), [log.md](log.md) | Appended & closed (154) | Recorded and fixed user field report [154](bugs/154.md): tab-aware display-column motion (`j`/`k`, `{count}\|`), visual-block selection (`<C-v>` highlight/`y`/`d`/`I`/`A`), and block/charwise paste (`p`/`P`) honoring buffer/local/global/per-split `tabstop` on Thai and ASCII tabbed lines, with regression suite `tests/test_thai_tabs_motion.py`. All 154 bundle findings are now closed. |
+| 2026-11-20T09:51:00Z | [log.md](log.md), [../pyproject.toml](../pyproject.toml), [../vith/__init__.py](../vith/__init__.py), [../CHANGELOG](../CHANGELOG), [../README.md](../README.md) | Updated (`v0.15.1` release) | Bumped version to `0.15.1`, added `CHANGELOG` release notes covering Round 9 improvements (151–153) and tab-aware Thai/CJK/ASCII motion & visual-block fixes (154), and refreshed `README.md` counts and descriptions (**505 passed**, 90.25% coverage, `mypy .` 83 files clean, `ruff` clean). |

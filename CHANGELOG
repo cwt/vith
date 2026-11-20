@@ -1,6 +1,53 @@
 CHANGELOG
 =========
 
+0.15.1: 2026-11-20
+-------------------
+
+Tab-aware Thai/CJK/ASCII cursor motion & visual blocks, plus Round 9 hardening:
+
+Tab-aware visual-column motion & visual-block editing (finding 154):
+
+- Expanded ``\t`` to the buffer's effective ``tabstop`` (global, per-filetype,
+  buffer-local ``:set`` / ``:setlocal ts=N``, and per-split safe) in
+  ``vith/thai/clusters.py`` visual-column helpers (guarding ASCII fast paths
+  with ``"\t" not in line``) and ``ColdTextBuffer._cursor_vertical`` (with
+  mid-run ``tabstop`` re-anchoring), so ``j``/``k`` stay locked on the same
+  visual column across Thai combining marks, CJK, empty lines, and tabs.
+- Rewrote ``SelectionType.BLOCK`` in ``_thai_selection_ranges`` and
+  ``_thai_selection_range_at_line`` directly in display columns across
+  ``from_line..to_line`` so shorter tabbed lines are no longer dropped by
+  codepoint-length checks, and fixed upstream ``prompt_toolkit``'s
+  ``TextObject.operator_range`` ``BLOCK`` upper-corner off-by-one so
+  ``<C-v>`` highlight, ``y``, ``d``, ``I``, and ``A`` align with Vim in all
+  four drag directions.
+- Patched ``Document.get_column_cursor_position`` (``{count}|``) and
+  ``Document.paste_clipboard_data`` so column jumps and visual-block ``p``/``P``
+  align on display columns (and charwise ``p`` lands after the full Thai cell
+  cluster instead of splitting combining marks).
+
+Round 9 audit improvements (findings 151–153, all closed):
+
+- Performance (151): added ``splice_buffer_lines`` / ``splice_lines_at`` /
+  ``apply_deleted_range`` for contiguous Ex edits; retained inactive live tab
+  frames/scroll/lexers across tab switches; replaced quadratic ``:g`` move/copy
+  loops with ``O(n)`` static ``0``/``$`` fast paths and ``_IndexedLineChunks``
+  (``O(m sqrt(n))``); merged SARA-AM single-pass row scan with visible-buffer
+  Thai gate decay/re-latch; cached compiled ``:b`` search regex; hoisted
+  ``get_cwidth`` and added tab-free/ASCII fast paths in ``:retab``.
+- Deduplication & correctness (152): derived ``Editor._default_options`` and
+  ``rc_file._CONFIG_OPTION_MAP`` from the ``:set`` catalog; unified
+  ``_resolve_editor_buffer``, ``apply_int_option_value``, 1-based line-address
+  resolution, ``resolve_ignore_case``, and write-target normalization (fixing
+  the ``:set ro`` symlink bypass and stale dirty flag).
+- Readability & public surface (153): consolidated ``vith/lexer.py`` top-level
+  imports, ordered ``vith/commands/completer.py`` classes consistently,
+  migrated ``vith/cold_text.py`` to direct submodule imports, and moved
+  internal compatibility shims in ``vith/thai/__init__.py`` behind PEP 562
+  ``__getattr__`` / ``__dir__``.
+- Full test suite passing: 505 passed (90.25% coverage), mypy clean on 83
+  source files (Python 3.10 target), ruff clean.
+
 0.15.0: 2026-11-20
 -------------------
 
