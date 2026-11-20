@@ -2217,6 +2217,91 @@ def parse_substitute_args(sub_args: str | None) -> tuple[str | None, str | None,
     return search, replace, flags
 
 
+def _vim_replacement_function(replace: str, previous: str, group_count: int) -> Any:
+    """
+    Translate a Vim `:s` replacement into a `re.sub` callable (docs/bugs/139.md).
+
+    Vim's replacement dialect differs from Python's: `&` is the whole match,
+    `\\&` is a literal ampersand, `\\r` inserts a line break, `\\n` inserts a
+    NUL, `~` inserts the previous replacement, `\\0`..`\\9` are backreferences,
+    and `\\u`/`\\U`/`\\l`/`\\L`/`\\e`/`\\E` are case operators. Raises
+    `ValueError` for invalid backreferences or unsupported escapes.
+    """
+    _CASE_OPS = frozenset('ulULeE')
+    tokens: list[tuple[str, Any]] = []
+    i = 0
+    while i < len(replace):
+        ch = replace[i]
+        if ch == '\\' and i + 1 < len(replace):
+            nxt = replace[i + 1]
+            if nxt in _CASE_OPS:
+                tokens.append(('case', nxt))
+            elif nxt == '&':
+                tokens.append(('text', '&'))
+            elif nxt == 'r':
+                tokens.append(('text', '\n'))
+            elif nxt == 'n':
+                tokens.append(('text', '\x00'))
+            elif nxt == '\\':
+                tokens.append(('text', '\\'))
+            elif nxt.isdigit():
+                group = int(nxt)
+                if group > group_count:
+                    raise ValueError('invalid backreference \\%d' % group)
+                tokens.append(('group', group))
+            elif nxt.isalpha():
+                raise ValueError('invalid escape \\%s in replacement' % nxt)
+            else:
+                tokens.append(('text', nxt))
+            i += 2
+            continue
+        if ch == '&':
+            tokens.append(('group', 0))
+        elif ch == '~':
+            tokens.append(('text', previous))
+        else:
+            tokens.append(('text', ch))
+        i += 1
+
+    def expand(match: Any) -> str:
+        mode: str | None = None
+        one_shot: str | None = None
+        pieces: list[str] = []
+
+        def emit(text: str) -> None:
+            nonlocal one_shot
+            for char in text:
+                if one_shot == 'u':
+                    pieces.append(char.upper())
+                    one_shot = None
+                elif one_shot == 'l':
+                    pieces.append(char.lower())
+                    one_shot = None
+                elif mode == 'U':
+                    pieces.append(char.upper())
+                elif mode == 'L':
+                    pieces.append(char.lower())
+                else:
+                    pieces.append(char)
+
+        for kind, value in tokens:
+            if kind == 'text':
+                emit(value)
+            elif kind == 'group':
+                emit(match.group(value) or '')
+            elif kind == 'case':
+                if value in ('u', 'l'):
+                    one_shot = value
+                elif value in ('U', 'L'):
+                    mode = value
+                else:
+                    mode = None
+                    one_shot = None
+        return ''.join(pieces)
+
+    return expand
+
+
 def _parse_substitute_flags(
     flags: str, default_ignore_case: bool
 ) -> tuple[_SubstituteOptions | None, str | None]:
@@ -2352,6 +2437,14 @@ def substitute(editor, range_start, range_end, search, replace, flags):
         editor.show_message('Invalid regex: %s' % e)
         return
 
+    try:
+        repl = _vim_replacement_function(
+            replace or '', editor.last_substitute_text or '', pattern.groups
+        )
+    except ValueError as exc:
+        editor.show_message('Invalid regex: %s' % exc)
+        return
+
     buffer_lines = buffer.document.lines
     line_numbers, range_error = _resolve_substitute_range(
         range_start,
@@ -2373,7 +2466,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
     for row in line_numbers:
         original = buffer_lines[row]
         try:
-            result, count = pattern.subn(replace, original, count=options.sub_count)
+            result, count = pattern.subn(repl, original, count=options.sub_count)
         except re.error as e:
             editor.show_message('Invalid regex: %s' % e)
             return
@@ -2950,6 +3043,13 @@ def _global_execute_substitute(
     except re.error as exc:
         editor.show_message('Invalid regex: %s' % exc)
         return
+    try:
+        sub_repl = _vim_replacement_function(
+            replace or '', editor.last_substitute_text or '', sub_pat.groups
+        )
+    except ValueError as exc:
+        editor.show_message('Invalid regex: %s' % exc)
+        return
 
     new_lines = list(lines)
     total_matches = 0
@@ -2957,7 +3057,7 @@ def _global_execute_substitute(
     last_row = marked_rows[-1]
     for row in marked_rows:
         try:
-            result, count = sub_pat.subn(replace, new_lines[row], count=options.sub_count)
+            result, count = sub_pat.subn(sub_repl, new_lines[row], count=options.sub_count)
         except re.error as exc:
             editor.show_message('Invalid regex: %s' % exc)
             return

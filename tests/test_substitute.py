@@ -500,3 +500,50 @@ def test_substitute_visual_colon_prefills_marks_and_runs(editor):
     editor.leave_command_mode(append_to_history=True)
     handle_command(editor, cmd_text)
     assert eb.buffer.document.lines == ['old 1', 'new 2', 'new 3', 'old 4']
+
+
+def test_substitute_vim_replacement_semantics(editor, editor_buffer):
+    # 139: `:s` uses Vim's replacement dialect, not Python's re.sub template.
+    given_sample_text(editor_buffer, 'foo bar')
+    for command, expected in (
+        (r':s/foo/&X/', 'fooX bar'),
+        (r':s/foo/\&X/', '&X bar'),
+        (r':s/foo/a\nb/', 'a\x00b bar'),
+        (r':s/foo/\0X/', 'fooX bar'),
+        (r':s/foo/\u&/', 'Foo bar'),
+        (r':s/foo/\U&\E/', 'FOO bar'),
+        (r':s/foo/\l&/', 'foo bar'),
+    ):
+        editor_buffer.buffer.text = 'foo bar'
+        editor.message = None
+        handle_command(editor, command)
+        assert editor_buffer.buffer.text == expected, command
+        assert editor.message is None, (command, editor.message)
+
+    # `\r` inserts a real line break (Vim), unlike Python's carriage return.
+    editor_buffer.buffer.text = 'foo bar'
+    handle_command(editor, r':s/foo/a\rb/')
+    assert editor_buffer.buffer.document.lines == ['a', 'b bar']
+
+    # `~` reuses the previous replacement text.
+    editor_buffer.buffer.text = 'foo bar'
+    editor.last_substitute_text = 'Zed'
+    handle_command(editor, ':s/foo/~/')
+    assert editor_buffer.buffer.text == 'Zed bar'
+
+
+def test_global_substitute_vim_replacement_semantics(editor):
+    # 139: the `:g/.../s` pipeline shares the Vim replacement translator.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'foo bar\nkeep'
+    handle_command(editor, r':g/foo/s/foo/&X/')
+    assert eb.buffer.document.lines == ['fooX bar', 'keep']
+
+
+def test_substitute_rejects_unsupported_escape(editor, editor_buffer):
+    given_sample_text(editor_buffer, 'foo bar')
+    editor.message = None
+    handle_command(editor, r':s/foo/\q/')
+    assert editor.message is not None
+    assert editor_buffer.buffer.text == 'foo bar'
