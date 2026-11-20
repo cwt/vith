@@ -1184,6 +1184,19 @@ def test_block_d_aligned_with_highlight():
     assert _active_buffer(editor).text == "ที่น\nสี\nxyz\n"
 
 
+def test_visual_block_bounds_use_display_columns_for_cjk():
+    # 141: visual-block corners are measured in terminal columns, not cluster
+    # ordinals, so a wide CJK cluster spans two columns.
+    from prompt_toolkit.document import Document
+
+    from vith.thai.patches import _visual_block_ordinal_bounds
+
+    doc = Document('你好\nabcdef')
+    corner_a = doc.translate_row_col_to_index(0, 1)  # 好 -> visual column 2
+    corner_b = doc.translate_row_col_to_index(1, 1)  # 'b' -> visual column 1
+    assert _visual_block_ordinal_bounds(doc, corner_a, corner_b) == (1, 2)
+
+
 def test_gate_decay_respects_thai_statusbar_and_names(editor):
     # 082: gate decay previously looked only at buffer texts; Thai file
     # names (status bar/overlay) and Thai `editor.message` banners also

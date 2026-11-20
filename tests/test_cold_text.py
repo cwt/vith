@@ -234,6 +234,25 @@ def test_vertical_cursor_ascii_parity(editor_buffer):
     assert buffer.cursor_position == buffer.document.translate_row_col_to_index(2, 3)
 
 
+def test_vertical_cursor_keeps_visual_column_over_cjk(editor_buffer):
+    # 141: a two-column CJK cluster is no longer treated as one ordinal, so
+    # j/k from `好` (visual column 2) lands on 'c' of an ASCII row.
+    from vith.thai.clusters import _cell_ordinal, _start_of_cell_ordinal
+
+    assert _cell_ordinal('你好', 1) == 2
+    assert _cell_ordinal('你好', 0) == 0
+    assert _start_of_cell_ordinal('你好', 2) == 1
+    assert _start_of_cell_ordinal('你好', 4) == 2
+
+    buffer = editor_buffer.buffer
+    buffer.text = '你好\nabcdef'
+    doc = buffer.document
+    buffer.cursor_position = doc.translate_row_col_to_index(0, 1)
+    buffer.cursor_down()
+    row, col = doc.translate_index_to_position(buffer.cursor_position)
+    assert (row, col) == (1, 2)
+
+
 def test_redo_does_not_push_duplicate_snapshot_to_undo_stack(editor_buffer):
     # 110 item 7: `undo()` and `redo()` restore `self._text_version` to the
     # snapshot's recorded version so a subsequent cursor-only `save_to_undo_stack`

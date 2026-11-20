@@ -8,6 +8,8 @@ public names, so the import surface stays stable.
 from bisect import bisect_right
 from functools import lru_cache
 
+from prompt_toolkit.utils import get_cwidth
+
 from .classify import is_combining_char
 
 # ---------------------------------------------------------------------------
@@ -121,39 +123,75 @@ cell_starts.cache_clear = _cell_starts_cached.cache_clear  # type: ignore[attr-d
 cell_starts.cache_info = _cell_starts_cached.cache_info  # type: ignore[attr-defined]
 
 
+def _compute_cell_columns(line: str) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+    """
+    Build `(cluster starts, visual columns, total width)` for `line`.
+
+    A cluster's visual width is the sum of `get_cwidth` over its codepoints:
+    Thai/Lao marks are zero-width (one cell per cluster, as before), while
+    CJK/full-width/emoji bases occupy two cells (docs/bugs/141.md).
+    """
+    stops = cell_stops(line)
+    starts = stops[:-1]
+    columns: list[int] = []
+    visual = 0
+    for index, start in enumerate(starts):
+        columns.append(visual)
+        end = stops[index + 1]
+        visual += sum(get_cwidth(char) for char in line[start:end])
+    return tuple(starts), tuple(columns), visual
+
+
+@lru_cache(maxsize=4096)
+def _cell_columns_cached(line: str) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+    return _compute_cell_columns(line)
+
+
+def _cell_columns(line: str) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+    if len(line) > _CELL_STARTS_CACHE_MAX_LINE:
+        return _compute_cell_columns(line)
+    return _cell_columns_cached(line)
+
+
+_cell_columns.cache_clear = _cell_columns_cached.cache_clear  # type: ignore[attr-defined]
+_cell_columns.cache_info = _cell_columns_cached.cache_info  # type: ignore[attr-defined]
+
+
 def _cell_ordinal(line: str, col: int) -> int:
     """
-    Visual cell-cluster ordinal that contains codepoint column `col`
-    (combining marks overprint their base, so every Thai/Lao cluster is
-    exactly one terminal cell: its ordinal == its visual column).
+    Visual *column* containing codepoint column `col` (docs/bugs/141.md).
 
-    Empty and ASCII lines shortcut (columns == ordinals); `col` may sit
-    mid-cluster — the ordinal of the cluster's base is returned
-    (docs/bugs/077.md).
+    For Thai/Lao (all bases width 1) this equals the old cluster ordinal, so
+    the 077/078/079 behavior is unchanged. Wide (CJK/emoji) clusters consume
+    two columns, so `j`/`k` and visual blocks stay in the same display column.
+    `col` may sit mid-cluster — the containing cell's visual column is returned.
     """
     if not line or line.isascii():
         return col
-    starts = cell_starts(line)
+    starts, columns, total_width = _cell_columns(line)
     if not starts:
         return 0
     if col >= len(line):
         # A codepoint parked at/past the line end is the empty slot *after*
         # the last cell (Vim curswant semantics), not the last cell itself.
-        return len(starts)
-    return max(0, bisect_right(starts, col) - 1)
+        return total_width
+    index = bisect_right(starts, col) - 1
+    return columns[max(0, index)]
 
 
 def _start_of_cell_ordinal(line: str, ordinal: int) -> int:
     """
     Line-relative codepoint column of the start of visual cell `ordinal`
-    (`len(line)` when the row has fewer cells). ASCII shortcut keeps the
-    codepoint/visual identity.
+    (`len(line)` when the row has fewer cells; docs/bugs/141.md).
     """
     n = len(line)
     if not line or line.isascii():
         return min(ordinal, n)
-    starts = cell_starts(line)
-    return starts[ordinal] if ordinal < len(starts) else n
+    starts, columns, total_width = _cell_columns(line)
+    if ordinal >= total_width:
+        return n
+    index = bisect_right(columns, ordinal) - 1
+    return starts[max(0, index)]
 
 
 def _map_column_across_lines(src_line: str, src_col: int, target_line: str) -> int:
