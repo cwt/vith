@@ -112,6 +112,51 @@ def _get_int_option_value(editor: Any, attribute: str, eb: Any = None) -> int:
     return int(getattr(editor, attribute))
 
 
+def apply_int_option_value(
+    editor: Any,
+    attribute: str,
+    number: int,
+    *,
+    is_local: bool = False,
+    require_buffer: bool = True,
+) -> bool:
+    """
+    Assign integer option `attribute` to `editor` and/or the active buffer,
+    shared by `:set`/`:setlocal` and `CommandPreviewer` (docs/bugs/152.md).
+    """
+    if attribute in ('tabstop', 'shiftwidth'):
+        eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+        if is_local:
+            if eb is None:
+                if require_buffer:
+                    editor.show_message('No buffer')
+                return False
+            setattr(eb, attribute, number)
+        else:
+            setattr(editor, attribute, number)
+            if eb is not None:
+                setattr(eb, attribute, number)
+    else:
+        setattr(editor, attribute, number)
+    return True
+
+
+def snapshot_default_options(editor: Any) -> dict[str, Any]:
+    """
+    Snapshot factory defaults for every cataloged `:set` option on `editor`
+    (plus `fileformat`) for bare `:set` diffing (docs/bugs/152.md).
+    """
+    defaults: dict[str, Any] = {}
+    for _display, attr, _on, _off in SET_TOGGLE_GROUPS:
+        defaults[attr] = getattr(editor, attr)
+    for _display, attr, _names, _min in SET_INT_OPTIONS:
+        defaults[attr] = getattr(editor, attr)
+    for _display, attr, _names in SET_LIST_OPTIONS:
+        defaults[attr] = list(getattr(editor, attr))
+    defaults['fileformat'] = getattr(editor, 'fileformat', 'unix')
+    return defaults
+
+
 def _set_int_option(
     editor: Any,
     value: str | None,
@@ -139,20 +184,8 @@ def _set_int_option(
     if number < minimum:
         editor.show_message('Argument must be positive')
         return False
-    if attribute in ('tabstop', 'shiftwidth'):
-        eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
-        if is_local:
-            if eb is not None:
-                setattr(eb, attribute, number)
-            else:
-                editor.show_message('No buffer')
-                return False
-        else:
-            setattr(editor, attribute, number)
-            if eb is not None:
-                setattr(eb, attribute, number)
-    else:
-        setattr(editor, attribute, number)
+    if not apply_int_option_value(editor, attribute, number, is_local=is_local):
+        return False
     invalidate_app()
     return True
 

@@ -13,9 +13,27 @@ from vith.io.base import find_backend
 from vith.reporting import checks_python_file, report
 from vith.thai import note_document_text
 
-__all__ = ('EditorBuffer', 'UNTITLED_LABEL')
+__all__ = ('EditorBuffer', 'UNTITLED_LABEL', 'is_same_write_target', 'normalize_write_target')
 
 UNTITLED_LABEL = '[New file]'
+
+
+def normalize_write_target(location: str | None) -> str | None:
+    """Normalize a write path for same-file comparison (tilde/symlink safe; docs/bugs/152.md)."""
+    if not location:
+        return None
+    if '://' in location:
+        return location
+    return os.path.realpath(os.path.abspath(os.path.expanduser(location)))
+
+
+def is_same_write_target(current_location: str | None, target_location: str | None) -> bool:
+    """Whether `target_location` resolves to the same file as `current_location`."""
+    if not current_location or not target_location:
+        return False
+    if current_location == target_location:
+        return True
+    return normalize_write_target(current_location) == normalize_write_target(target_location)
 
 
 class EditorBuffer:
@@ -438,13 +456,13 @@ class EditorBuffer:
             return False
 
         # Guard buffer-local `readonly` option (`:set ro`) unless forced (`:w!`).
+        # Normalize paths so writing to the buffer's own file via a symlink or
+        # relative path cannot bypass `:set ro` or leave dirty state stale
+        # (docs/bugs/152.md).
+        same_target = is_same_write_target(self.location, target_location)
         read_only = self.buffer.read_only
         is_ro = bool(read_only()) if callable(read_only) else bool(read_only)
-        if (
-            is_ro
-            and not force
-            and (location is None or target_location == self.location or self.location is None)
-        ):
+        if is_ro and not force and (location is None or same_target or self.location is None):
             self.editor.show_message("E45: 'readonly' option is set (add ! to override)")
             return False
 
@@ -471,14 +489,13 @@ class EditorBuffer:
             self.editor.show_message('%s' % e)
             return False
         else:
-            updates_buffer = (
-                self.location is None or target_location == self.location or bool(rename)
-            )
+            updates_buffer = self.location is None or same_target or bool(rename)
             if updates_buffer:
-                location_changed = target_location != self.location
+                new_location = self.location if (same_target and not rename) else target_location
+                location_changed = new_location != self.location
                 self.is_new = False
                 # Only mutate location after a successful write.
-                self.location = target_location
+                self.location = new_location
                 # When the save succeeds: update: _file_content.
                 self._file_content = self.buffer.text
                 self._has_unsaved_changes = False

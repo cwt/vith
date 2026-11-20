@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from .commands import (
     SET_INT_OPTIONS,
+    SET_LIST_OPTIONS,
     SET_TOGGLE_GROUPS,
     press_enter_to_continue,
 )
@@ -39,53 +40,46 @@ __all__ = (
 # Alias preserved for callers/tests referencing the module-private name.
 _press_enter_to_continue = press_enter_to_continue
 
-#: Map from configuration key (Vim name or Python attribute) to Editor attribute name.
-_CONFIG_OPTION_MAP: dict[str, str] = {
-    # Boolean toggle options:
-    'number': 'show_line_numbers',
-    'show_line_numbers': 'show_line_numbers',
-    'relativenumber': 'relative_number',
-    'relative_number': 'relative_number',
-    'hlsearch': 'highlight_search',
-    'highlight_search': 'highlight_search',
-    'incsearch': 'incsearch',
-    'ignorecase': 'ignore_case',
-    'ignore_case': 'ignore_case',
-    'smartcase': 'smartcase',
-    'scs': 'smartcase',
-    'autoindent': 'autoindent',
-    'ai': 'autoindent',
-    'paste': 'paste_mode',
-    'paste_mode': 'paste_mode',
-    'ruler': 'show_ruler',
-    'show_ruler': 'show_ruler',
-    'wildmenu': 'show_wildmenu',
-    'show_wildmenu': 'show_wildmenu',
-    'expandtab': 'expand_tab',
-    'expand_tab': 'expand_tab',
-    'list': 'display_unprintable_characters',
-    'display_unprintable_characters': 'display_unprintable_characters',
-    'wrap': 'wrap_lines',
-    'wrap_lines': 'wrap_lines',
-    'breakindent': 'break_indent',
-    'break_indent': 'break_indent',
-    'mouse': 'enable_mouse_support',
-    'enable_mouse_support': 'enable_mouse_support',
-    'jedi': 'enable_jedi',
-    'enable_jedi': 'enable_jedi',
-    'cursorline': 'cursorline',
-    'cursorcolumn': 'cursorcolumn',
-    # Integer and string options:
-    'tabstop': 'tabstop',
-    'shiftwidth': 'shiftwidth',
-    'sw': 'shiftwidth',
-    'scrolloff': 'scroll_offset',
-    'scroll_offset': 'scroll_offset',
-    'cold_text_compression': 'cold_text_compression',
-    'cold_text_compression_level': 'cold_text_compression_level',
-    'fileformat': 'fileformat',
-    'ff': 'fileformat',
-}
+
+def _build_config_option_map() -> dict[str, str]:
+    """
+    Derive configuration keys (short Vim aliases, canonical Vim option names,
+    and Python attribute names) from the `:set` catalog, merged with TOML-only
+    and extra options (docs/bugs/152.md). Short aliases are registered before
+    canonical names so explicit long names take precedence if both appear.
+    """
+    mapping: dict[str, str] = {}
+    for display, attr, on_names, _off_names in SET_TOGGLE_GROUPS:
+        for alias in on_names:
+            if alias not in (display, attr):
+                mapping[alias] = attr
+        mapping[display] = attr
+        mapping[attr] = attr
+    for display, attr, names, _minimum in SET_INT_OPTIONS:
+        for alias in names:
+            if alias not in (display, attr):
+                mapping[alias] = attr
+        mapping[display] = attr
+        mapping[attr] = attr
+    for display, attr, names in SET_LIST_OPTIONS:
+        for alias in names:
+            if alias not in (display, attr):
+                mapping[alias] = attr
+        mapping[display] = attr
+        mapping[attr] = attr
+    mapping.update(
+        {
+            'cold_text_compression': 'cold_text_compression',
+            'cold_text_compression_level': 'cold_text_compression_level',
+            'ff': 'fileformat',
+            'fileformat': 'fileformat',
+        }
+    )
+    return mapping
+
+
+#: Map from configuration key (Vim name, alias, or Python attribute) to Editor attribute name.
+_CONFIG_OPTION_MAP: dict[str, str] = _build_config_option_map()
 
 # Derive the validation categories from the `:set` catalog so TOML and `:set`
 # cannot drift (docs/bugs/138.md).
@@ -93,8 +87,11 @@ _TOGGLE_ATTRIBUTES = frozenset(attr for _display, attr, _on, _off in SET_TOGGLE_
 _INT_ATTRIBUTE_MINIMUMS = {attr: minimum for _display, attr, _names, minimum in SET_INT_OPTIONS}
 _MAX_OPTION_INT = 9999
 
+# Exclude 2-character aliases (e.g. `ts`, `so`, `nu`, `ai`, `cc`) from bare
+# `.vithrc` TOML auto-detection so legacy Python rc files with short top-level
+# variables are not misclassified as TOML (docs/bugs/152.md).
 _TOML_DETECTION_KEYS = frozenset(
-    set(_CONFIG_OPTION_MAP)
+    {key for key in _CONFIG_OPTION_MAP if len(key) >= 3}
     | {'editor', 'tabstop', 'filetype_tabstops', 'hooks', 'colorscheme', 'colo', 'colorcolumn'}
 )
 
@@ -322,9 +319,12 @@ def apply_toml_config(
     if isinstance(toml_data.get('editor'), dict):
         editor_table.update(toml_data['editor'])
 
-    # Merge top-level options for flexibility:
+    # Merge top-level options for flexibility (skip `[tabstop]` table dicts,
+    # which configure per-filetype tabstops below):
     for key, value in toml_data.items():
-        if key in _CONFIG_OPTION_MAP or key in ('colorscheme', 'colo', 'colorcolumn'):
+        if key == 'tabstop' and isinstance(value, dict):
+            continue
+        if key in _CONFIG_OPTION_MAP or key in ('colorscheme', 'colo'):
             editor_table.setdefault(key, value)
 
     all_ok = True
@@ -347,15 +347,6 @@ def apply_toml_config(
         if not editor.use_colorscheme(str(scheme), report=False):
             _report_rc_error('E185: Cannot find color scheme %s' % scheme, error_handler)
             all_ok = False
-
-    # Apply colorcolumn (validated independently of the :set catalog):
-    if 'colorcolumn' in editor_table or 'cc' in editor_table:
-        key = 'colorcolumn' if 'colorcolumn' in editor_table else 'cc'
-        validated = _validated_option(editor, key, 'colorcolumn', editor_table[key], error_handler)
-        if validated is None:
-            all_ok = False
-        else:
-            editor.colorcolumn = validated
 
     # Apply per-filetype tabstops:
     tabstop_table = toml_data.get('tabstop') or toml_data.get('filetype_tabstops')

@@ -11,7 +11,6 @@ Usage::
 from __future__ import annotations
 
 import os
-import re
 from collections import deque
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -29,7 +28,9 @@ from prompt_toolkit.styles import DynamicStyle
 from .cold_text import format_cold_text_stats
 from .commands.completer import create_command_completer
 from .commands.handler import handle_command
+from .commands.options import snapshot_default_options
 from .commands.preview import CommandPreviewer
+from .commands.substitution import resolve_ignore_case
 from .help import HELP_TEXT
 from .io import DirectoryIO, FileIO, GZipFileIO, HttpIO
 from .key_bindings import create_key_bindings
@@ -207,32 +208,9 @@ class Editor:
         # Simple line-register storage for `:d {x}` / `:y {x}` / `:pu {x}`.
         self.registers = {}
 
-        # Snapshot factory defaults for bare `:set` (changed-from-default display).
-        self._default_options = {
-            'show_line_numbers': self.show_line_numbers,
-            'highlight_search': self.highlight_search,
-            'paste_mode': self.paste_mode,
-            'show_ruler': self.show_ruler,
-            'show_wildmenu': self.show_wildmenu,
-            'expand_tab': self.expand_tab,
-            'tabstop': self.tabstop,
-            'shiftwidth': self.shiftwidth,
-            'incsearch': self.incsearch,
-            'ignore_case': self.ignore_case,
-            'smartcase': self.smartcase,
-            'autoindent': self.autoindent,
-            'enable_mouse_support': self.enable_mouse_support,
-            'display_unprintable_characters': self.display_unprintable_characters,
-            'enable_jedi': self.enable_jedi,
-            'scroll_offset': self.scroll_offset,
-            'relative_number': self.relative_number,
-            'wrap_lines': self.wrap_lines,
-            'break_indent': self.break_indent,
-            'cursorline': self.cursorline,
-            'cursorcolumn': self.cursorcolumn,
-            'colorcolumn': list(self.colorcolumn),
-            'fileformat': self.fileformat,
-        }
+        # Snapshot factory defaults from the `:set` catalog for bare `:set`
+        # changed-from-default display (docs/bugs/152.md).
+        self._default_options = snapshot_default_options(self)
 
         # Ensure config directory exists (with legacy fallback).
         target_dir = os.path.abspath(os.path.expanduser(config_directory))
@@ -499,18 +477,10 @@ class Editor:
         """
         Return whether search/substitute should fold case for `pattern`,
         honoring both `ignore_case` and `smartcase` (when both are enabled,
-        any uppercase character in `pattern` switches the match to
+        any literal uppercase character in `pattern` switches the match to
         case-sensitive, matching Vim).
         """
-        if not self.ignore_case:
-            return False
-        if self.smartcase and pattern:
-            # Regex escapes/classes (`\S`, `[A-Z]`) are not literal uppercase
-            # characters and must not disable smartcase (docs/bugs/147.md).
-            literals = re.sub(r'\[[^\]]*\]|\\.', '', pattern)
-            if any(ch.isupper() for ch in literals):
-                return False
-        return True
+        return resolve_ignore_case(self.ignore_case, self.smartcase, pattern)
 
     def use_colorscheme(self, name='default', *, report: bool = True) -> bool:
         """

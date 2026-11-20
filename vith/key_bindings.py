@@ -114,22 +114,31 @@ def _replace_cell_clusters(event):
     event.app.vi_state.input_mode = InputMode.NAVIGATION
 
 
-def _get_buffer_tabstop(editor, buff=None) -> int:
+def _resolve_editor_buffer(editor, buff=None):
     """
-    Return effective tabstop for `buff` (or active buffer), falling back to `editor.tabstop`.
+    Resolve the `EditorBuffer` owning `buff` via its weak back-reference,
+    falling back to `editor.window_arrangement.active_editor_buffer`
+    (docs/bugs/152.md).
     """
     if buff is not None:
         eb_ref = getattr(buff, '_vith_editor_buffer_ref', None)
         if eb_ref is not None:
             eb = eb_ref()
             if eb is not None:
-                return eb.tabstop
+                return eb
     try:
-        active_eb = editor.window_arrangement.active_editor_buffer
-        if active_eb is not None:
-            return active_eb.tabstop
+        return editor.window_arrangement.active_editor_buffer
     except Exception:
-        pass
+        return None
+
+
+def _get_buffer_tabstop(editor, buff=None) -> int:
+    """
+    Return effective tabstop for `buff` (or active buffer), falling back to `editor.tabstop`.
+    """
+    eb = _resolve_editor_buffer(editor, buff)
+    if eb is not None:
+        return eb.tabstop
     return getattr(editor, 'tabstop', 8)
 
 
@@ -138,18 +147,9 @@ def _get_buffer_shiftwidth(editor, buff=None) -> int:
     Return effective shiftwidth for `buff` (or active buffer), following Vim's
     `shiftwidth=0` convention (fall back to effective `tabstop`).
     """
-    if buff is not None:
-        eb_ref = getattr(buff, '_vith_editor_buffer_ref', None)
-        if eb_ref is not None:
-            eb = eb_ref()
-            if eb is not None:
-                return eb.shiftwidth
-    try:
-        active_eb = editor.window_arrangement.active_editor_buffer
-        if active_eb is not None:
-            return active_eb.shiftwidth
-    except Exception:
-        pass
+    eb = _resolve_editor_buffer(editor, buff)
+    if eb is not None:
+        return eb.shiftwidth
     sw = getattr(editor, 'shiftwidth', 0)
     return sw if sw > 0 else _get_buffer_tabstop(editor, buff)
 
@@ -356,11 +356,7 @@ def create_key_bindings(editor):
         start_row = doc.translate_index_to_position(start_idx)[0]
         end_row = doc.translate_index_to_position(end_idx)[0]
 
-        eb = editor.window_arrangement.active_editor_buffer
-        if eb is None:
-            eb_ref = getattr(buff, '_vith_editor_buffer_ref', None)
-            if eb_ref is not None:
-                eb = eb_ref()
+        eb = editor.window_arrangement.active_editor_buffer or _resolve_editor_buffer(editor, buff)
         if eb is not None:
             eb.visual_marks = (start_row, end_row)
 
@@ -648,18 +644,10 @@ def create_key_bindings(editor):
         event.app.vi_state.input_mode = InputMode.INSERT
 
     # Buffer-local Vi marks (`m{a-z}`, `'{a-z}`/`'<`/`'>`, `` `{a-z} ``).
-    def _resolve_editor_buffer(buff):
-        eb_ref = getattr(buff, '_vith_editor_buffer_ref', None)
-        if eb_ref is not None:
-            eb = eb_ref()
-            if eb is not None:
-                return eb
-        return editor.window_arrangement.active_editor_buffer
-
     def _jump_to_mark(event, *, linewise):
         mark = event.data
         buff = event.current_buffer
-        eb = _resolve_editor_buffer(buff)
+        eb = _resolve_editor_buffer(editor, buff)
         if eb is None:
             return
         doc = buff.document
@@ -688,7 +676,7 @@ def create_key_bindings(editor):
         mark = event.data
         if len(mark) != 1 or not ('a' <= mark <= 'z'):
             return
-        eb = _resolve_editor_buffer(event.current_buffer)
+        eb = _resolve_editor_buffer(editor, event.current_buffer)
         if eb is None:
             return
         doc = event.current_buffer.document

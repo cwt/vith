@@ -66,6 +66,44 @@ def parse_range(range_str: str | None) -> tuple[str | None, str | None]:
     return range_str, None
 
 
+def _resolve_address_1based(
+    address: str,
+    cursor_row: int,
+    line_count: int,
+    visual_marks: tuple[int, int] | None,
+) -> tuple[int | None, str | None, bool]:
+    """
+    Parse a single Ex address (`N`, `0`, `.`, `$`, `'<`, `'>`, `+N`, `-N`, with
+    optional `+/-N` offset) to a 1-based line index (`0` means before line 1).
+    Returns `(line_1based, error, is_bare_zero)` (docs/bugs/152.md).
+    """
+    match = _LINE_ADDRESS_RE.match(address.strip())
+    if match is None:
+        return None, NO_SUCH_LINE_TEXT, False
+
+    rel = match.group('rel')
+    if rel is not None:
+        return (cursor_row + 1) + _parse_offset(rel), None, False
+
+    base = match.group('base')
+    offset_text = match.group('offset')
+    offset = _parse_offset(offset_text)
+
+    if base == '.':
+        base_1based = cursor_row + 1
+    elif base == '$':
+        base_1based = line_count
+    elif base in ("'<", "'>"):
+        if visual_marks is None:
+            return None, MARK_NOT_SET_TEXT, False
+        base_1based = (visual_marks[0] if base == "'<" else visual_marks[1]) + 1
+    else:
+        base_1based = int(base)
+
+    is_bare_zero = base == '0' and not offset_text
+    return base_1based + offset, None, is_bare_zero
+
+
 def resolve_line_address(
     address: str,
     cursor_row: int,
@@ -77,33 +115,15 @@ def resolve_line_address(
     with optional `+/-N` offset) to a 0-based row index, or return an error
     message. Bare `0` maps to row `0` (line 1) for `:0s` / `:0` Vim parity.
     """
-    match = _LINE_ADDRESS_RE.match(address.strip())
-    if match is None:
-        return None, NO_SUCH_LINE_TEXT
-
-    rel = match.group('rel')
-    if rel is not None:
-        return cursor_row + _parse_offset(rel), None
-
-    base = match.group('base')
-    offset_text = match.group('offset')
-    offset = _parse_offset(offset_text)
-
-    if base == '.':
-        base_row = cursor_row
-    elif base == '$':
-        base_row = line_count - 1
-    elif base in ("'<", "'>"):
-        if visual_marks is None:
-            return None, MARK_NOT_SET_TEXT
-        base_row = visual_marks[0] if base == "'<" else visual_marks[1]
-    elif base == '0' and not offset_text:
+    line_1based, err, is_bare_zero = _resolve_address_1based(
+        address, cursor_row, line_count, visual_marks
+    )
+    if err is not None or line_1based is None:
+        return None, err
+    if is_bare_zero:
         # `:0s` / `:0,1s` maps line 0 to the first line, matching Vim (docs/bugs/083.md).
         return 0, None
-    else:
-        base_row = int(base) - 1
-
-    return base_row + offset, None
+    return line_1based - 1, None
 
 
 def resolve_insert_address(
@@ -120,28 +140,11 @@ def resolve_insert_address(
     if not address:
         return cursor_row + 1, None
 
-    match = _LINE_ADDRESS_RE.match(address.strip())
-    if match is None:
-        return None, NO_SUCH_LINE_TEXT
-
-    rel = match.group('rel')
-    if rel is not None:
-        target = (cursor_row + 1) + _parse_offset(rel)
-    else:
-        base = match.group('base')
-        offset = _parse_offset(match.group('offset'))
-        if base == '.':
-            base_1based = cursor_row + 1
-        elif base == '$':
-            base_1based = line_count
-        elif base in ("'<", "'>"):
-            if visual_marks is None:
-                return None, MARK_NOT_SET_TEXT
-            base_1based = (visual_marks[0] if base == "'<" else visual_marks[1]) + 1
-        else:
-            base_1based = int(base)
-        target = base_1based + offset
-
+    target, err, _is_bare_zero = _resolve_address_1based(
+        address, cursor_row, line_count, visual_marks
+    )
+    if err is not None or target is None:
+        return None, err
     if not 0 <= target <= line_count:
         return None, NO_SUCH_LINE_TEXT
 

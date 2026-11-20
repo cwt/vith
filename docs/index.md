@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-20T08:45:00Z"
-timestamp: "2026-11-20T08:45:00Z"
+  at: "2026-11-20T09:10:00Z"
+timestamp: "2026-11-20T09:10:00Z"
 ---
 
 # vith Documentation Bundle
@@ -25,8 +25,8 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Audit & Findings
 
-* [Findings Bundle](bugs/index.md) — **153 machine-verified findings across 9 audit rounds and 3 addenda (Rounds 1–8 and 151 closed, 152–153 open)**:
-  * **Round 9 (2026-11-20, deep read-only analysis & re-validation — [151](bugs/151.md)–[153](bugs/153.md), `151` fixed, `152`–`153` open)**: validated residual performance, duplication/logic-drift, and readability inventories at `v0.15.0` (rev 384): [151](bugs/151.md) closed with `splice_buffer_lines`, inactive-tab frame retention, $O(n)$/$O(m\sqrt{n})$ `:g` move/copy, visible-buffer Thai gate decay/re-latch + single-pass SARA-AM scan, cached `:b` regex, and `:retab` fast paths (**474 passed**, `mypy` 80 files, `ruff` clean); [152](bugs/152.md) (open, medium — defaults/config maps, weakref/int-setter duplication, line-address parsing, drifted `should_ignore_case` fallback, split write-target normalization hiding a verified `:set ro` bypass + stale dirty flag on symlink `:w`); [153](bugs/153.md) (open — split module-level import block in `vith/lexer.py`, completer ordering, deferred Thai `_private` surface cleanup).
+* [Findings Bundle](bugs/index.md) — **153 machine-verified findings across 9 audit rounds and 3 addenda (Rounds 1–8 and 151–152 closed, 153 open)**:
+  * **Round 9 (2026-11-20, deep read-only analysis & re-validation — [151](bugs/151.md)–[153](bugs/153.md), `151`–`152` fixed, `153` open)**: validated residual performance, duplication/logic-drift, and readability inventories at `v0.15.0` (rev 384): [151](bugs/151.md) closed (`splice_buffer_lines`, inactive-tab frame retention, $O(n)$/$O(m\sqrt{n})$ `:g` move/copy, visible-buffer Thai gate decay/re-latch + single-pass SARA-AM scan, cached `:b` regex, `:retab` fast paths); [152](bugs/152.md) closed (medium — catalog-derived `_default_options`/`_CONFIG_OPTION_MAP`, shared `_resolve_editor_buffer`/`apply_int_option_value`, shared 1-based address resolver, unified `resolve_ignore_case`, and unified write-target normalization fixing the `:set ro` symlink bypass & stale dirty flag; **480 passed**, `mypy` 81 files, `ruff` clean); [153](bugs/153.md) (open — split module-level import block in `vith/lexer.py`, completer ordering, deferred Thai `_private` surface cleanup).
   * **Round 8 (2026-11-19–20, hg rev 358 → fixed rev 360–381 — [130](bugs/130.md)–[150](bugs/150.md), `fix_status: fixed`)**: fresh full-project re-audit of the post-`v0.14.0` Ex-command work. All 17 defects (same-file `:w` rejection, `:wq`/`ZZ` exit/data-loss, tab dirty guards, read-only `:e` crash, mouse-focus wrong-buffer dispatch, `:g` substitute state, search-buffer Tab, non-UTF-8 shell crashes, TOML validation, Vim replacement semantics, CRLF loss/`fileformat`, CJK visual widths, ReDoS guard bypass, `:[range]norm`, `:retab`, `:cq`, Thai gate) and 4 cleanup inventories fixed one-by-one with regression tests (466 passed, `mypy .` clean, ruff clean); `vith/commands/commands.py` subsequently split into flat submodules in rev 382.
   * **Round 7 addendum (2026-11-09–12, user field reports — [124](bugs/124.md)–[129](bugs/129.md), `fix_status: fixed`)**: missing `:next` / `:previous` file cycling ([124](bugs/124.md)), tab-bar click crash ([125](bugs/125.md)), `:next` duplicating tab entries ([126](bugs/126.md)), visual-width tab stops ([127](bugs/127.md)), per-filetype tab stops ([128](bugs/128.md)), and declarative TOML config/hooks ([129](bugs/129.md)), each fixed with regression tests.
   * **Round 7 (2026-11-09, upstream triage — [116](bugs/116.md)–[123](bugs/123.md), `fix_status: fixed`)**: 8 worth-fixing upstream `prompt-toolkit/pyvim` issues fixed one-by-one with regression tests (274 passed, `mypy .` 57 files clean, ruff clean): `ZZ`/`ZQ` quit ([116](bugs/116.md)), `:w!` force-write ([117](bugs/117.md)), `>>`/`<<` vs `tabstop` ([118](bugs/118.md)), `Ctrl-[` exit + counted `i`/`a` ([119](bugs/119.md)/[120](bugs/120.md)), extensionless highlight ([121](bugs/121.md)), `*` history ([122](bugs/122.md)), `:s` ReDoS guard ([123](bugs/123.md)).

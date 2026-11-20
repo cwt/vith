@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from vith.editor_buffer import is_same_write_target
 from vith.io.base import find_backend
 from vith.thai import note_document_text
 
@@ -174,23 +175,9 @@ def file_info(editor: Any, location: str | None) -> None:
     editor.show_message(_format_file_status(eb))
 
 
-def _normalized_write_target(location: str | None) -> str | None:
-    """Normalize a write path for same-file comparison (tilde/symlink safe)."""
-    if not location:
-        return None
-    return os.path.realpath(os.path.abspath(os.path.expanduser(location)))
-
-
-def _is_same_write_target(eb: Any, location: str | None) -> bool:
-    """Whether `location` names the buffer's own file."""
-    target = _normalized_write_target(location)
-    current = _normalized_write_target(eb.location)
-    return target is not None and current is not None and target == current
-
-
 def _reject_existing_write_target(editor: Any, eb: Any, location: str | None, force: bool) -> bool:
     """
-    Shared overwrite guard for explicit write targets (docs/bugs/130.md).
+    Shared overwrite guard for explicit write targets (docs/bugs/130.md, 152.md).
 
     Returns True (after showing the standard message) when a write to an
     existing *foreign* file must be blocked. The active buffer's own file is
@@ -199,7 +186,7 @@ def _reject_existing_write_target(editor: Any, eb: Any, location: str | None, fo
     """
     if not location or force:
         return False
-    if _is_same_write_target(eb, location):
+    if is_same_write_target(eb.location, location):
         return False
     if os.path.exists(os.path.expanduser(location)):
         editor.show_message('File exists (add ! to override)')

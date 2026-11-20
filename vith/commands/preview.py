@@ -1,5 +1,11 @@
 from .grammar import COMMAND_GRAMMAR
-from .options import SET_INT_OPTIONS, SET_LIST_OPTIONS, SET_TOGGLE_GROUPS, parse_set_tokens
+from .options import (
+    SET_INT_OPTIONS,
+    SET_LIST_OPTIONS,
+    SET_TOGGLE_GROUPS,
+    apply_int_option_value,
+    parse_set_tokens,
+)
 
 __all__ = ('CommandPreviewer',)
 
@@ -189,15 +195,9 @@ class CommandPreviewer:
     def _preview_int_value(e, attribute, minimum, variables, is_local=False):
         raw_value = variables.get('set_value')
         if raw_value and raw_value.isdigit() and int(raw_value) >= minimum:
-            val = int(raw_value)
-            if attribute in ('tabstop', 'shiftwidth'):
-                eb = getattr(e.window_arrangement, 'active_editor_buffer', None)
-                if eb is not None:
-                    setattr(eb, f'_{attribute}_override', val)
-                if not is_local:
-                    setattr(e, attribute, val)
-            else:
-                setattr(e, attribute, val)
+            apply_int_option_value(
+                e, attribute, int(raw_value), is_local=is_local, require_buffer=False
+            )
 
     @staticmethod
     def _preview_list_value(e, attribute, variables):

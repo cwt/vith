@@ -63,20 +63,32 @@ def is_unsafe_regex(editor: Any, pattern_text: str) -> bool:
     return False
 
 
+def resolve_ignore_case(ignore_case: bool, smartcase: bool, pattern: str | None) -> bool:
+    """
+    Determine whether search/substitute should fold case for `pattern`,
+    honoring `ignorecase` and `smartcase` (regex escapes/classes such as
+    `\\S` or `[A-Z]` are stripped so they do not disable smartcase;
+    docs/bugs/147.md, 152.md).
+    """
+    if not ignore_case:
+        return False
+    if smartcase and pattern:
+        literals = _strip_regex_literals(pattern)
+        if any(ch.isupper() for ch in literals):
+            return False
+    return True
+
+
 def should_ignore_case(editor: Any, pattern: str | None) -> bool:
     """Resolve effective case-folding honoring `ignorecase` and `smartcase`."""
     checker = getattr(editor, 'should_ignore_case', None)
     if callable(checker):
         return bool(checker(pattern))
-    if not bool(getattr(editor, 'ignore_case', False)):
-        return False
-    if (
-        bool(getattr(editor, 'smartcase', False))
-        and pattern
-        and any(ch.isupper() for ch in pattern)
-    ):
-        return False
-    return True
+    return resolve_ignore_case(
+        bool(getattr(editor, 'ignore_case', False)),
+        bool(getattr(editor, 'smartcase', False)),
+        pattern,
+    )
 
 
 def split_delimited_fields(text: str, delim: str, *, max_splits: int = 2) -> list[str]:
@@ -482,6 +494,7 @@ __all__ = (
     'parse_substitute_args',
     'parse_substitute_range',
     'prepare_substitute',
+    'resolve_ignore_case',
     'should_ignore_case',
     'split_delimited_fields',
     'substitute',
