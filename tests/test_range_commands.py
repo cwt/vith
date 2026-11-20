@@ -347,6 +347,41 @@ def test_retab_command_expand_and_unexpand_with_tabstop(editor):
     assert eb.tabstop == 2
 
 
+def test_global_substitute_publishes_last_search_and_replacement(editor):
+    # 135: `:g/pat/s/search/replace/` must leave the *substitute* pattern and
+    # replacement in the shared state, not the enclosing global pattern.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'foo bar\nbar'
+    editor.sync_with_prompt_toolkit()  # focus the document control (search state owner)
+    editor.application.current_search_state.text = ''
+    editor.last_substitute_text = ''
+
+    handle_command(editor, ':g/foo/s/bar/X/')
+    assert eb.buffer.document.lines == ['foo X', 'bar']
+    assert editor.application.current_search_state.text == 'bar'
+    assert editor.last_substitute_text == 'X'
+
+    handle_command(editor, ':2')
+    handle_command(editor, ':s')
+    assert eb.buffer.document.lines == ['foo X', 'X']
+
+
+def test_global_substitute_report_only_publishes_state(editor):
+    # 135: the `n` (report-only) path also updates search state.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'foo bar\nbar'
+    editor.sync_with_prompt_toolkit()  # focus the document control (search state owner)
+    editor.application.current_search_state.text = ''
+    editor.last_substitute_text = ''
+
+    handle_command(editor, ':g/foo/s/bar/X/n')
+    assert eb.buffer.document.lines == ['foo bar', 'bar']
+    assert editor.application.current_search_state.text == 'bar'
+    assert editor.last_substitute_text == 'X'
+
+
 def test_global_and_vglobal_commands_redos_two_pass_and_undo(editor):
     # Empty arrangement guard and missing regex error.
     handle_command(editor, ':g/foo/d')

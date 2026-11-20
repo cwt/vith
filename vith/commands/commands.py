@@ -2301,6 +2301,17 @@ def _should_ignore_case(editor: Any, pattern: str | None) -> bool:
     return True
 
 
+def _record_substitute_state(editor, search_state, search, replace) -> None:
+    """
+    Publish the last substitute/regex state shared by `:s` and `:g/.../s`
+    (docs/bugs/135.md): a bare `:s` must reuse the *substitute* pattern, not
+    the enclosing global pattern, and `:noh` suppression must be cleared.
+    """
+    editor.last_substitute_text = replace
+    search_state.text = search
+    editor.clear_hlsearch_suppression()
+
+
 def substitute(editor, range_start, range_end, search, replace, flags):
     """Substitute /search/ with /replace/ over a range of text."""
 
@@ -2384,8 +2395,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
         match_word = 'match' if total_matches == 1 else 'matches'
         line_word = 'line' if matched_lines == 1 else 'lines'
         editor.show_message(f'{total_matches} {match_word} on {matched_lines} {line_word}')
-        search_state.text = search
-        editor.clear_hlsearch_suppression()
+        _record_substitute_state(editor, search_state, search, replace)
         return
 
     # Apply substitution.
@@ -2398,9 +2408,7 @@ def substitute(editor, range_start, range_end, search, replace, flags):
         return
 
     # update editor state
-    editor.last_substitute_text = replace
-    search_state.text = search
-    editor.clear_hlsearch_suppression()
+    _record_substitute_state(editor, search_state, search, replace)
 
     if options.print_last:
         editor.show_message(eb.buffer.document.lines[row])
@@ -2970,10 +2978,11 @@ def _global_execute_substitute(
         match_word = 'match' if total_matches == 1 else 'matches'
         line_word = 'line' if matched_lines == 1 else 'lines'
         editor.show_message(f'{total_matches} {match_word} on {matched_lines} {line_word}')
+        _record_substitute_state(editor, search_state, search, replace)
         return
     if not replace_buffer_lines(editor, eb, new_lines, last_row, first_non_blank=True):
         return
-    editor.last_substitute_text = replace
+    _record_substitute_state(editor, search_state, search, replace)
     if options.print_last:
         editor.show_message(eb.buffer.document.lines[last_row])
 
