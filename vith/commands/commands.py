@@ -924,6 +924,11 @@ def _write_pipe_shell(editor: Any, shell_cmd: str, payload: str) -> None:
         editor.show_message(f'shell returned {proc.returncode}')
 
 
+def _file_payload(eb: Any, lines: list[str]) -> str:
+    """Join lines with the buffer's fileformat EOL (docs/bugs/140.md)."""
+    return eb.line_ending().join(lines) + eb.line_ending()
+
+
 def _write_append_file(editor: Any, eb: Any, target: str, payload: str, force: bool) -> None:
     """Append `payload` to `target` (`:[range]w[!] >> {file}`)."""
     expanded = os.path.expanduser(target)
@@ -976,7 +981,7 @@ def write_command(editor: Any, variables: Any) -> None:
             editor.show_message(err)
             return
         start_row, end_row = bounds
-        payload = '\n'.join(eb.buffer.document.lines[start_row : end_row + 1]) + '\n'
+        payload = _file_payload(eb, eb.buffer.document.lines[start_row : end_row + 1])
         _write_append_file(editor, eb, write_append, payload, force=force)
         return
 
@@ -1004,7 +1009,7 @@ def write_command(editor: Any, variables: Any) -> None:
             return
         if _reject_existing_write_target(editor, eb, location, force):
             return
-        payload = '\n'.join(lines[start_row : end_row + 1]) + '\n'
+        payload = _file_payload(eb, lines[start_row : end_row + 1])
         _write_payload_to_location(editor, eb, target, payload)
         return
 
@@ -1900,6 +1905,11 @@ def set_options_lines(editor: Any, show_all: bool = False) -> list[str]:
     if show_all or cur_fenc != 'utf-8':
         entries.append(f'fileencoding={cur_fenc}')
 
+    cur_ff = eb.fileformat if eb is not None else getattr(editor, 'fileformat', 'unix')
+    default_ff = defaults.get('fileformat', 'unix')
+    if show_all or cur_ff != default_ff:
+        entries.append(f'fileformat={cur_ff}')
+
     entries.sort()
     lines = ['--- Options ---']
     if entries:
@@ -2090,6 +2100,25 @@ def set_fileencoding(editor: Any, value: str | None) -> bool:
         editor.show_message(f'E474: Invalid argument: {value}')
         return False
     eb.encoding = name.lower()
+    return True
+
+
+@set_cmd('fileformat', accepts_value=True)
+@set_cmd('ff', accepts_value=True)
+def set_fileformat(editor: Any, value: str | None) -> bool:
+    """Get or set the active buffer's line-ending style (`:set ff=dos`)."""
+    eb = editor.window_arrangement.active_editor_buffer
+    if value is None:
+        current = eb.fileformat if eb is not None else getattr(editor, 'fileformat', 'unix')
+        editor.show_message(f'fileformat={current}')
+        return True
+    fmt = value.strip().lower()
+    if fmt not in ('dos', 'unix', 'mac'):
+        editor.show_message('E518: Invalid fileformat: %s' % value)
+        return False
+    editor.fileformat = fmt
+    if eb is not None:
+        eb.fileformat = fmt
     return True
 
 

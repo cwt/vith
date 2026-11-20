@@ -282,6 +282,20 @@ def test_write_forms_on_current_file_succeed(editor, editor_buffer, tmp_path, mo
     assert eb.location == str(path)
 
 
+def test_partial_append_preserves_dos_line_endings(editor, tmp_path):
+    # 140: `:w >>` must not mix LF into a CRLF file.
+    target = tmp_path / 'dos-append.txt'
+    target.write_bytes(b'one\r\n')
+    eb = EditorBuffer(editor, str(target))
+    eb.buffer.text = 'one\ntwo'
+    editor.window_arrangement._add_editor_buffer(eb, show_in_current_window=True)
+    editor.message = None
+
+    handle_command(editor, ':2w >> %s' % target)
+    assert editor.message is None
+    assert target.read_bytes() == b'one\r\ntwo\r\n'
+
+
 def test_w_foreign_existing_file_still_blocked(editor, editor_buffer, tmp_path):
     # 130: the exemption is limited to the buffer's own file.
     _named_dirty_buffer(editor, tmp_path)

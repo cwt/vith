@@ -53,6 +53,7 @@ class EditorBuffer:
         # Empty if not in file explorer mode, directory path otherwise.
         self.isdir = False
         self._had_trailing_newline = True
+        self._fileformat = 'unix'  # Vim's 'dos' / 'unix' / 'mac'
 
         # Read text.
         unreadable = False
@@ -240,6 +241,22 @@ class EditorBuffer:
         return self._has_unsaved_changes
 
     @property
+    def fileformat(self) -> str:
+        """Line-ending style used when writing this buffer (`:set ff`)."""
+        return self._fileformat
+
+    @fileformat.setter
+    def fileformat(self, value: str) -> None:
+        fmt = str(value).strip().lower()
+        if fmt not in ('dos', 'unix', 'mac'):
+            raise ValueError('Invalid fileformat: %s' % value)
+        self._fileformat = fmt
+
+    def line_ending(self) -> str:
+        """End-of-line sequence for the current `fileformat`."""
+        return {'dos': '\r\n', 'mac': '\r', 'unix': '\n'}[self._fileformat]
+
+    @property
     def in_file_explorer_mode(self):
         """
         True when we are in file explorer mode (when this is a directory).
@@ -271,8 +288,18 @@ class EditorBuffer:
             try:
                 text, self.encoding = io.read(location)
 
-                # Replace \r\n by \n.
-                text = text.replace('\r\n', '\n')
+                # Record the dominant line ending so writes preserve it
+                # (docs/bugs/140.md). `_had_trailing_newline` is decided after
+                # normalization, on the canonical '\n' form.
+                crlf_count = text.count('\r\n')
+                lone_cr_count = text.count('\r') - crlf_count
+                if crlf_count and crlf_count >= lone_cr_count:
+                    self.fileformat = 'dos'
+                elif lone_cr_count:
+                    self.fileformat = 'mac'
+                else:
+                    self.fileformat = 'unix'
+                text = text.replace('\r\n', '\n').replace('\r', '\n')
 
                 # Drop trailing newline while editing.
                 # (prompt-toolkit doesn't enforce the trailing newline.)
@@ -434,8 +461,9 @@ class EditorBuffer:
 
         # Write it.
         try:
-            eol = '\n' if self._had_trailing_newline else ''
-            payload = self.buffer.text + eol
+            line_ending = self.line_ending()
+            eol = line_ending if self._had_trailing_newline else ''
+            payload = self.buffer.text.replace('\n', line_ending) + eol
             try:
                 self._write_with_backend(io, target_location, payload)
             except PermissionError:

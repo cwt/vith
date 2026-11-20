@@ -437,3 +437,40 @@ def test_current_editor_buffer_o1_lookup_and_command_buffer_fast_reject(editor, 
     for non_editor_buf in (editor.command_buffer, editor.search_buffer):
         active_buf[0] = non_editor_buf
         assert editor.current_editor_buffer is None
+
+
+def test_crlf_fileformat_round_trips_on_write(editor, tmp_path):
+    # 140: opening and saving a DOS file must preserve CRLF line endings.
+    target = tmp_path / 'dos.txt'
+    target.write_bytes(b'one\r\ntwo\r\n')
+    eb = EditorBuffer(editor, str(target))
+    assert eb.fileformat == 'dos'
+    assert eb.buffer.text == 'one\ntwo'
+
+    eb.buffer.text = 'one\ntwoX'
+    assert eb.write() is True
+    assert target.read_bytes() == b'one\r\ntwoX\r\n'
+
+
+def test_lf_and_no_eol_preserved_and_set_fileformat(editor, tmp_path):
+    # 140: LF files (with and without a trailing newline) stay LF; `:set ff`
+    # can change the style explicitly.
+    target = tmp_path / 'unix.txt'
+    target.write_bytes(b'one\ntwo')
+    eb = EditorBuffer(editor, str(target))
+    assert eb.fileformat == 'unix'
+    assert eb.write() is True
+    assert target.read_bytes() == b'one\ntwo'
+
+    from vith.commands.handler import handle_command
+
+    editor.window_arrangement._add_editor_buffer(eb, show_in_current_window=True)
+    handle_command(editor, ':set ff=dos')
+    assert eb.fileformat == 'dos'
+    eb.buffer.text = 'one\ntwo'
+    assert eb.write() is True
+    assert target.read_bytes() == b'one\r\ntwo'
+
+    handle_command(editor, ':set ff=weird')
+    assert eb.fileformat == 'dos'
+    assert editor.message is not None

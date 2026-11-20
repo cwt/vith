@@ -202,6 +202,7 @@ class Editor:
         self.cursorline = False  # ':set cursorline'
         self.cursorcolumn = False  # ':set cursorcolumn'
         self.colorcolumn = []  # ':set colorcolumn'. List of integers.
+        self.fileformat = 'unix'  # ':set fileformat' (dos/unix/mac).
 
         # Snapshot factory defaults for bare `:set` (changed-from-default display).
         self._default_options = {
@@ -227,6 +228,7 @@ class Editor:
             'cursorline': self.cursorline,
             'cursorcolumn': self.cursorcolumn,
             'colorcolumn': list(self.colorcolumn),
+            'fileformat': self.fileformat,
         }
 
         # Ensure config directory exists (with legacy fallback).

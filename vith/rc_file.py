@@ -83,6 +83,8 @@ _CONFIG_OPTION_MAP: dict[str, str] = {
     'scroll_offset': 'scroll_offset',
     'cold_text_compression': 'cold_text_compression',
     'cold_text_compression_level': 'cold_text_compression_level',
+    'fileformat': 'fileformat',
+    'ff': 'fileformat',
 }
 
 # Derive the validation categories from the `:set` catalog so TOML and `:set`
@@ -154,6 +156,15 @@ def _validated_option(
                 'Invalid value for %s: expected positive integers' % config_key, error_handler
             )
             return None
+
+    if attr_name == 'fileformat':
+        fmt = str(value).strip().lower()
+        if fmt not in ('dos', 'unix', 'mac'):
+            _report_rc_error(
+                'Invalid value for %s: expected dos, unix or mac' % config_key, error_handler
+            )
+            return None
+        return fmt
 
     if attr_name == 'cold_text_compression_level' and (
         isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 9
