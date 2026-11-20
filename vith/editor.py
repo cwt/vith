@@ -463,6 +463,11 @@ class Editor:
         bottom, and record non-empty messages in the bounded history log.
         """
         self.message = message
+        if message:
+            # The message toolbar renders this text; report it to the sticky
+            # Thai gate so SARA-AM sanitization also covers status banners
+            # (docs/bugs/146.md).
+            note_document_text(str(message))
         if record and message:
             self._messages.append(str(message))
 

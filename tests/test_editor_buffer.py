@@ -349,6 +349,20 @@ def test_reload_clears_stale_diagnostics_and_filetype(editor, tmp_path, monkeypa
     assert reporter_calls  # reporter refreshed on the reloaded text
 
 
+def test_thai_gate_latched_by_status_message(editor):
+    # 146: Thai text that only reaches the screen through editor.message must
+    # still arm the SARA-AM sanitizer.
+    from vith.thai import _THAI_GATE, reset_thai_text_gate
+
+    reset_thai_text_gate()
+    try:
+        assert _THAI_GATE.value is False
+        editor.show_message('ข้อความภาษาไทย')
+        assert _THAI_GATE.value is True
+    finally:
+        reset_thai_text_gate()
+
+
 def test_thai_gate_latched_on_multiline_paste_and_undo(editor_buffer, monkeypatch):
     # 097: multi-line paste or undo with Thai on non-cursor rows latches the Thai gate
     from vith.thai import _THAI_GATE, reset_thai_text_gate
