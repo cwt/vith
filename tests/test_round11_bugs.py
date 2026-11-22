@@ -81,3 +81,54 @@ def test_170_join_with_non_numeric_argument_reports_error(editor: Any, tmp_path:
         handle_command(editor, command)
         assert eb.buffer.text == original
         assert editor.message.startswith('E488:')
+
+
+def _open_render_controller(editor: Any, tmp_path: Any) -> tuple[Any, Any]:
+    """Open a real live-render split and return (controller, preview buffer)."""
+    path = tmp_path / 'doc.md'
+    path.write_text('# Title\nhello\n', encoding='utf-8')
+    editor.load_initial_files([str(path)])
+    handle_command(editor, ':render-split-v')
+    source = editor.window_arrangement.active_editor_buffer
+    controller = source._live_render_controllers[0]
+    return controller, controller.preview_eb
+
+
+def test_171_generic_render_failure_shows_diagnostic(editor: Any, tmp_path: Any, monkeypatch: Any) -> None:
+    """A permanent renderer exception must not be hidden behind a 'stale' badge."""
+    import vith.render as render_module
+
+    controller, preview = _open_render_controller(editor, tmp_path)
+    controller._apply_result(
+        1, render_module.RenderResult('good', [[('', 'good')]], 'markdown')
+    )
+
+    def boom(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError('kaboom')
+
+    monkeypatch.setattr(render_module, 'render_document', boom)
+    controller.render_sync()
+    assert 'kaboom' in preview.buffer.text
+    assert 'stale' not in (preview.scratch_title or '')
+
+
+def test_172_dependency_error_clears_good_render_flag(editor: Any, tmp_path: Any) -> None:
+    """A diagnostic shown after a good render must not later be labeled stale."""
+    import vith.render as render_module
+
+    controller, preview = _open_render_controller(editor, tmp_path)
+    controller._apply_result(
+        1, render_module.RenderResult('good', [[('', 'good')]], 'markdown')
+    )
+    controller._apply_error(2, "Optional package 'rich-rst' is required", incomplete=False)
+    assert controller._has_good_render is False
+    controller._apply_error(3, 'still broken', incomplete=True)
+    assert 'stale' not in (preview.scratch_title or '')
+
+
+def test_173_multi_line_error_message_stays_line_aligned(editor: Any, tmp_path: Any) -> None:
+    """A multi-line diagnostic must produce one styled line per plain-text line."""
+    controller, preview = _open_render_controller(editor, tmp_path)
+    controller._apply_error(1, 'ERR line1\nERR line2\nERR line3', incomplete=False)
+    assert len(preview.buffer.text.split('\n')) == len(preview._rendered_lines)
+    assert controller._preview_line_starts == [0, 10, 20]

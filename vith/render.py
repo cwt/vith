@@ -910,7 +910,9 @@ class LiveRenderController:
             self._apply_error(version, str(exc), incomplete=False)
             return
         except Exception as exc:
-            self._apply_error(version, f'Render error: {exc}', incomplete=True)
+            # Only ParseIncompleteError means "mid-edit": a renderer-internal
+            # failure is permanent and must show a diagnostic (docs/bugs/171.md).
+            self._apply_error(version, f'Render error: {exc}', incomplete=False)
             return
         self._apply_result(version, result)
 
@@ -953,8 +955,11 @@ class LiveRenderController:
                 err_msg = str(exc)
                 incomplete = False
             except Exception as exc:
+                # A generic renderer failure is not a transient mid-edit
+                # condition; show it rather than silently freezing the preview
+                # on the last good render (docs/bugs/171.md).
                 err_msg = f'Render error: {exc}'
-                incomplete = True
+                incomplete = False
 
             def finish() -> None:
                 self._in_flight = False
@@ -1172,8 +1177,18 @@ class LiveRenderController:
             preview_eb.scratch_title = self._format_title(fmt, stale=True)
             self._invalidate()
             return
-        styled: list[StyleAndTextTuples] = [[('ansired italic', message)]]
-        title = self._format_title(self._last_format or 'error', stale=incomplete)
+        # The preview now shows a diagnostic, not a previously valid render:
+        # clear the flag so a later mid-edit error is classified correctly
+        # (docs/bugs/172.md).
+        self._has_good_render = False
+        # Keep one styled line per plain-text line so the lexer and
+        # _preview_line_starts stay aligned (docs/bugs/173.md).
+        styled: list[StyleAndTextTuples] = [
+            [('ansired italic', line)] for line in message.split('\n')
+        ]
+        # A diagnostic is never a "stale" render — only the retention branch
+        # and a genuinely stale RenderResult set that badge (docs/bugs/172.md).
+        title = self._format_title(self._last_format or 'error', stale=False)
         self._update_preview_document(preview_eb, message, styled, title)
 
     def close(self) -> None:
