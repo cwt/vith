@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-22T11:55:00Z"
-timestamp: "2026-11-22T11:55:00Z"
+  at: "2026-11-22T15:40:00Z"
+timestamp: "2026-11-22T15:40:00Z"
 ---
 
 # vith Documentation Bundle
@@ -18,6 +18,7 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Architecture & Design Plans
 
+* [Live Async `:render` Split Preview](live_render.md) — **Implemented (hg rev `407:cc09ab108f1b`)**: full technical architecture and reference for real-time non-blocking `:render`, `:render-split-v`, and `:render-split-h` preview splits powered by optional `vith[render]` (`rich` + `rich-rst`), covering 4-tier format detection (Markdown, reStructuredText, JSON with stale-edit retention, CSV/TSV, ANSI, Rich Syntax, and `[render.commands]` external CLI tools), direct `Segment` → `StyleAndTextTuples` conversion, debounced single-flight executor scheduling, heading/landmark-anchored cursor & scroll sync, lazy `Document._cache` latency engineering, and `[render]` TOML configuration. Verified with **531 passed** (88.98% coverage), `mypy .` (87 files), and `ruff` clean.
 * [Ex Command Completeness Plan](command_completeness_plan.md) — **Implemented (Phases 1–4, hg rev 333–358; hardened in Round 8 rev 360–381; modularized under `vith/commands/` in rev 382)**: full Vim Ex command parity across files (`:r`/`:read` incl. `:r !cmd`, `:sav`, `:so`, `:up`, `:x`, `:wa`, `:xa`, `:f`, `:enew`), buffers/windows/tabs (`:ls`/`:files`, `:b #`, `:bf`/`:bl`, `:sb`, `:bd <target>`, `:clo`, `:on`, `:tabo`/`:tabfir`/`:tabl`/`:tabm`/`:tabs`), shared range engine ([`../vith/commands/ranges.py`](../vith/commands/ranges.py)) and line editing (`:$`/`±N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:g`/`:v`, `:[range]!cmd`, `:[range]w`, `:[range]norm[!]`), `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, ergonomic `:set` (`?`/`!`/`inv`/bare/`all`/multi-arg + `smartcase`/`shiftwidth`/`readonly`/`autoindent`/`fileencoding`/`fileformat`), and in-editor read-only info splits (`:ver`, `:mes`, `:reg`, `:marks`, `:set`). Verified at `v0.15.0` with **466 passed** (89.79% coverage), `mypy .` (79 files), and `ruff` clean.
 * [Vith Re-brand & Modernization Plan](vith_rebrand_plan.md) — **Executed**: new identity `vith` (วิธ), BSD 3-clause kept with stacked copyright, `setup.py` → `pyproject.toml` (PEP 621), `README.rst` → `README.md`, user-data migration with graceful fallback, docs sweep and gate re-verification. All gates re-verified (current suite: 466 tests, mypy 79 files @3.10, ruff clean).
 * [Thai & Lao Script Support Plan](thai_support_plan.md) — **Implemented**: root-cause analysis (`prompt_toolkit` vs `vith`), cell-cluster vs syllable granularity ([`../vith/thai/`](../vith/thai/), [`../vith/key_bindings.py`](../vith/key_bindings.py)), `SARA AM` (`U+0E33`/`U+0EB3`) differential renderer neighbor refresh (ported from `szn` `71ba808`), version-gated `prompt_toolkit` integration, and unit test suite ([`../tests/test_thai.py`](../tests/test_thai.py)).

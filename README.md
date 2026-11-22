@@ -18,11 +18,12 @@ This fork is published as a separate PyPI package (`vith`) and is not a drop-in 
 
 ## Requirements
 
-This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds three large, machine-verified plans (documented in the `docs/` Open Knowledge bundle):
+This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds four major, machine-verified subsystems (documented in the `docs/` Open Knowledge bundle):
 
 - **Thai & Lao script support**: terminal cell-cluster navigation and editing (`h`, `l`, `j`, `k`, `x`, `X`, `s`, `r`, `~`, `$`, `e`...), two-tier Thai word segmentation (`libthai` with an always-available orthographic fallback) and SARA AM (`U+0E33`/`U+0EB3`) differential renderer fixes. See [`docs/thai_support_plan.md`](docs/thai_support_plan.md).
 - **Speed, latency & modern-Python stability**: streamed + cached Pygments highlighting, per-line word-span caches for Thai word motions, lazy colorscheme loading, cached word completion, an O(1) pyflakes error index, and the Python 3.14+/3.15 `asyncio` startup-crash fix. See [`docs/speed_latency_plan.md`](docs/speed_latency_plan.md).
 - **Ex command completeness & `:set` parity**: full Vim Ex command set across files (`:r`/`:read` incl. `:r !cmd`, `:sav`, `:up`, `:x`, `:wa`, `:xa`, `:so`, `:f`, `:enew`), buffers/windows/tabs (`:ls`, `:b #`, `:bf`/`:bl`, `:sb`, `:bd <target>`, `:clo`, `:on`, `:tabo`/`:tabm`/`:tabs`), generalized range editing (`:$`/`±N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:g`/`:v`, `:[range]!cmd`, `:[range]w` partial/append/pipe, `:[range]norm[!]`), `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, in-editor read-only info splits (`:ver`, `:mes`, `:reg`, `:marks`, `:set`), and ergonomic `:set` syntax (`?`, `!`, `inv`, multi-arg, `smartcase`, `shiftwidth`, `readonly`, `autoindent`, `fileencoding`, `fileformat`). See [`docs/command_completeness_plan.md`](docs/command_completeness_plan.md).
+- **Live async `:render` split preview**: real-time non-blocking split preview (`:render`, `:render-split-v`, `:render-split-h`) powered by optional `vith[render]` (`rich` + `rich-rst`), with direct `Segment` → `StyleAndTextTuples` bridging, debounced executor rendering, stale-edit fallback, heading/landmark-anchored scroll sync, and pluggable `[render.commands]` CLI renderers. See [`docs/live_render.md`](docs/live_render.md).
 
 All changes are audited in [`docs/bugs/`](docs/bugs/) (166 machine-verified findings across 10 audit rounds and 4 addenda, all fixed and closed); quality is enforced with pytest (531 passed), mypy and ruff.
 
@@ -104,6 +105,8 @@ sync_scroll = true           # heading/landmark-anchored cursor & scroll sync
 # Optional per-filetype external renderers (e.g. HTML via lynx/w3m, or glow)
 # html = "lynx -dump -stdin"
 ```
+
+For full technical details (architecture, Rich-to-`prompt_toolkit` style bridging, async coalescing, heading-anchored scroll sync, and latency benchmarks), see [`docs/live_render.md`](docs/live_render.md).
 
 ## Configuring vith
 
