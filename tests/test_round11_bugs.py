@@ -6,6 +6,7 @@ import asyncio
 from typing import Any
 
 from vith.commands.handler import handle_command
+from vith.render import render_document
 
 
 def test_167_bare_shell_command_is_scheduled_and_executed(editor: Any, tmp_path: Any) -> None:
@@ -51,3 +52,18 @@ def test_168_star_and_hash_accept_real_keypress_arguments(editor: Any) -> None:
         eb.buffer.cursor_position = 10
         hash_(event)
         assert editor.application.current_search_state.text == 'foo'
+
+
+def test_169_csv_cells_are_rendered_literally_not_as_rich_markup() -> None:
+    """Cells such as '[/]' and '[bold]X' must not be parsed as Rich markup."""
+    result = render_document('a,b\n[bold]X,[/]Y\n', filetype='csv')
+    assert '[bold]X' in result.plain_text
+    assert '[/]Y' in result.plain_text
+    assert len(result.plain_text.split('\n')) == len(result.styled_lines)
+
+
+def test_182_csv_bare_carriage_return_does_not_raise() -> None:
+    """A bare CR in an unquoted field must not escape as csv.Error."""
+    result = render_document('a,b\r1,2\n', filetype='csv')
+    assert '1' in result.plain_text and '2' in result.plain_text
+    assert len(result.plain_text.split('\n')) == len(result.styled_lines)

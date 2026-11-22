@@ -359,7 +359,10 @@ def _render_csv_table(text: str, delimiter: str) -> Any:
     from rich.table import Table
     from rich.text import Text
 
-    reader = csv.reader(io.StringIO(text), delimiter=delimiter)
+    # csv.reader rejects a bare CR in an unquoted field, and file/paste paths
+    # can leave one in the buffer (docs/bugs/182.md).
+    normalized = text.replace('\r\n', '\n').replace('\r', '\n')
+    reader = csv.reader(io.StringIO(normalized), delimiter=delimiter)
     rows: list[list[str]] = []
     truncated = False
     for idx, row in enumerate(reader):
@@ -374,11 +377,13 @@ def _render_csv_table(text: str, delimiter: str) -> Any:
     num_cols = max(len(r) for r in rows)
     header = rows[0] + [''] * (num_cols - len(rows[0]))
     table = Table(show_header=True, header_style='bold cyan', box=box.ROUNDED, expand=False)
+    # Rich interprets raw strings as markup; wrap every cell in Text so data
+    # like '[/]' or '[bold]x' is displayed literally (docs/bugs/169.md).
     for col_name in header:
-        table.add_column(col_name)
+        table.add_column(Text(col_name))
     for row in rows[1:]:
         padded = row + [''] * (num_cols - len(row))
-        table.add_row(*padded)
+        table.add_row(*(Text(cell) for cell in padded))
 
     if truncated:
         note = Text(f'... truncated after {_CSV_MAX_ROWS} rows ...', style='dim italic')
