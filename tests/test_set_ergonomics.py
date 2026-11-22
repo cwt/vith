@@ -8,10 +8,11 @@ Tests for Phase 4 command-line ergonomics:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import shlex
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
 from vith.commands.handler import expand_command_filenames, handle_command
 
@@ -140,11 +141,17 @@ def test_expand_shell_escape_and_command_integrations(editor, tmp_path):
     handle_command(editor, f':$r !{py} -c "import sys; print(sys.argv[1])" %:t')
     assert editor.window_arrangement.active_editor_buffer.buffer.document.lines[-1] == 'my file.txt'
 
-    # `:!echo %` invokes `run_system_command` with expanded, shell-escaped path.
-    mock_run = MagicMock()
+    # `:!echo %` schedules the async `run_system_command` with the expanded,
+    # shell-escaped path (docs/bugs/167.md).
+    mock_run = AsyncMock()
     editor.application.run_system_command = mock_run
-    handle_command(editor, ':!echo %')
-    mock_run.assert_called_once_with(f'echo {shlex.quote(str(spaced))}')
+
+    async def run_shell_command() -> None:
+        handle_command(editor, ':!echo %')
+        await asyncio.sleep(0)
+
+    asyncio.run(run_shell_command())
+    mock_run.assert_awaited_once_with(f'echo {shlex.quote(str(spaced))}')
 
     # `:%!python3 ... %:t` expands inside filter shell command.
     handle_command(

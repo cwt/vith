@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shlex
 from typing import Any
@@ -134,6 +135,20 @@ def _expand_variables(variables: Any, editor: Any) -> tuple[Any, str | None]:
     return _ExpandedVariables(variables, overrides), None
 
 
+def _run_system_command(app: Any, command: str) -> None:
+    """Schedule prompt_toolkit's async ``run_system_command`` (docs/bugs/167.md)."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # Synchronous callers (tests, scripted API use) have no loop to attach
+        # the task to: run the command to completion without the Enter prompt.
+        asyncio.run(app.run_system_command(command, wait_for_enter=False))
+        return
+    # Registering with the application also cancels the task when the editor
+    # exits, so a slow shell command cannot keep the process alive.
+    app.create_background_task(app.run_system_command(command))
+
+
 def handle_command(editor, input_string):
     """
     Handle commands entered on the Vi command line.
@@ -171,8 +186,10 @@ def handle_command(editor, input_string):
         filter_range_command(editor, variables.get('filter_range'), filter_shell)
 
     elif shell_command is not None:
-        # Handle shell commands.
-        editor.application.run_system_command(shell_command)
+        # `Application.run_system_command` is a coroutine in prompt_toolkit 3.x:
+        # calling it alone only creates a coroutine that is immediately
+        # discarded, so the command would never run (docs/bugs/167.md).
+        _run_system_command(editor.application, shell_command)
 
     elif has_command_handler(command):
         # Handle other 'normal' commands.
