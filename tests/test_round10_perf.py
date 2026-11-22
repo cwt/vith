@@ -366,3 +366,74 @@ def test_162_document_lexer_bounds_line_generators_and_guards_eof() -> None:
         zip(get_line.__code__.co_freevars, (c.cell_contents for c in get_line.__closure__))
     )
     assert len(closure['line_generators']) <= DocumentLexer.MAX_LINE_GENERATORS
+
+
+def test_163_thai_sara_am_cache_document_tabstop_and_visual_block_fast_paths(
+    editor, monkeypatch
+) -> None:
+    """163: SARA AM caches prev_screen rows, `_document_tabstop` avoids DummyApplication, Visual Block caches bounds."""
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.layout.screen import Char, Screen
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    from vith.thai import install_prompt_toolkit_thai_patches
+    from vith.thai import patches as thai_patches
+
+    install_prompt_toolkit_thai_patches()
+
+    # 1. `_document_tabstop` outside an active Application never calls `get_app()`.
+    import prompt_toolkit.application.current as ptk_current
+
+    def _forbid_get_app():
+        raise AssertionError('get_app() should not be called by _document_tabstop')
+
+    monkeypatch.setattr(ptk_current, 'get_app', _forbid_get_app)
+    assert thai_patches._document_tabstop(Document('abc', 0)) == thai_patches.DEFAULT_TABSTOP
+    assert thai_patches._is_vi_mode() is False
+
+    # 2. `_sanitize_and_invalidate_sara_am` caches SARA AM columns on `new_screen`
+    #    and poisons neighbors cleanly on differential changes (with and without cache).
+    s1 = Screen(default_char=Char(' '))
+    s1.data_buffer[0][0] = Char('ท', '')
+    s1.data_buffer[0][1] = Char('ำ', '')
+    s1.data_buffer[0][2] = Char('\u0e31', '')  # stray width-0 mark -> cleared to space
+    thai_patches._sanitize_and_invalidate_sara_am(s1, None)
+    assert s1.data_buffer[0][2].char == ' '
+    assert getattr(s1, '_vith_sara_am_rows', None) == {0: {1}}
+
+    s2 = Screen(default_char=Char(' '))
+    s2.data_buffer[0][0] = Char('ค', '')  # left cell changed, SARA AM stayed -> poison x=1
+    s2.data_buffer[0][1] = Char('ำ', '')
+    thai_patches._sanitize_and_invalidate_sara_am(s2, s1)
+    assert s1.data_buffer[0][1] == thai_patches._SARA_AM_POISON
+
+    # Fallback when `previous_screen` was not previously processed (no cached map):
+    s_raw_prev = Screen(default_char=Char(' '))
+    s_raw_prev.data_buffer[0][0] = Char('ท', '')
+    s_raw_prev.data_buffer[0][1] = Char('ำ', '')
+    s_raw_cur = Screen(default_char=Char(' '))
+    s_raw_cur.data_buffer[0][0] = Char('ท', '')
+    s_raw_cur.data_buffer[0][1] = Char('า', '')  # SARA AM changed, left unchanged -> poison x=0
+    thai_patches._sanitize_and_invalidate_sara_am(s_raw_cur, s_raw_prev)
+    assert s_raw_prev.data_buffer[0][0] == thai_patches._SARA_AM_POISON
+
+    # 3. Visual Block caches bounds on `doc._cache` and preserves Thai/tab/EOL semantics.
+    editor.load_initial_files([None])
+    lines = ['\tที่ดิน\tคำ', '', 'ab', '\tสวัสดี\tงาน']
+    text = '\n'.join(lines)
+    sel = SelectionState(original_cursor_position=1, type=SelectionType.BLOCK)
+    doc = Document(text, cursor_position=len(text) - 1, selection=sel)
+    with set_app(editor.application):
+        r0 = doc.selection_range_at_line(0)
+        r1 = doc.selection_range_at_line(1)
+        r2 = doc.selection_range_at_line(2)
+        r3 = doc.selection_range_at_line(3)
+        assert r0 is not None and r0[0] == 1
+        assert r1 is None  # empty row before col1=1
+        assert r2 == (2, 3)  # short row gets virtual EOL marker when col1 <= len <= col2
+        assert r3 is not None and r3[0] == 1
+        assert hasattr(doc._cache, '_vith_block_bounds')
+        # `selection_ranges` skips rows whose visual width is strictly less than v_low:
+        ranges = list(doc.selection_ranges())
+        assert len(ranges) == 2

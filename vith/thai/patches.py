@@ -19,9 +19,11 @@ from bisect import bisect_right
 from typing import Any, Callable, Iterable
 
 import prompt_toolkit.renderer as ptk_renderer
+from prompt_toolkit.application.current import get_app_or_none
 from prompt_toolkit.clipboard import ClipboardData
 from prompt_toolkit.document import Document
-from prompt_toolkit.filters.app import vi_mode, vi_navigation_mode, vi_selection_mode
+from prompt_toolkit.enums import EditingMode
+from prompt_toolkit.filters.app import vi_navigation_mode, vi_selection_mode
 from prompt_toolkit.selection import PasteMode, SelectionType
 
 try:
@@ -62,6 +64,7 @@ from .classify import (
 )
 from .clusters import (  # noqa: F401
     DEFAULT_TABSTOP,
+    _cell_columns,
     _cell_ordinal,
     _end_of_visual_col,
     _line_visual_width,
@@ -129,16 +132,21 @@ def _doc_get_cursor_right_position(self: Document, count: int = 1) -> int:
     return next_cell_offset(line, col, count) - col
 
 
+def _is_vi_mode() -> bool:
+    """Fast `vi_mode()` check using `get_app_or_none()` (no `DummyApplication` allocation)."""
+    app = get_app_or_none()
+    return app is not None and app.editing_mode == EditingMode.VI
+
+
 def _document_tabstop(doc: Document) -> int:
     """
     Resolve the effective `tabstop` for `doc` from the owning `EditorBuffer`
     (when running inside a `vith` `Application`), defaulting to Vim's `8`.
+    Uses `get_app_or_none()` so standalone calls never allocate a
+    `DummyApplication` (docs/bugs/163.md).
     """
-    try:
-        from prompt_toolkit.application.current import get_app
-
-        app = get_app()
-    except Exception:
+    app = get_app_or_none()
+    if app is None:
         return DEFAULT_TABSTOP
 
     buff = getattr(app, "current_buffer", None)
@@ -401,30 +409,65 @@ def _sanitize_and_invalidate_sara_am(
        `SARA AM` (`U+0E33` / `U+0EB3`) at column `x` or its preceding cell `x - 1`
        changes, poison the neighbor in `previous_screen` so `_output_screen_diff`
        re-emits both cells together.
+
+    Per-row SARA AM column sets are cached on `new_screen._vith_sara_am_rows` so
+    the next frame reads `previous_screen`'s SARA AM columns in O(1) without
+    rescanning every cell of `prev_row` (docs/bugs/163.md).
     """
+    prev_data_buffer = previous_screen.data_buffer if previous_screen is not None else None
+    prev_sara_am_rows: dict[int, set[int]] | None = (
+        getattr(previous_screen, "_vith_sara_am_rows", None)
+        if previous_screen is not None
+        else None
+    )
+    cur_sara_am_rows: dict[int, set[int]] = {}
+
     for y, new_row in new_screen.data_buffer.items():
-        # Single pass over `new_row`: clear stray width-0 combining cells and
-        # collect columns `x >= 1` holding SARA AM when differential
-        # invalidation applies (docs/bugs/114.md, 115.md, 151.md).
-        has_prev = previous_screen is not None and y in previous_screen.data_buffer
-        sara_am_xs: set[int] = set()
-        for x, cell in list(new_row.items()):
-            if cell.width == 0 and cell.char != "":
+        # Single pass over `new_row` without copying `list(new_row.items())`:
+        # replacing values for existing keys never changes dict size.
+        row_sara_am: set[int] | None = None
+        for x, cell in new_row.items():
+            ch = cell.char
+            if cell.width == 0 and ch != "":
                 new_row[x] = Char(char=" ", style=cell.style)
-            elif has_prev and x >= 1 and _cell_has_sara_am(cell):
-                sara_am_xs.add(x)
+            elif x >= 1 and ch and not ch.isascii() and ("\u0e33" in ch or "\u0eb3" in ch):
+                if row_sara_am is None:
+                    row_sara_am = {x}
+                else:
+                    row_sara_am.add(x)
+
+        if row_sara_am is not None:
+            cur_sara_am_rows[y] = row_sara_am
 
         # 2. SARA AM neighbor invalidation for differential rendering.
-        if not has_prev or previous_screen is None:
+        if prev_data_buffer is None:
             continue
-        prev_row = previous_screen.data_buffer[y]
-
-        for x, cell in prev_row.items():
-            if x >= 1 and _cell_has_sara_am(cell):
-                sara_am_xs.add(x)
-        if not sara_am_xs:
+        prev_row = prev_data_buffer.get(y)
+        if prev_row is None:
             continue
 
+        if prev_sara_am_rows is not None:
+            prev_xs = prev_sara_am_rows.get(y)
+        else:
+            prev_xs = None
+            for x, cell in prev_row.items():
+                ch = cell.char
+                if x >= 1 and ch and not ch.isascii() and ("\u0e33" in ch or "\u0eb3" in ch):
+                    if prev_xs is None:
+                        prev_xs = {x}
+                    else:
+                        prev_xs.add(x)
+
+        if row_sara_am is None and prev_xs is None:
+            continue
+        if prev_xs is None:
+            sara_am_xs = row_sara_am
+        elif row_sara_am is None:
+            sara_am_xs = prev_xs
+        else:
+            sara_am_xs = row_sara_am | prev_xs
+
+        assert sara_am_xs is not None
         for x in sorted(sara_am_xs):
             prev_cell = prev_row.get(x, _SARA_AM_DEFAULT_CHAR)
             cur_cell = new_row.get(x, _SARA_AM_DEFAULT_CHAR)
@@ -436,6 +479,11 @@ def _sanitize_and_invalidate_sara_am(
                 prev_row[x - 1] = _SARA_AM_POISON
             elif left_changed and not cur_changed:
                 prev_row[x] = _SARA_AM_POISON
+
+    try:
+        new_screen._vith_sara_am_rows = cur_sara_am_rows  # type: ignore[attr-defined]
+    except AttributeError:
+        pass
 
 
 _AUTOWRAP_ARM_TAG = "\x00_VITH_THAI_AUTOWRAP_\x00"
@@ -589,19 +637,30 @@ def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | Non
             return visible_line_to_row_col, rowcol_to_yx
 
         has_focus = bool(resolve_arg("has_focus", args, kwargs, False))
-        line_chars_cache: dict[int, str] = {}
-        for (lineno, col), (sy, sx) in list(rowcol_to_yx.items()):
+        # Filter right-margin cells first without copying all ~8k entries of
+        # `rowcol_to_yx` into a temporary list (docs/bugs/163.md).
+        right_x_m1 = right_x - 1 if width >= 2 else -1
+        margin_hits: list[tuple[int, int, int, int, Any]] = []
+        for (lineno, col), (sy, sx) in rowcol_to_yx.items():
+            if sx != right_x and sx != right_x_m1:
+                continue
             if sy not in candidate_rows:
                 continue
-            cell = (
-                data_buffer.get(sy, {}).get(sx) if isinstance(data_buffer.get(sy), dict) else None
-            )
+            hit_row = data_buffer.get(sy)
+            if not isinstance(hit_row, dict):
+                continue
+            cell = hit_row.get(sx)
             if cell is None:
                 continue
-            if sx != right_x and not (
-                width >= 2 and sx == right_x - 1 and getattr(cell, 'width', 0) == 2
-            ):
+            if sx != right_x and getattr(cell, 'width', 0) != 2:
                 continue
+            margin_hits.append((lineno, col, sy, sx, cell))
+
+        if not margin_hits:
+            return visible_line_to_row_col, rowcol_to_yx
+
+        line_chars_cache: dict[int, str] = {}
+        for lineno, col, sy, sx, cell in margin_hits:
             chars = line_chars_cache.get(lineno)
             if chars is None:
                 chars = "".join(
@@ -923,6 +982,76 @@ def _visual_block_ordinal_bounds(
     return min(ord_from, ord_to), max(ord_from, ord_to)
 
 
+def _get_visual_block_bounds(
+    doc: Document,
+) -> tuple[int, int, int, int, int, int, int]:
+    """
+    Compute and cache `(from_line, to_line, col1, col2, v_low, v_high, ts)` for
+    `doc`'s visual-block selection on `doc._cache` (keyed by cursor endpoints
+    and effective tabstop, since `Document._cache` is shared by text;
+    docs/bugs/163.md).
+    """
+    selection = doc.selection
+    assert selection is not None
+    cursor_pos = doc.cursor_position
+    original_pos = selection.original_cursor_position
+    ts = _document_tabstop(doc)
+    cache = getattr(doc, "_cache", None)
+    cached = getattr(cache, "_vith_block_bounds", None) if cache is not None else None
+    if (
+        cached is not None
+        and cached[0] == cursor_pos
+        and cached[1] == original_pos
+        and cached[2] == ts
+    ):
+        return cached[3]
+
+    from_pos, to_pos = (
+        (cursor_pos, original_pos) if cursor_pos <= original_pos else (original_pos, cursor_pos)
+    )
+    from_line, col_from = doc.translate_index_to_position(from_pos)
+    to_line, col_to = doc.translate_index_to_position(to_pos)
+    lines = doc.lines
+    last_idx = len(lines) - 1
+    line_from = lines[min(from_line, last_idx)]
+    line_to = lines[min(to_line, last_idx)]
+    ord_from = _cell_ordinal(line_from, col_from, tabstop=ts)
+    ord_to = _cell_ordinal(line_to, col_to, tabstop=ts)
+    col1, col2 = (col_from, col_to) if col_from <= col_to else (col_to, col_from)
+    v_low, v_high = (ord_from, ord_to) if ord_from <= ord_to else (ord_to, ord_from)
+    result = (from_line, to_line, col1, col2, v_low, v_high, ts)
+    if cache is not None:
+        cache._vith_block_bounds = (cursor_pos, original_pos, ts, result)
+    return result
+
+
+def _visual_block_row_span(
+    line: str, v_low: int, v_high: int, tabstop: int
+) -> tuple[int, int, int]:
+    """
+    Compute `(start_col, end_col, total_width)` for a single row of a visual
+    block with at most one `_cell_columns` lookup (zero for tab-free ASCII).
+    """
+    n = len(line)
+    if n == 0:
+        return 0, 0, 0
+    if line.isascii() and "\t" not in line:
+        return min(v_low, n), min(v_high + 1, n), n
+    starts, columns, total_width = _cell_columns(line, tabstop)
+    if not starts or v_low >= total_width:
+        return n, n, total_width
+    start_idx = bisect_right(columns, v_low) - 1
+    start = starts[start_idx if start_idx >= 0 else 0]
+    if v_high >= total_width:
+        cell_end = n
+    else:
+        end_idx = bisect_right(columns, v_high) - 1
+        if end_idx < 0:
+            end_idx = 0
+        cell_end = starts[end_idx + 1] if end_idx + 1 < len(starts) else n
+    return start, cell_end, total_width
+
+
 def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
     """Thai/tab-aware wrapper for `Document.selection_ranges`."""
     orig = _ORIGINAL_DOCUMENT_METHODS.get("selection_ranges")
@@ -930,32 +1059,25 @@ def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
         # Fallback to the (unpatched) bound method.
         orig = type(self).selection_ranges
     selection = self.selection
-    if selection is not None and selection.type == SelectionType.BLOCK and vi_mode():
+    is_vi = _is_vi_mode()
+    if selection is not None and selection.type == SelectionType.BLOCK and is_vi:
         # Visual block rectangle in terminal display columns (honoring combining
         # marks, CJK widths, and tab stops — Vim semantics). Computed directly
         # across `from_line..to_line` instead of delegating row filtering to
         # prompt_toolkit's codepoint-length check, which drops shorter tabbed
         # rows whose visual width still crosses `v_low`.
-        ts = _document_tabstop(self)
-        cursor_pos = self.cursor_position
-        original_pos = selection.original_cursor_position
-        from_pos, to_pos = sorted((cursor_pos, original_pos))
-        from_line, _ = self.translate_index_to_position(from_pos)
-        to_line, _ = self.translate_index_to_position(to_pos)
-        v_low, v_high = _visual_block_ordinal_bounds(self, cursor_pos, original_pos, tabstop=ts)
+        from_line, to_line, _col1, _col2, v_low, v_high, ts = _get_visual_block_bounds(self)
         lines = self.lines
         last_line = min(to_line, len(lines) - 1)
         for row in range(from_line, last_line + 1):
             line = lines[row]
-            total_width = _line_visual_width(line, tabstop=ts)
+            start_col, end_col, total_width = _visual_block_row_span(line, v_low, v_high, ts)
             if v_low > total_width:
                 continue
             if v_low == total_width:
                 eol_idx = self.translate_row_col_to_index(row, len(line))
                 yield eol_idx, eol_idx
                 continue
-            start_col = _start_of_cell_ordinal(line, v_low, tabstop=ts)
-            end_col = _end_of_visual_col(line, v_high, tabstop=ts)
             yield (
                 self.translate_row_col_to_index(row, start_col),
                 self.translate_row_col_to_index(row, end_col),
@@ -963,7 +1085,7 @@ def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
         return
 
     for from_, to in orig(self):
-        if vi_mode() and to > from_ and to <= len(self.text):
+        if is_vi and to > from_ and to <= len(self.text):
             last_idx = to - 1
             row, col = self.translate_index_to_position(last_idx)
             if row < len(self.lines):
@@ -977,43 +1099,38 @@ def _thai_selection_ranges(self: Document) -> Iterable[tuple[int, int]]:
 
 def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] | None:
     """Thai/tab-aware wrapper for `Document.selection_range_at_line`."""
+    selection = self.selection
+    if selection is None:
+        return None
+    is_vi = _is_vi_mode()
+    if selection.type == SelectionType.BLOCK and is_vi:
+        # Visual rectangle in terminal display columns (honoring combining
+        # marks, CJK widths, and tab stops — Vim semantics) without redundantly
+        # invoking `orig(self, row)` or re-scanning `_cell_columns` multiple
+        # times per row (docs/bugs/163.md).
+        from_line, to_line, col1, col2, v_low, v_high, ts = _get_visual_block_bounds(self)
+        if not (from_line <= row <= to_line):
+            return None
+        line = self.lines[row]
+        line_len = len(line)
+        eol_space = col1 <= line_len <= col2
+        start, cell_end, total_width = _visual_block_row_span(line, v_low, v_high, ts)
+        if v_low >= total_width:
+            if eol_space:
+                return line_len, line_len + 1
+            return None
+        # If the block extends to or past EOL and prompt_toolkit's codepoint
+        # bounds cover EOL (`col1 <= line_len <= col2`), keep the trailing
+        # virtual space marker; otherwise end strictly at the visual cell
+        # boundary (docs/bugs/092.md).
+        if eol_space and cell_end >= line_len:
+            return start, line_len + 1
+        return start, cell_end
+
     orig = _ORIGINAL_DOCUMENT_METHODS.get("selection_range_at_line")
     if orig is None:
         orig = type(self).selection_range_at_line
     res = orig(self, row)
-    selection = self.selection
-    if selection is None:
-        return res
-    if selection.type == SelectionType.BLOCK and vi_mode():
-        # Visual rectangle in terminal display columns (honoring combining
-        # marks, CJK widths, and tab stops — Vim semantics). Evaluated across
-        # `from_line..to_line` even when `orig` returned `None` due to a row
-        # having fewer codepoints than the corner's codepoint column (e.g.
-        # tabs expanding to wider display columns).
-        from_pos, to_pos = sorted((self.cursor_position, selection.original_cursor_position))
-        from_line, _ = self.translate_index_to_position(from_pos)
-        to_line, _ = self.translate_index_to_position(to_pos)
-        if not (from_line <= row <= to_line):
-            return None
-        ts = _document_tabstop(self)
-        line = self.lines[row]
-        v_low, v_high = _visual_block_ordinal_bounds(
-            self, self.cursor_position, selection.original_cursor_position, tabstop=ts
-        )
-        total_width = _line_visual_width(line, tabstop=ts)
-        if v_low >= total_width:
-            if res is not None and res[1] > len(line):
-                return len(line), len(line) + 1
-            return None
-        start = _start_of_cell_ordinal(line, v_low, tabstop=ts)
-        cell_end = _end_of_visual_col(line, v_high, tabstop=ts)
-        # If the block extends to or past EOL and prompt_toolkit flagged an EOL
-        # space (`res[1] > len(line)`), keep that trailing space marker;
-        # otherwise end strictly at the visual cell boundary (docs/bugs/092.md).
-        if res is not None and res[1] > len(line) and cell_end >= len(line):
-            return start, res[1]
-        return start, cell_end
-
     if res is None:
         return None
     # prompt_toolkit returns LINE-RELATIVE columns `(from_column, to_column)`
@@ -1021,7 +1138,7 @@ def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] |
     # Extend the highlight over a trailing combining mark of the last
     # selected cell — in line-relative coordinates (docs/bugs/076.md, 085.md).
     start, end = res
-    if vi_mode() and end > start:
+    if is_vi and end > start:
         line = self.lines[row]
         cursor_col = end - 1
         if 0 <= cursor_col < len(line):
