@@ -310,6 +310,12 @@ def _query_set_option(editor: Any, name: str) -> tuple[str | None, str | None]:
             return None, 'No buffer'
         return f'fileencoding={eb.encoding or ""}', None
 
+    if name in ('fileformat', 'ff'):
+        eb = getattr(editor.window_arrangement, 'active_editor_buffer', None)
+        if eb is None:
+            return None, 'No buffer'
+        return f'fileformat={eb.fileformat}', None
+
     return None, f'Unknown option: {name}'
 
 
@@ -423,9 +429,15 @@ def _apply_set_token(
     queries: list[str],
 ) -> bool:
     """Apply a single `:set` / `:setlocal` token; returns `False` on error."""
-    if is_local and not opt.endswith('?') and opt not in _LOCAL_SET_OPTION_NAMES:
+    if (
+        is_local
+        and not opt.endswith('?')
+        and opt != 'all'
+        and opt not in _LOCAL_SET_OPTION_NAMES
+    ):
         # Only genuinely buffer-local options may be set with `:setlocal`
         # (docs/bugs/147.md); the rest would silently mutate global state.
+        # `all` is an inspection form, not an option assignment (docs/bugs/186.md).
         editor.show_message('E%i: %s is not a buffer-local option' % (518, opt))
         return False
     if opt == 'all':

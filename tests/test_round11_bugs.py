@@ -132,3 +132,25 @@ def test_173_multi_line_error_message_stays_line_aligned(editor: Any, tmp_path: 
     controller._apply_error(1, 'ERR line1\nERR line2\nERR line3', incomplete=False)
     assert len(preview.buffer.text.split('\n')) == len(preview._rendered_lines)
     assert controller._preview_line_starts == [0, 10, 20]
+
+
+def test_174_set_fileformat_query(editor: Any, tmp_path: Any) -> None:
+    """`:set ff?` and friends must report the buffer's fileformat."""
+    path = tmp_path / 'ff.txt'
+    path.write_text('one\n', encoding='utf-8')
+    editor.load_initial_files([str(path)])
+    for command in (':set ff?', ':set fileformat?', ':setlocal ff?', ':set ts? ff?'):
+        editor.message = ''
+        handle_command(editor, command)
+        assert 'fileformat=unix' in (editor.message or ''), command
+
+
+def test_186_setlocal_all_lists_options(editor: Any, tmp_path: Any) -> None:
+    """`:setlocal all` is an inspection form, not a local assignment."""
+    path = tmp_path / 'opts.txt'
+    path.write_text('one\n', encoding='utf-8')
+    editor.load_initial_files([str(path)])
+    for command in (':set all', ':setlocal all', ':setl all'):
+        editor.message = ''
+        handle_command(editor, command)
+        assert 'E518' not in (editor.message or ''), command
