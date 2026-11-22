@@ -46,7 +46,8 @@ _THAI_COMBINING_CPS: frozenset[int] = frozenset(
         0x0EBA,
         0x0EBB,
         0x0EBC,  # SARA U, UU, PALI VIRAMA, MAI KON, LO
-        0x0EC7,  # MAITAIKHU
+        # 0x0EC7 is unassigned (Cn, width 1) in current Unicode data; the Lao
+        # combining marks continue at 0x0EC8 (docs/bugs/191.md).
         0x0EC8,
         0x0EC9,
         0x0ECA,

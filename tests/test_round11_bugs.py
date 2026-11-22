@@ -403,3 +403,18 @@ def test_190_reporter_recovers_after_worker_exception(
     asyncio.run(scenario())
     assert len(calls) == 2
 
+
+def test_191_unassigned_u0ec7_is_not_a_combining_mark() -> None:
+    """U+0EC7 is Cn/width-1 and must not be treated as a zero-width mark."""
+    import unicodedata
+
+    from prompt_toolkit.utils import get_cwidth
+
+    from vith.thai import is_combining_char, is_thai_combining
+
+    char = chr(0x0EC7)
+    assert unicodedata.category(char) == 'Cn'
+    assert get_cwidth(char) == 1
+    assert is_thai_combining(0x0EC7) is False
+    assert is_combining_char(char) is False
+

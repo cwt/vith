@@ -76,7 +76,7 @@ def _make_editor_with_text(text: str, cursor_position: int = 0) -> Editor:
     return editor
 
 
-def test_all_34_thai_lao_combining_marks() -> None:
+def test_all_thai_lao_combining_marks() -> None:
     expected_thai = {
         0x0E31,
         0x0E34,
@@ -106,7 +106,7 @@ def test_all_34_thai_lao_combining_marks() -> None:
         0x0EBA,
         0x0EBB,
         0x0EBC,
-        0x0EC7,
+        # 0x0EC7 is unassigned (see docs/bugs/191.md).
         0x0EC8,
         0x0EC9,
         0x0ECA,
@@ -116,16 +116,17 @@ def test_all_34_thai_lao_combining_marks() -> None:
         0x0ECE,
     }
     assert len(expected_thai) == 16
-    assert len(expected_lao) == 18
+    assert len(expected_lao) == 17
     assert _THAI_COMBINING_CPS == (expected_thai | expected_lao)
-    assert len(_THAI_COMBINING_CPS) == 34
+    assert len(_THAI_COMBINING_CPS) == 33
 
     for cp in _THAI_COMBINING_CPS:
         assert is_thai_combining(cp), f"Expected U+{cp:04X} to be combining"
         assert is_combining_char(chr(cp)), f"Expected chr(0x{cp:04X}) to be combining"
 
-    # Explicit check for Lao PALI VIRAMA, MAITAIKHU, and YAMAKKAN:
-    for cp in (0x0EBA, 0x0EC7, 0x0ECE):
+    # Explicit check for Lao PALI VIRAMA and YAMAKKAN
+    # (0x0EC7 is unassigned, see docs/bugs/191.md):
+    for cp in (0x0EBA, 0x0ECE):
         assert is_thai_combining(cp)
         assert is_combining_char(chr(cp))
 
