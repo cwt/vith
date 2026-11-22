@@ -78,7 +78,12 @@ class EditorBuffer:
         # Empty if not in file explorer mode, directory path otherwise.
         self.isdir = False
         self._had_trailing_newline = True
-        self._fileformat = 'unix'  # Vim's 'dos' / 'unix' / 'mac'
+        # A configured `fileformat` is applied before any buffer exists, so
+        # inherit it here; `_read()` still overrides it when file content
+        # reveals a different line-ending style (docs/bugs/179.md).
+        editor_ref = self.editor
+        configured = getattr(editor_ref, 'fileformat', 'unix') if editor_ref is not None else 'unix'
+        self._fileformat = configured if configured in ('dos', 'unix', 'mac') else 'unix'
 
         # Read text.
         unreadable = False

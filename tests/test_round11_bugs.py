@@ -236,3 +236,14 @@ def test_188_zstd_levels_above_9_are_accepted(editor: Any) -> None:
     assert editor.cold_text_compression_level == 12
     editor.message = ''
     assert apply_toml_config(editor, {'editor': {'cold_text_compression_level': 23}}) is False
+
+
+def test_179_config_fileformat_applies_to_new_buffers(editor: Any) -> None:
+    """`[editor] fileformat` must be inherited by newly created buffers."""
+    from vith.rc_file import apply_toml_config
+
+    assert apply_toml_config(editor, {'editor': {'fileformat': 'dos'}})
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    assert eb.fileformat == 'dos'
+    assert eb.line_ending() == '\r\n'
