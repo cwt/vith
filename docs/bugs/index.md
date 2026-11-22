@@ -400,7 +400,7 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 
 | ID | Finding | Category | Priority | Status |
 | :-- | :--- | :--- | :--- | :--- |
-| [155](155.md) | Startup `FiletypeTabstops(DEFAULT_FILETYPE_TABSTOPS)` eagerly imports 32 Pygments lexer modules (187.8 ms / 63% of cold startup) | startup/pygments | **high** | open |
+| [155](155.md) | Startup `FiletypeTabstops(DEFAULT_FILETYPE_TABSTOPS)` eagerly imports 32 Pygments lexer modules (187.8 ms / 63% of cold startup) | startup/pygments | **high** | fixed |
 | [156](156.md) | Per-frame `TabsProcessor` unconditionally explodes fragments and scans every character on tab-free lines (36.3% of ASCII frame) | rendering/tabs | **high** | open |
 | [157](157.md) | Per-keystroke $O(\text{file size})$ copy via `Document.current_line` (even in Insert mode) and eager `Document.lines` split in `_on_text_changed` | keystroke/latency | **high** | open |
 | [158](158.md) | Quadratic $O(N^2)$ string concatenation in `:j` / `:join` (258.7 ms at 20k lines) | commands/algorithms | **high** | open |

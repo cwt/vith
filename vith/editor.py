@@ -67,19 +67,46 @@ def _terminal_title_extra_sequence(title_osc_body: str) -> str:
     return extra_seq
 
 
+@lru_cache(maxsize=1)
+def _pygments_alias_map() -> dict[str, str]:
+    """
+    Map every built-in Pygments lexer alias to its primary canonical alias via
+    `pygments.lexers._mapping.LEXERS` without importing any lexer modules
+    (docs/bugs/155.md).
+    """
+    mapping: dict[str, str] = {}
+    try:
+        from pygments.lexers._mapping import LEXERS
+
+        for _cls, (_mod, _name, aliases, _fnames, _mimes) in LEXERS.items():
+            if aliases:
+                canonical = aliases[0].lower()
+                for alias in aliases:
+                    mapping.setdefault(alias.lower(), canonical)
+    except Exception:
+        pass
+    return mapping
+
+
 @lru_cache(maxsize=512)
 def _canonical_filetype(name: str) -> str:
     """Resolve a filetype name or alias to its primary canonical alias."""
+    lowered = name.lower()
+    canonical = _pygments_alias_map().get(lowered)
+    if canonical is not None:
+        return canonical
+    if lowered in DEFAULT_FILETYPE_TABSTOPS:
+        return lowered
     try:
         from pygments.lexers import get_lexer_by_name
 
-        lexer = get_lexer_by_name(name)
+        lexer = get_lexer_by_name(lowered)
         aliases = getattr(lexer, 'aliases', ())
         if aliases:
             return aliases[0].lower()
     except Exception:
         pass
-    return name.lower()
+    return lowered
 
 
 #: Standard tab stop settings for common programming and markup languages.
