@@ -15,6 +15,7 @@ import asyncio
 import inspect
 import logging
 import re
+from bisect import bisect_right
 from typing import Any, Callable, Iterable
 
 import prompt_toolkit.renderer as ptk_renderer
@@ -780,6 +781,17 @@ def _install_tabs_processor_patch(applied: list[tuple[Any, str, object]] | None 
         return False
 
     def _patched_apply_transformation(self: Any, ti: TransformationInput) -> Transformation:
+        # Fast path: lines without `\t` need no fragment explosion, width scan,
+        # `tabstop`/`char2` callback evaluation, or position maps (docs/bugs/156.md).
+        raw_fragments = ti.fragments
+        has_tab = False
+        for fragment in raw_fragments:
+            if "\t" in fragment[1]:
+                has_tab = True
+                break
+        if not has_tab:
+            return Transformation(raw_fragments)
+
         tabstop = max(1, to_int(self.tabstop))
         style = self.style
 
@@ -788,53 +800,56 @@ def _install_tabs_processor_patch(applied: list[tuple[Any, str, object]] | None 
         separator2 = to_str(self.char2)
 
         # Transform fragments.
-        fragments = explode_text_fragments(ti.fragments)
-
-        position_mappings: dict[int, int] = {}
+        fragments = explode_text_fragments(raw_fragments)
+        n_frags = len(fragments)
+        src_to_disp: list[int] = [0] * (n_frags + 2)
         result_fragments: StyleAndTextTuples = []
+        append = result_fragments.append
         pos = 0
         visual_col = 0
 
         for i, fragment_and_text in enumerate(fragments):
-            position_mappings[i] = pos
+            src_to_disp[i] = pos
+            ch = fragment_and_text[1]
 
-            if fragment_and_text[1] == "\t":
+            if ch == "\t":
                 # Calculate how many characters we have to insert based on visual column.
                 count = tabstop - (visual_col % tabstop)
                 if count == 0:
                     count = tabstop
 
                 # Insert tab.
-                result_fragments.append((style, separator1))
-                result_fragments.append((style, separator2 * (count - 1)))
+                append((style, separator1))
+                if count > 1:
+                    append((style, separator2 * (count - 1)))
                 pos += count
                 visual_col += count
             else:
-                result_fragments.append(fragment_and_text)
+                append(fragment_and_text)
                 pos += 1
                 if _PtkZeroWidthEscape not in fragment_and_text[0]:
-                    visual_col += get_cwidth(fragment_and_text[1])
+                    if ch and " " <= ch <= "~":
+                        visual_col += 1
+                    else:
+                        visual_col += get_cwidth(ch)
 
-        position_mappings[len(fragments)] = pos
+        src_to_disp[n_frags] = pos
         # Add `pos+1` to mapping, because the cursor can be right after the
         # line as well.
-        position_mappings[len(fragments) + 1] = pos + 1
-
-        position_mappings_reversed = {v: k for k, v in position_mappings.items()}
+        src_to_disp[n_frags + 1] = pos + 1
 
         def source_to_display(from_position: int) -> int:
             "Maps original cursor position to the new one."
-            return position_mappings.get(from_position, pos)
+            if 0 <= from_position <= n_frags + 1:
+                return src_to_disp[from_position]
+            return pos
 
         def display_to_source(display_pos: int) -> int:
             "Maps display cursor position to the original one."
-            cur = display_pos
-            while cur >= 0:
-                val = position_mappings_reversed.get(cur)
-                if val is not None:
-                    return val
-                cur -= 1
-            return 0
+            if display_pos < 0:
+                return 0
+            idx = bisect_right(src_to_disp, display_pos) - 1
+            return idx if idx >= 0 else 0
 
         return Transformation(
             result_fragments,

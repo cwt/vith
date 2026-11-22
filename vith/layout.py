@@ -4,7 +4,7 @@ The actual layout for the renderer.
 
 import re
 import sys
-from functools import partial
+from functools import lru_cache, partial
 
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.filters import Condition, has_arg, has_focus, is_searching
@@ -79,6 +79,13 @@ class _FocusSyncingBufferControl(BufferControl):
         return result
 
 
+@lru_cache(maxsize=64)
+def _try_char_for_encoding(character: str, backup: str, encoding: str) -> str:
+    if character.encode(encoding, 'replace') == b'?':
+        return backup
+    return character
+
+
 def _try_char(character, backup, encoding=None):
     """
     Return `character` if it can be encoded using sys.stdout, else return the
@@ -86,10 +93,7 @@ def _try_char(character, backup, encoding=None):
     """
     if encoding is None:
         encoding = getattr(sys.stdout, 'encoding', None) or 'utf-8'
-    if character.encode(encoding, 'replace') == b'?':
-        return backup
-    else:
-        return character
+    return _try_char_for_encoding(character, backup, encoding)
 
 
 def get_welcome_message_tokens():
