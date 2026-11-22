@@ -724,3 +724,24 @@ def test_tab_indent_binding_excludes_command_and_search_buffers(editor):
         assert binding.filter() is False
         editor.application.layout.focus(document_buffer)
         assert binding.filter() is True
+
+
+def test_default_expandtab_is_off_like_vim(editor):
+    """A fresh editor inserts a literal tab by default (Vim's 'noexpandtab')."""
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.key_binding.key_processor import KeyPress
+    from prompt_toolkit.key_binding.vi_state import InputMode
+    from prompt_toolkit.keys import Keys
+
+    assert editor.expand_tab is False
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    eb = editor.current_editor_buffer
+    eb.buffer.document = Document('abcd', cursor_position=2)
+    editor.application.vi_state.input_mode = InputMode.INSERT
+    editor.application.layout.focus(eb.buffer)
+    key_processor = editor.application.key_processor
+    with set_app(editor.application):
+        key_processor.feed(KeyPress(Keys.Tab))
+        key_processor.process_keys()
+    assert eb.buffer.text == 'ab\tcd'

@@ -209,7 +209,9 @@ class Editor:
         self.paste_mode = False
         self.show_ruler = True
         self.show_wildmenu = True
-        self.expand_tab = True  # Insert spaces instead of tab characters.
+        # Vim defaults to 'noexpandtab': Tab inserts a literal tab character.
+        # ':set expandtab' switches to inserting tabstop spaces instead.
+        self.expand_tab = False
         self.tabstop = 8  # Number of spaces that a tab character represents (Vim default: 8).
         self.shiftwidth = 0  # ':set shiftwidth' (0 follows buffer tabstop, Vim convention).
         self._filetype_tabstops = FiletypeTabstops(DEFAULT_FILETYPE_TABSTOPS)
