@@ -1,18 +1,18 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 166 machine-verified findings across 10 audit rounds and 4 addenda (001–166; all closed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 191 machine-verified findings across 11 audit rounds and 4 addenda (001–191; 165 closed, 1 withdrawn, 25 open)."
 status: stable
 sources:
   - docs/bugs/
   - docs/
 verified: machine-confirmed
-stale_after: 2027-05-22T00:00:00Z
-tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10]
+stale_after: 2027-05-23T00:00:00Z
+tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11]
 generated:
-  by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-22T15:55:00Z"
-timestamp: "2026-11-22T15:55:00Z"
+  by: "OpenCode (Hy4 flash Free)"
+  at: "2026-11-23T09:00:00Z"
+timestamp: "2026-11-23T09:00:00Z"
 ---
 
 # vith Findings Bundle
@@ -35,6 +35,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 9 (2026-11-20, deep read-only analysis & re-validation — [151](151.md)–[153](153.md), `fix_status: fixed`)**: residual performance, duplication/logic-drift, and readability inventories against `v0.15.0` (rev 384), all closed with regression tests: [151](151.md) (`splice_buffer_lines`, inactive-tab frame retention, $O(n)$/$O(m\sqrt{n})$ `:g` move/copy, visible-buffer Thai gate decay/re-latch + single-pass SARA-AM scan, cached `:b` regex, `:retab` fast paths); [152](152.md) (medium — catalog-derived `_default_options`/`_CONFIG_OPTION_MAP`, shared `_resolve_editor_buffer`/`apply_int_option_value`, shared 1-based address resolver, unified `resolve_ignore_case`, and unified write-target normalization fixing the `:set ro` symlink bypass & stale dirty flag); [153](153.md) (`vith/lexer.py` top import consolidation, `completer.py` class ordering, and `vith/thai/__init__.py` public surface tightened via PEP 562 `__getattr__`/`__dir__` + `cold_text.py` direct submodule import).
 * **Round 9 addendum (2026-11-20, user field report — [154](154.md), `fix_status: fixed`)**: vertical cursor movement (`j`/`k`), `{count}|`, visual-block selection (`<C-v>` highlight, `y`, `d`, `I`, `A`), and block paste (`p`/`P`) drifting after tabs on Thai text (and pure ASCII with tabs), fixed with tab-expanded visual-column math honoring buffer/local/global `tabstop`, visual-column block row iteration, `TextObject.operator_range` `BLOCK` corner fix, and visual-column `|` and `p`/`P`.
 * **Round 10 (2026-11-22, deep performance & algorithmic audit — [155](155.md)–[166](166.md), 11 fixed + [159](159.md) withdrawn)**: 12 machine-verified performance, memory, and algorithmic findings profiled across all 38 modules on Python 3.15.2 / `prompt_toolkit 3.0.53` / `Pygments 2.21.0` — eager 32-lexer startup imports ([155](155.md)), unconditional per-frame `TabsProcessor` fragment explosion ([156](156.md)), per-keystroke $O(\text{file size})$ `Document.current_line` copy & eager `_on_text_changed` line splits ([157](157.md)), quadratic `:join` ([158](158.md)), `:substitute` char-by-char callback ([160](160.md)), quadratic `:norm` replay ([161](161.md)), `DocumentLexer` backward-scroll leak & 215-module `guess_lexer` freeze ([162](162.md)), Thai render/Visual-Block hot spots ([163](163.md)), broken `DocumentWordsCompleter` cache key ([164](164.md)), Thai cluster/word/libthai hot spots ([165](165.md)), and secondary I/O/editing/command hot spots ([166](166.md)); [159](159.md) archived/withdrawn when the earlier experimental `:render` prototype was reverted and superseded by [`../live_render.md`](../live_render.md). Closed with regression tests in `tests/test_round10_perf.py`.
+* **Round 11 (2026-11-23, post-`v0.16.0` deep correctness audit — [167](167.md)–[191](191.md), `fix_status: open`)**: 25 newly discovered defects from a four-auditor read-only review of the `v0.16.0` tree (rev 410), with live reproduction probes, a 7 000-command fuzz, and a 250-case render fuzz. Highlights: bare `:!{cmd}` is a silent no-op ([167](167.md), critical), `*` / `#` crash on real `KeyPressEvent.arg` ([168](168.md)), CSV cells interpreted as Rich markup corrupt content or raise `MarkupError` ([169](169.md)), `:j x` raises `ValueError` ([170](170.md)); plus render error-state defects ([171](171.md)–[173](173.md)), `:set`/`:s`/`:sort` and undo-reload semantics ([174](174.md)–[177](177.md)), config validation/no-op issues ([178](178.md), [179](179.md)), tab/visual-block/config/register invariants ([180](180.md)–[187](187.md)), and five low-severity robustness/Unicode findings ([188](188.md)–[191](191.md)). Static gates at audit time: ruff clean, mypy clean (46 files), 531 tests passing; `vith/render.py` at 83% line coverage with the error paths largely untested.
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
@@ -412,6 +413,38 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [164](164.md) | `DocumentWordsCompleter` reads nonexistent `editor_buffer._text_version` (stale in prod) and breaks P3 if wired to `_text_version` | completion/caching | medium | fixed |
 | [165](165.md) | Thai cluster & word-motion hot spots: `_compute_cell_columns` slices/generators, linear word-span scans, and `libthai` ctypes `*gen` | thai/algorithms | low | fixed |
 | [166](166.md) | Secondary I/O, editing, and command hot spots (`>>` splice, `:w >>` append, `_read` CR scan, `:sort nu`, `DirectoryIO` scandir, static `:g/pat/m N`, completer double `get_all_lexers`) | io/commands/editing | low | fixed |
+
+## Round 11 Findings (2026-11-23 post-`v0.16.0` deep correctness audit, `v0.16.0` / rev 410 → `fix_status: open`)
+
+### Defects (`type: bug`)
+
+| ID | Finding | Area | Priority | Status |
+| :-- | :--- | :--- | :--- | :--- |
+| [167](167.md) | Bare `:!{cmd}` never executes — async `run_system_command()` coroutine created and discarded | commands/shell | **critical** | open |
+| [168](168.md) | `*` / `#` crash in Normal mode — raw `event.arg` (`str`/`None`) passed as search count | key-bindings/search | **high** | open |
+| [169](169.md) | CSV/TSV cells passed to Rich as markup — `[/]` crashes, `[tag]` text silently corrupted | render/csv | **high** | open |
+| [170](170.md) | `:j` / `:join` with non-numeric argument raises uncaught `ValueError` | commands/editing | **high** | open |
+| [171](171.md) | Generic renderer exceptions classified as transient "incomplete" → silent permanent stale preview | render/errors | medium | open |
+| [172](172.md) | `_has_good_render` never reset → dependency-error diagnostic mislabeled "stale" | render/state | medium | open |
+| [173](173.md) | Multi-line error messages break styled-lines/line-starts invariant and lexer per-line contract | render/lexer | medium | open |
+| [174](174.md) | `:set ff?` / `:set fileformat?` report "Unknown option" | commands/set | medium | open |
+| [175](175.md) | Bare `:%s` after `/search` or `:g` reuses search pattern instead of last substitute pattern | commands/substitute | medium | open |
+| [176](176.md) | `:sort n` re-sorts equal-numbered lines lexicographically instead of preserving order | commands/sort | medium | open |
+| [177](177.md) | `:e` reload leaves stale undo/redo history — pre-reload content resurrected with `u` | editor-buffer/undo | medium | open |
+| [178](178.md) | Malformed `cold_text_compression` config value crashes editor startup | config/cold-text | medium | open |
+| [179](179.md) | `fileformat` set in config is silently ignored by every buffer | config/fileformat | medium | open |
+| [180](180.md) | `create_tab()` on an empty arrangement creates two tabs showing the same buffer | window-arrangement | medium | open |
+| [181](181.md) | Visual-block highlight and yank/delete disagree on short intermediate rows (tabstop-dependent) | thai/visual-block | medium | open |
+| [182](182.md) | CSV/TSV rendering raises uncaught `csv.Error` on a bare `\r` | render/csv | low | open |
+| [183](183.md) | `schedule(immediate=True)` silently downgraded to debounced while a render is in flight | render/debounce | low | open |
+| [184](184.md) | Custom `[render.commands]` alias key bypassed when another alias is used | render/config | low | open |
+| [185](185.md) | `docs/live_render.md` omits implemented `debounce_ms` bound and `default_split` aliases | docs/render | low | open |
+| [186](186.md) | `:setlocal all` rejected as "not a buffer-local option" | commands/set | low | open |
+| [187](187.md) | `:d {x}` / `:y {x}` do not also set the unnamed register | commands/registers | low | open |
+| [188](188.md) | `cold_text_compression_level` validation rejects valid zstd levels 10–22 | config/cold-text | low | open |
+| [189](189.md) | `EditorBuffer.reload()` on an untitled buffer raises `TypeError` | editor-buffer/api | low | open |
+| [190](190.md) | Reporter permanently disabled if the executor worker raises before `ready()` (`unverified`) | reporting/concurrency | low | open |
+| [191](191.md) | U+0EC7 hard-coded as zero-width combining mark though unassigned (width 1) | thai/unicode | low | open |
 
 ## Meta
 
