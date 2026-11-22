@@ -23,9 +23,9 @@ verified: [machine-confirmed, human-reviewed]
 stale_after: 2027-05-22T00:00:00Z
 tags: [render, preview, async, rich, markdown, rst, scroll-sync, latency, architecture]
 generated:
-  by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-22T15:40:00Z"
-timestamp: "2026-11-22T15:40:00Z"
+  by: "OpenCode (Hy4 flash Free)"
+  at: "2026-11-23T12:00:00Z"
+timestamp: "2026-11-23T12:00:00Z"
 ---
 
 # Live Async `:render` Split Preview — Technical Architecture & Reference
@@ -358,8 +358,8 @@ sync_scroll = true           # boolean: heading/landmark-anchored position sync
 
 * **`scripts/code-format.sh`**: clean
 * **`scripts/lint-check-and-fix.sh`**: `All checks passed!`
-* **`scripts/type-check.sh`**: `Success: no issues found in 87 source files` (Python 3.10 floor)
-* **`scripts/runtest.sh`**: **`531 passed`**, **88.98% total coverage** (`>= 85%` gate; `vith/commands/render.py` 92%, `vith/render.py` 83%)
+* **`scripts/type-check.sh`**: `Success: no issues found in 88 source files` (Python 3.10 floor)
+* **`scripts/runtest.sh`**: **`558 passed`**, **89.24% total coverage** (`>= 85%` gate; `vith/commands/render.py` 92%, `vith/render.py` 85%)
 * **`tools/bench_plans.py`**: all Thai/Lao and speed-latency baseline benchmarks clean
 
 ---

@@ -1,18 +1,18 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 192 machine-verified findings across 11 audit rounds and 4 addenda (001–192; 191 closed, 1 withdrawn)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 192 machine-verified findings across 12 audit rounds and 4 addenda (001–192; 191 closed, 1 withdrawn)."
 status: stable
 sources:
   - docs/bugs/
   - docs/
 verified: machine-confirmed
 stale_after: 2027-05-23T00:00:00Z
-tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11]
+tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11, round-12]
 generated:
   by: "OpenCode (Hy4 flash Free)"
-  at: "2026-11-23T09:00:00Z"
-timestamp: "2026-11-23T09:00:00Z"
+  at: "2026-11-23T12:00:00Z"
+timestamp: "2026-11-23T12:00:00Z"
 ---
 
 # vith Findings Bundle
@@ -416,7 +416,7 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [165](165.md) | Thai cluster & word-motion hot spots: `_compute_cell_columns` slices/generators, linear word-span scans, and `libthai` ctypes `*gen` | thai/algorithms | low | fixed |
 | [166](166.md) | Secondary I/O, editing, and command hot spots (`>>` splice, `:w >>` append, `_read` CR scan, `:sort nu`, `DirectoryIO` scandir, static `:g/pat/m N`, completer double `get_all_lexers`) | io/commands/editing | low | fixed |
 
-## Round 11 Findings (2026-11-23 post-`v0.16.0` deep correctness audit, `v0.16.0` / rev 410 → `fix_status: open`)
+## Round 11 Findings (2026-11-23 post-`v0.16.0` deep correctness audit, `v0.16.0` / rev 410 → `fix_status: fixed`)
 
 ### Defects (`type: bug`)
 

@@ -1,6 +1,44 @@
 CHANGELOG
 =========
 
+0.16.1: 2026-11-23
+-------------------
+
+Correctness fixes from the Round 11 deep audit and a user field report (findings 167–192):
+
+- Critical/high: bare ``:!{cmd}`` now schedules prompt-toolkit's async
+  ``run_system_command`` instead of dropping the coroutine (167); ``*`` / ``#``
+  normalize ``KeyPressEvent.arg`` so they no longer crash (168); CSV/TSV cells
+  are rendered as literal text instead of Rich markup (169) and bare carriage
+  returns no longer raise ``csv.Error`` (182); ``:j`` / ``:join`` report ``E488``
+  for non-numeric counts (170).
+- Live ``:render``: generic renderer errors now show a diagnostic rather than
+  being silently labeled ``stale`` (171), ``_has_good_render`` is reset on
+  diagnostics (172), multi-line error messages stay line-aligned (173),
+  ``immediate=True`` survives render coalescing (183), and custom
+  ``[render.commands]`` keys resolve across filetype aliases (184).
+- Ex commands / options: ``:set ff?`` queries work and ``:setlocal all`` lists
+  options (174, 186); bare ``:s`` reuses a dedicated last-substitute pattern
+  instead of the shared search state (175); ``:sort n`` is stable and its ``!``
+  form reverses ties like Vim (176); ``:d`` / ``:y`` with a named register also
+  update the unnamed register (187).
+- Editor / config: ``:e`` reload clears stale undo history (177) and guards
+  untitled buffers (189); ``cold_text_compression`` config is type-validated
+  and ``cold_text_compression_level`` accepts zstd levels up to 22 (178, 188);
+  configured ``fileformat`` is honored by new buffers (179); ``create_tab`` on
+  an empty arrangement no longer creates two tabs (180).
+- Thai / robustness: visual-block highlight agrees with yank on short rows
+  (181); reporter diagnostics recover from executor exceptions (190);
+  unassigned ``U+0EC7`` is no longer treated as a combining mark (191).
+- Tab in Insert mode now inserts an indentation step anywhere on the line
+  instead of falling through to completion (192), and the default is Vim's
+  ``noexpandtab`` (``expand_tab = False``), so a plain Tab inserts a literal
+  tab character; ``:set expandtab`` still switches to spaces.
+- Documentation: ``docs/live_render.md`` config table corrected (185); bug
+  bundle synced to 192 findings (191 fixed, 1 withdrawn).
+
+Verification: **558 passed**, 89.24% coverage, mypy clean (88 files), ruff clean.
+
 0.16.0: 2026-11-22
 -------------------
 
