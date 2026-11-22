@@ -214,3 +214,25 @@ def test_189_reload_untitled_buffer_is_guarded(editor: Any) -> None:
     eb = EditorBuffer(editor)
     eb.reload()
     assert 'E32' in (editor.message or '')
+
+
+def test_178_malformed_compression_config_does_not_crash_startup(editor: Any) -> None:
+    """A non-string cold_text_compression value must be reported, not applied."""
+    from vith.rc_file import apply_toml_config
+
+    assert apply_toml_config(editor, {'editor': {'cold_text_compression': 5}}) is False
+    assert editor.cold_text_compression != 5
+    editor.load_initial_files([None])  # Would raise AttributeError before the fix.
+
+
+def test_188_zstd_levels_above_9_are_accepted(editor: Any) -> None:
+    """Config validation must allow the zstd compressor's 1..22 level range."""
+    from vith.rc_file import apply_toml_config
+
+    assert apply_toml_config(
+        editor,
+        {'editor': {'cold_text_compression': 'zstd', 'cold_text_compression_level': 12}},
+    )
+    assert editor.cold_text_compression_level == 12
+    editor.message = ''
+    assert apply_toml_config(editor, {'editor': {'cold_text_compression_level': 23}}) is False

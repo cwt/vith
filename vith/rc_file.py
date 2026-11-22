@@ -172,11 +172,22 @@ def _validated_option(
             return None
         return fmt
 
-    if attr_name == 'cold_text_compression_level' and (
-        isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 9
-    ):
+    if attr_name == 'cold_text_compression' and not isinstance(value, str):
+        # make_cold_text_compressor() calls .strip() on this value; a TOML
+        # int/bool/list would crash the first buffer's construction
+        # (docs/bugs/178.md). Unknown strings still fall back safely there.
         _report_rc_error(
-            'Invalid value for %s: expected an integer in 0..9' % config_key, error_handler
+            'Invalid value for %s: expected a string' % config_key, error_handler
+        )
+        return None
+
+    if attr_name == 'cold_text_compression_level' and (
+        isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 22
+    ):
+        # zstd levels go up to 22; zlib/lzo clamp higher values themselves
+        # (docs/bugs/188.md).
+        _report_rc_error(
+            'Invalid value for %s: expected an integer in 0..22' % config_key, error_handler
         )
         return None
 
