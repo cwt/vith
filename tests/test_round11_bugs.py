@@ -353,3 +353,22 @@ def test_184_custom_command_alias_is_resolved_consistently() -> None:
     assert detect_render_format('note.md', None, 'hi', commands) == 'md'
     assert detect_render_format(None, 'md', 'hi', {'markdown': 'glow'}) == 'markdown'
 
+
+def test_187_named_yank_and_delete_also_update_unnamed_register(
+    editor: Any, tmp_path: Any
+) -> None:
+    """`:y a` / `:d b` must also make the text available to a plain paste."""
+    path = tmp_path / 'reg.txt'
+    path.write_text('one\ntwo\nthree\n', encoding='utf-8')
+    editor.load_initial_files([str(path)])
+
+    handle_command(editor, ':y a')
+    assert editor.registers['a'] == 'one'
+    unnamed = editor.application.clipboard.get_data()
+    assert unnamed is not None and unnamed.text == 'one'
+
+    handle_command(editor, ':d b')
+    assert editor.registers['b'] == 'one'
+    unnamed = editor.application.clipboard.get_data()
+    assert unnamed is not None and unnamed.text == 'one'
+

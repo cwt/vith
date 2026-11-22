@@ -219,8 +219,9 @@ def store_lines_in_register(editor: Any, lines: list[str], register: str = '') -
     text = '\n'.join(lines)
     if register:
         editor.registers[register] = text
-    else:
-        editor.application.clipboard.set_data(ClipboardData(text, SelectionType.LINES))
+    # Vim updates the unnamed register as well when a named register is given,
+    # so a plain `p` pastes the just-yanked/deleted line (docs/bugs/187.md).
+    editor.application.clipboard.set_data(ClipboardData(text, SelectionType.LINES))
 
 
 def report_yanked_lines(editor: Any, count: int) -> None:
