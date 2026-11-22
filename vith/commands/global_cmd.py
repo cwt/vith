@@ -173,20 +173,28 @@ def _global_execute_move_or_copy(
         editor.show_message('E14: Invalid address')
         return
 
-    # O(n) single-pass fast path for the common static endpoint addresses
-    # (`0` and `$`), matching Vim's two-pass order (`:g/pat/m 0` reverses
-    # matches at top; `:g/pat/m $` preserves order at EOF; docs/bugs/151.md).
+    # O(n) single-pass fast path for static numeric destinations (`0..len(lines)`)
+    # and `$`, matching Vim's two-pass order exactly (docs/bugs/151.md, 166.md).
     stripped_dest = dest_addr.strip()
-    if stripped_dest == '0':
-        moved_or_copied = [lines[row] for row in reversed(marked_rows)]
-        if is_move:
-            marked_set = set(marked_rows)
-            remaining = [line for idx, line in enumerate(lines) if idx not in marked_set]
-            result_lines = moved_or_copied + remaining
-        else:
-            result_lines = moved_or_copied + list(lines)
-        replace_buffer_lines(editor, eb, result_lines, 0, first_non_blank=True)
-        return
+    if stripped_dest.isascii() and stripped_dest.isdigit():
+        dest_idx = int(stripped_dest)
+        if 0 <= dest_idx <= len(lines):
+            if is_move:
+                marked_set = set(marked_rows)
+                unmarked_before = [lines[i] for i in range(dest_idx) if i not in marked_set]
+                unmarked_after = [
+                    lines[i] for i in range(dest_idx, len(lines)) if i not in marked_set
+                ]
+                marked_before = [lines[r] for r in marked_rows if r < dest_idx]
+                marked_after = [lines[r] for r in marked_rows if r >= dest_idx]
+                result_lines = unmarked_before + marked_before + marked_after[::-1] + unmarked_after
+                last_row = dest_idx if marked_after else dest_idx - 1
+            else:
+                copied = [lines[row] for row in reversed(marked_rows)]
+                result_lines = lines[:dest_idx] + copied + lines[dest_idx:]
+                last_row = dest_idx
+            replace_buffer_lines(editor, eb, result_lines, last_row, first_non_blank=True)
+            return
 
     if stripped_dest == '$':
         moved_or_copied = [lines[row] for row in marked_rows]

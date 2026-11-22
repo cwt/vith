@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-22T11:00:00Z"
-timestamp: "2026-11-22T11:00:00Z"
+  at: "2026-11-22T11:55:00Z"
+timestamp: "2026-11-22T11:55:00Z"
 ---
 
 # Documentation Bundle Log
@@ -55,3 +55,4 @@ This file tracks all modifications, extensions, and updates to the `vith` OKF do
 | 2026-11-20T09:47:00Z | [bugs/154.md](bugs/154.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [index.md](index.md), [log.md](log.md) | Appended & closed (154) | Recorded and fixed user field report [154](bugs/154.md): tab-aware display-column motion (`j`/`k`, `{count}\|`), visual-block selection (`<C-v>` highlight/`y`/`d`/`I`/`A`), and block/charwise paste (`p`/`P`) honoring buffer/local/global/per-split `tabstop` on Thai and ASCII tabbed lines, with regression suite `tests/test_thai_tabs_motion.py`. All 154 bundle findings are now closed. |
 | 2026-11-20T09:51:00Z | [log.md](log.md), [../pyproject.toml](../pyproject.toml), [../vith/__init__.py](../vith/__init__.py), [../CHANGELOG](../CHANGELOG), [../README.md](../README.md) | Updated (`v0.15.1` release) | Bumped version to `0.15.1`, added `CHANGELOG` release notes covering Round 9 improvements (151–153) and tab-aware Thai/CJK/ASCII motion & visual-block fixes (154), and refreshed `README.md` counts and descriptions (**505 passed**, 90.25% coverage, `mypy .` 83 files clean, `ruff` clean). |
 | 2026-11-22T11:00:00Z | [bugs/155.md](bugs/155.md)…[bugs/166.md](bugs/166.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [index.md](index.md), [log.md](log.md) | Appended (Round 10) | Appended 12 machine-verified Round 10 performance & algorithmic findings ([155](bugs/155.md)–[166](bugs/166.md), `fix_status: open`) from full-codebase profiling on Python 3.15.2 / `prompt_toolkit 3.0.53` / `Pygments 2.21.0`. No source files changed in this docs commit. |
+| 2026-11-22T11:55:00Z | [bugs/155.md](bugs/155.md)…[bugs/166.md](bugs/166.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [index.md](index.md), [log.md](log.md) | Findings closed (Round 10) | Closed all 12 Round 10 findings ([155](bugs/155.md)–[166](bugs/166.md)) one-by-one with regression tests in `tests/test_round10_perf.py`: `_mapping` tabstop lookup (155), tab-free `TabsProcessor` & cached `_try_char` (156), $O(\text{line length})$ `current_line_and_col` & ASCII `_on_text_changed` (157), linear `:join` (158), linear `:render` HTML fallback & precompiled regexes (159), C-level `:s` templates & $O(A \log A)$ overlap guard (160), cached `:norm` `KeyProcessor` + batched `_on_text_changed` + row-anchor tracking (161), capped `DocumentLexer` generators + EOF guard + deterministic content sniffer (162), SARA-AM screen cache + filtered `copy_body` + cached Visual Block selection (163), `ColdTextBuffer._non_cursor_version` completion cache fix (164), single-pass `_compute_cell_columns` + UTF-32 `libthai` + `bisect` word motions (165), and 7 secondary I/O/editing/command fixes (166). All 166 findings across the bundle are now closed. |

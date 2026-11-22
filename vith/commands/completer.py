@@ -1,3 +1,4 @@
+import bisect
 import re
 from functools import lru_cache
 
@@ -37,26 +38,28 @@ def _set_option_candidates(prefix: str) -> list[str]:
 
 
 @lru_cache(maxsize=1)
-def _filetype_aliases():
-    """Sorted Pygments lexer aliases (`get_lexer_by_name` targets)."""
-    from pygments.lexers import get_all_lexers
-
-    aliases = set()
-    for _, alias_list, _, _ in get_all_lexers():
-        aliases.update(alias_list)
-    return sorted(aliases)
-
-
-@lru_cache(maxsize=1)
-def _filetype_display_names() -> dict[str, str]:
-    """Map Pygments alias -> human-readable lexer name for completion meta."""
+def _filetype_catalog() -> tuple[tuple[str, ...], dict[str, str]]:
+    """
+    Single-pass cached Pygments lexer catalog `(sorted_aliases, display_names)`
+    avoiding duplicate `get_all_lexers()` scans (docs/bugs/166.md).
+    """
     from pygments.lexers import get_all_lexers
 
     mapping: dict[str, str] = {}
     for name, alias_list, _, _ in get_all_lexers():
         for alias in alias_list:
             mapping.setdefault(alias, name)
-    return mapping
+    return tuple(sorted(mapping)), mapping
+
+
+def _filetype_aliases() -> list[str]:
+    """Sorted Pygments lexer aliases (`get_lexer_by_name` targets)."""
+    return list(_filetype_catalog()[0])
+
+
+def _filetype_display_names() -> dict[str, str]:
+    """Map Pygments alias -> human-readable lexer name for completion meta."""
+    return _filetype_catalog()[1]
 
 
 class FiletypeCompleter(Completer):
@@ -64,22 +67,36 @@ class FiletypeCompleter(Completer):
     Complete Pygments lexer aliases for `:set filetype=`.
 
     Empty prefix yields all aliases; otherwise only `startswith` matches
-    (mirroring `ColorSchemeCompleter`).
+    via O(log A + K) binary search (mirroring `ColorSchemeCompleter`).
     """
 
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
         start_pos = -len(text)
-        display_names = _filetype_display_names()
-
-        for alias in _filetype_aliases():
-            if alias.startswith(text):
+        aliases, display_names = _filetype_catalog()
+        if not text:
+            for alias in aliases:
                 yield Completion(
                     alias,
                     start_position=start_pos,
                     display=alias,
                     display_meta=display_names.get(alias, ''),
                 )
+            return
+
+        idx = bisect.bisect_left(aliases, text)
+        n = len(aliases)
+        while idx < n:
+            alias = aliases[idx]
+            if not alias.startswith(text):
+                break
+            yield Completion(
+                alias,
+                start_position=start_pos,
+                display=alias,
+                display_meta=display_names.get(alias, ''),
+            )
+            idx += 1
 
 
 class BufferNameCompleter(Completer):

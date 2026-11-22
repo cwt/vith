@@ -263,7 +263,8 @@ def _file_payload(eb: Any, lines: list[str]) -> str:
 def _write_append_file(editor: Any, eb: Any, target: str, payload: str, force: bool) -> None:
     """
     Append `payload` to `target` through the editor's I/O backends
-    (`:[range]w[!] >> {file}`, docs/bugs/147.md).
+    (`:[range]w[!] >> {file}`, docs/bugs/147.md, 166.md).
+    Uses native `io.append(...)` in O(payload) when available.
     """
     io = find_backend(editor.io_backends, target)
     if io is None:
@@ -272,6 +273,18 @@ def _write_append_file(editor: Any, eb: Any, target: str, payload: str, force: b
     exists = io.exists(target)
     if exists is False and not force:
         editor.show_message('File does not exist (add ! to create)')
+        return
+    if hasattr(io, 'append'):
+        try:
+            try:
+                io.append(target, payload, eb.encoding)
+            except UnicodeEncodeError:
+                old_text = ''
+                if exists:
+                    old_text, _encoding = io.read(target)
+                io.write(target, old_text + payload, 'utf-8')
+        except Exception as exc:
+            editor.show_message('%s' % exc)
         return
     try:
         old_text = ''

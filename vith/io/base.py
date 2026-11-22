@@ -46,6 +46,19 @@ class EditorIO(metaclass=ABCMeta):
         Can raise IOError.
         """
 
+    def append(self, location, data, encoding='utf-8'):
+        """
+        Append `data` to `location` (docs/bugs/166.md).
+
+        Default implementation reads existing content (if any) and rewrites
+        `old_text + data`. Backends that support native O(payload) append
+        (such as `FileIO`) override this method.
+        """
+        old_text = ''
+        if self.exists(location):
+            old_text, _encoding = self.read(location)
+        self.write(location, old_text + data, encoding=encoding)
+
     def isdir(self, location):
         """
         Return whether this location is a directory.

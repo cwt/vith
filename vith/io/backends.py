@@ -59,6 +59,17 @@ class FileIO(EditorIO):
         with io.open(location, 'w', encoding=encoding) as f:
             f.write(text)
 
+    def append(self, location, text, encoding='utf-8'):
+        """
+        Append `text` natively in O(len(text)) without reading the file
+        (docs/bugs/166.md). Encodes before opening so a `UnicodeEncodeError`
+        never leaves a partially appended file on disk.
+        """
+        location = _expand_location(location)
+        encoded = text.encode(encoding)
+        with open(location, 'ab') as f:
+            f.write(encoded)
+
 
 class GZipFileIO(FileIO):
     """
@@ -87,6 +98,10 @@ class GZipFileIO(FileIO):
         with gzip.open(location, 'wb') as f:
             f.write(text.encode(encoding))
 
+    def append(self, location, text, encoding='utf-8'):
+        """Append to a gzip archive via read-concat-write (avoiding raw `FileIO.append`)."""
+        EditorIO.append(self, location, text, encoding=encoding)
+
 
 class DirectoryIO(EditorIO):
     """
@@ -103,16 +118,20 @@ class DirectoryIO(EditorIO):
 
     def read(self, directory):
         directory = _expand_location(directory)
-        # Read content.
-        content = sorted(os.listdir(directory))
+        # Read content via `os.scandir` to reuse dirent `d_type` without
+        # per-entry `stat()` syscalls (docs/bugs/166.md).
         directories = []
         files = []
 
-        for f in content:
-            if os.path.isdir(os.path.join(directory, f)):
-                directories.append(f)
-            else:
-                files.append(f)
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if entry.is_dir():
+                    directories.append(entry.name)
+                else:
+                    files.append(entry.name)
+
+        directories.sort()
+        files.sort()
 
         # Construct output.
         result = []

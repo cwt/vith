@@ -572,3 +572,105 @@ def test_165_thai_clusters_cell_columns_and_bisect_word_motions_parity() -> None
     d_fast = Document(unique_thai, cursor_position=0)
     assert find_next_word_beginning(d_fast, 1, False) is not None
     assert d_fast._cache.lines is None
+
+
+def test_166_secondary_io_editing_and_command_hot_spots(editor, tmp_path, monkeypatch) -> None:
+    """166: Verify all 7 secondary optimizations (>> splice, :w >> append, _read CR guard, :sort nu, DirectoryIO scandir, static :g/pat/m N, FiletypeCompleter)."""
+    import gzip
+
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+
+    from vith.commands import completer as cmd_completer
+    from vith.commands.handler import handle_command
+    from vith.editor_buffer import EditorBuffer
+    from vith.io.backends import DirectoryIO, FileIO, GZipFileIO
+    from vith.key_bindings import _shift_lines
+
+    # 1. `_shift_lines` splices without materializing `Document._cache.lines`.
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = '\n'.join(f'uniq166_line_{i}' for i in range(200))
+    eb.buffer.cursor_position = eb.buffer.text.index('uniq166_line_50')
+    pad = ' ' * eb.shiftwidth if editor.expand_tab else '\t'
+    _shift_lines(editor, eb.buffer, 2, indent=True)
+    assert eb.buffer.document._cache.lines is None
+    assert f'{pad}uniq166_line_50\n{pad}uniq166_line_51\nuniq166_line_52' in eb.buffer.text
+    _shift_lines(editor, eb.buffer, 2, indent=False)
+    assert eb.buffer.document._cache.lines is None
+    assert '\nuniq166_line_50\nuniq166_line_51\nuniq166_line_52' in eb.buffer.text
+
+    # 2. `:w >>` uses native `FileIO.append` without reading the target file (and keeps GZipFileIO valid).
+    target = tmp_path / 'log.txt'
+    target.write_text('existing\n', encoding='utf-8')
+    orig_read = FileIO.read
+
+    def _forbid_read(self, loc):
+        if str(loc) == str(target):
+            raise AssertionError('FileIO.read must not be called on native :w >> append')
+        return orig_read(self, loc)
+
+    monkeypatch.setattr(FileIO, 'read', _forbid_read)
+    eb.buffer.text = 'appended'
+    handle_command(editor, f':w >> {target}')
+    assert target.read_text(encoding='utf-8') == 'existing\nappended\n'
+    monkeypatch.setattr(FileIO, 'read', orig_read)
+
+    # GZipFileIO.append still produces a single valid gzip stream:
+    gz_target = tmp_path / 'log.txt.gz'
+    gz_io = GZipFileIO()
+    gz_io.write(str(gz_target), 'first\n')
+    gz_io.append(str(gz_target), 'second\n')
+    assert gzip.decompress(gz_target.read_bytes()).decode('utf-8') == 'first\nsecond\n'
+
+    # 3. `EditorBuffer._read` preserves unix/dos/mac detection under `'\r' in text` guard.
+    unix_f = tmp_path / 'unix.txt'
+    dos_f = tmp_path / 'dos.txt'
+    mac_f = tmp_path / 'mac.txt'
+    unix_f.write_bytes(b'a\nb\n')
+    dos_f.write_bytes(b'a\r\nb\r\n')
+    mac_f.write_bytes(b'a\rb\r')
+    assert EditorBuffer(editor, str(unix_f)).fileformat == 'unix'
+    assert EditorBuffer(editor, str(dos_f)).fileformat == 'dos'
+    assert EditorBuffer(editor, str(mac_f)).fileformat == 'mac'
+
+    # 4. `:sort nu` / `:sort! nu` / `:sort iun` single-pass key extraction + adjacent dedup.
+    eb.buffer.text = 'item 10 b\nitem 2 a\nitem 10 a\nno_num_b\nno_num_a\nno_num_a'
+    handle_command(editor, ':%sort nu')
+    assert eb.buffer.document.lines == ['no_num_a', 'no_num_b', 'item 2 a', 'item 10 a']
+    eb.buffer.text = 'Alpha\nalpha\nBETA\nbeta'
+    handle_command(editor, ':%sort! iu')
+    assert eb.buffer.document.lines == ['BETA', 'Alpha']
+
+    # 5. `DirectoryIO.read` uses `os.scandir` and lists sorted dirs before sorted files.
+    sub = tmp_path / 'dir_b'
+    sub.mkdir()
+    (tmp_path / 'dir_a').mkdir()
+    (tmp_path / 'file_z.txt').write_text('z', encoding='utf-8')
+    (tmp_path / 'file_a.txt').write_text('a', encoding='utf-8')
+    listing, enc = DirectoryIO().read(str(tmp_path))
+    assert enc == 'utf-8'
+    body = [ln for ln in listing.splitlines() if not ln.startswith('"') and ln not in ('../', './')]
+    dir_entries = [ln for ln in body if ln.endswith('/')]
+    file_entries = [ln for ln in body if not ln.endswith('/')]
+    assert dir_entries == sorted(dir_entries)
+    assert file_entries == sorted(file_entries)
+    assert body == dir_entries + file_entries
+
+    # 6. Static interior numeric `:g/pat/m N` and `:g/pat/t N` match Vim's two-pass semantics.
+    eb.buffer.text = 'x0\na1\nx2\na3\nx4\nx5'
+    handle_command(editor, ':g/^x/m 3')
+    # before k=3: x0, x2 (forward before k=3); after k=3: x4, x5 (reversed at k=3).
+    assert eb.buffer.document.lines == ['a1', 'x0', 'x2', 'x5', 'x4', 'a3']
+
+    eb.buffer.text = 'x0\na1\nx2\na3'
+    handle_command(editor, ':g/^x/t 2')
+    assert eb.buffer.document.lines == ['x0', 'a1', 'x2', 'x0', 'x2', 'a3']
+
+    # 7. `FiletypeCompleter` builds catalog in one `get_all_lexers()` pass and binary-searches prefixes.
+    cmd_completer._filetype_catalog.cache_clear()
+    comp = cmd_completer.FiletypeCompleter()
+    py_matches = [c.text for c in comp.get_completions(Document('pyth'), CompleteEvent())]
+    assert 'python' in py_matches
+    assert all(m.startswith('pyth') for m in py_matches)
+    assert cmd_completer._filetype_catalog.cache_info().currsize == 1

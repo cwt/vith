@@ -224,29 +224,45 @@ def _shift_lines(editor, buff, count, indent):
     Indent (`>>`) or unindent (`<<`) `count` lines from the cursor row,
     using buffer's effective `shiftwidth` (falling back to `tabstop` when `0`)
     and `editor.expand_tab` (docs/bugs/118.md).
+
+    Splices only the shifted rows directly by character offset instead of
+    copying and joining all `doc.lines` across the entire file (docs/bugs/166.md).
     """
     from prompt_toolkit.document import Document
 
     width = _get_buffer_shiftwidth(editor, buff)
     doc = buff.document
-    first_row = doc.cursor_position_row
-    last_row = min(len(doc.lines) - 1, first_row + _positive_count(count) - 1)
-    lines = list(doc.lines)
-    for row in range(first_row, last_row + 1):
-        line = lines[row]
+    text = doc.text
+    pos = doc.cursor_position
+    start_idx = text.rfind('\n', 0, pos) + 1
+    n_rows = _positive_count(count)
+    text_len = len(text)
+    indent_prefix = (' ' * width) if editor.expand_tab else '\t'
+
+    shifted_lines = []
+    cur = start_idx
+    end_idx = start_idx
+    for _ in range(n_rows):
+        nl = text.find('\n', cur)
+        line_end = text_len if nl == -1 else nl
+        line = text[cur:line_end]
         if indent:
-            lines[row] = (' ' * width if editor.expand_tab else '\t') + line
+            shifted_lines.append(indent_prefix + line)
         elif line.startswith('\t'):
-            lines[row] = line[1:]
+            shifted_lines.append(line[1:])
         else:
-            lines[row] = line[min(len(line) - len(line.lstrip(' ')), width) :]
+            shifted_lines.append(line[min(len(line) - len(line.lstrip(' ')), width) :])
+        end_idx = line_end
+        if nl == -1:
+            break
+        cur = nl + 1
+
     buff.save_to_undo_stack()
-    new_text = '\n'.join(lines)
-    buff.document = Document(new_text)
-    shifted = lines[first_row]
-    buff.cursor_position = buff.document.translate_row_col_to_index(
-        first_row, len(shifted) - len(shifted.lstrip())
-    )
+    replacement = '\n'.join(shifted_lines)
+    new_text = text[:start_idx] + replacement + text[end_idx:]
+    first_shifted = shifted_lines[0]
+    cursor_col = len(first_shifted) - len(first_shifted.lstrip())
+    buff.document = Document(new_text, cursor_position=start_idx + cursor_col)
 
 
 @Condition

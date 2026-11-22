@@ -6,6 +6,7 @@ Buffer line-editing Ex commands (`:u`, `:red`, `:d`, `:y`, `:pu`, `:m`,
 from __future__ import annotations
 
 import re
+from operator import itemgetter
 from typing import Any
 
 from prompt_toolkit.utils import get_cwidth
@@ -379,11 +380,8 @@ def sort_lines(editor: Any, variables: Any) -> None:
     start_row, end_row = bounds
     segment = eb.buffer.document.lines[start_row : end_row + 1]
 
-    def text_key(line: str) -> str:
-        return line.casefold() if ignore_case else line
-
     def sort_key(line: str) -> Any:
-        part = text_key(line)
+        part = line.casefold() if ignore_case else line
         if numeric:
             match = _FIRST_INT_RE.search(line)
             if match is None:
@@ -391,24 +389,27 @@ def sort_lines(editor: Any, variables: Any) -> None:
             return (1, int(match.group(0)), part)
         return part
 
-    sorted_segment = sorted(segment, key=sort_key, reverse=reverse)
-
     if unique:
+        # Compute numeric/casefold keys once and deduplicate adjacent items in
+        # O(1) extra space instead of re-running regexes and allocating a `seen`
+        # set (docs/bugs/166.md).
+        keyed = [(sort_key(line), line) for line in segment]
+        keyed.sort(key=itemgetter(0), reverse=reverse)
         deduped: list[str] = []
-        seen: set[Any] = set()
-        for line in sorted_segment:
+        has_prev = False
+        prev_dedup_key: Any = None
+        for sk, line in keyed:
             if numeric:
-                match = _FIRST_INT_RE.search(line)
-                if match is None:
-                    dedup_key: Any = (0, text_key(line))
-                else:
-                    dedup_key = (1, int(match.group(0)))
+                dedup_key: Any = (0, sk[2]) if sk[0] == 0 else (1, sk[1])
             else:
-                dedup_key = text_key(line)
-            if dedup_key not in seen:
-                seen.add(dedup_key)
+                dedup_key = sk
+            if not has_prev or dedup_key != prev_dedup_key:
+                has_prev = True
+                prev_dedup_key = dedup_key
                 deduped.append(line)
         sorted_segment = deduped
+    else:
+        sorted_segment = sorted(segment, key=sort_key, reverse=reverse)
 
     splice_buffer_lines(
         editor, eb, start_row, end_row, sorted_segment, start_row, first_non_blank=True

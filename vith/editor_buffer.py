@@ -297,17 +297,20 @@ class EditorBuffer:
                 text, self.encoding = io.read(location)
 
                 # Record the dominant line ending so writes preserve it
-                # (docs/bugs/140.md). `_had_trailing_newline` is decided after
-                # normalization, on the canonical '\n' form.
-                crlf_count = text.count('\r\n')
-                lone_cr_count = text.count('\r') - crlf_count
-                if crlf_count and crlf_count >= lone_cr_count:
-                    self.fileformat = 'dos'
-                elif lone_cr_count:
-                    self.fileformat = 'mac'
+                # (docs/bugs/140.md). Guard with `'\r' in text` so Unix files
+                # skip 4 redundant full-file scans/copies (docs/bugs/166.md).
+                if '\r' in text:
+                    crlf_count = text.count('\r\n')
+                    lone_cr_count = text.count('\r') - crlf_count
+                    if crlf_count and crlf_count >= lone_cr_count:
+                        self.fileformat = 'dos'
+                    elif lone_cr_count:
+                        self.fileformat = 'mac'
+                    else:
+                        self.fileformat = 'unix'
+                    text = text.replace('\r\n', '\n').replace('\r', '\n')
                 else:
                     self.fileformat = 'unix'
-                text = text.replace('\r\n', '\n').replace('\r', '\n')
 
                 # Drop trailing newline while editing.
                 # (prompt-toolkit doesn't enforce the trailing newline.)

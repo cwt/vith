@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-22T11:00:00Z"
-timestamp: "2026-11-22T11:00:00Z"
+  at: "2026-11-22T11:55:00Z"
+timestamp: "2026-11-22T11:55:00Z"
 ---
 
 # Findings Bundle Log
@@ -62,3 +62,4 @@ This file tracks all modifications to the `docs/bugs/` findings bundle in chrono
 | 2026-11-22T11:40:00Z | [163.md](163.md), [index.md](index.md) | Finding closed (163) | Resolved [163](163.md): cached per-row SARA AM columns on `Screen._vith_sara_am_rows` and eliminated `list(new_row.items())` in `_sanitize_and_invalidate_sara_am`, filtered `sx` first without copying `rowcol_to_yx` in `_patched_copy_body`, switched `_document_tabstop`/`_is_vi_mode` to `get_app_or_none()`, and cached Visual Block bounds + single-pass `_visual_block_row_span` in `vith/thai/patches.py`. Verified with `tests/test_round10_perf.py`. |
 | 2026-11-22T11:45:00Z | [164.md](164.md), [index.md](index.md) | Finding closed (164) | Resolved [164](164.md): added `_non_cursor_version` and `_single_line_edit_start` tracking on `ColdTextBuffer` (`vith/cold_text.py`) and wired `DocumentCompleter.get_completions` (`vith/completion.py`) to it, fixing stale non-cursor completions in production while keeping 100% P3 cache hits on cursor-line typing. Verified with `tests/test_round10_perf.py`. |
 | 2026-11-22T11:50:00Z | [165.md](165.md), [index.md](index.md) | Finding closed (165) | Resolved [165](165.md): added ASCII fast path in `cell_stops` and single-pass `_compute_cell_columns` (`vith/thai/clusters.py`); switched `_LibThaiWrapper.find_breaks` to native UTF-32 `ctypes.cast`, guarded `r1_end` in `find_thai_cluster_end`, added ASCII early return in `_cluster_aligned_spans`, and converted word motions to $O(\log W)$ `bisect` + $O(1)$ row skipping (`vith/thai/words.py`). Verified with `tests/test_round10_perf.py`. |
+| 2026-11-22T11:55:00Z | [166.md](166.md), [index.md](index.md), [../index.md](../index.md), [../log.md](../log.md) | Finding closed (166) / Round 10 complete | Resolved all 7 items in [166](166.md) (`>>` offset splice, native `FileIO.append` + safe `GZipFileIO.append` for `:w >>`, `_read` `'\r' in text` guard, single-pass `:sort nu` + $O(1)$ adjacent dedup, `DirectoryIO` `os.scandir`, $O(n)$ static numeric `:g/pat/m N`/`:g/pat/t N`, and unified `FiletypeCompleter` catalog + `bisect_left`). Verified with `tests/test_round10_perf.py`. **All 12 Round 10 findings ([155](155.md)–[166](166.md)) and all 166 findings across the bundle are now closed.** |

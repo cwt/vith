@@ -126,10 +126,10 @@ def test_directory_io_unreadable_raises_oserror(editor, tmp_path, monkeypatch):
     target_dir = tmp_path / 'restricted'
     target_dir.mkdir()
 
-    def failing_listdir(_path):
+    def failing_scandir(_path):
         raise PermissionError('Permission denied')
 
-    monkeypatch.setattr(os, 'listdir', failing_listdir)
+    monkeypatch.setattr(os, 'scandir', failing_scandir)
     editor.message = None
     eb = EditorBuffer(editor, str(target_dir))
     assert eb.in_file_explorer_mode is True
