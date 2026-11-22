@@ -309,7 +309,11 @@ def join_lines(editor: Any, variables: Any) -> None:
     start_row, end_row = bounds
     cmd_arg = variables.get('cmd_arg')
     if cmd_arg:
-        count = int(cmd_arg)
+        try:
+            count = int(cmd_arg)
+        except ValueError:
+            editor.show_message(f'E488: Trailing characters: {cmd_arg}')
+            return
         if count < 1:
             editor.show_message(f'E488: Trailing characters: {cmd_arg}')
             return

@@ -67,3 +67,17 @@ def test_182_csv_bare_carriage_return_does_not_raise() -> None:
     result = render_document('a,b\r1,2\n', filetype='csv')
     assert '1' in result.plain_text and '2' in result.plain_text
     assert len(result.plain_text.split('\n')) == len(result.styled_lines)
+
+
+def test_170_join_with_non_numeric_argument_reports_error(editor: Any, tmp_path: Any) -> None:
+    """`:j x` must show E488 instead of raising ValueError out of handle_command."""
+    path = tmp_path / 'join.txt'
+    path.write_text('one\ntwo\nthree\n', encoding='utf-8')
+    editor.load_initial_files([str(path)])
+    eb = editor.window_arrangement.active_editor_buffer
+    original = eb.buffer.text
+
+    for command in (':j x', ':join foo', ':1,2j abc', ':j "', ':j 1x', ':j 0'):
+        handle_command(editor, command)
+        assert eb.buffer.text == original
+        assert editor.message.startswith('E488:')
