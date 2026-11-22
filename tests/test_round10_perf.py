@@ -437,3 +437,64 @@ def test_163_thai_sara_am_cache_document_tabstop_and_visual_block_fast_paths(
         # `selection_ranges` skips rows whose visual width is strictly less than v_low:
         ranges = list(doc.selection_ranges())
         assert len(ranges) == 2
+
+
+def test_164_completer_invalidates_non_cursor_edits_and_preserves_p3_cursor_line_cache(
+    editor,
+) -> None:
+    """164: Production DocumentCompleter invalidates same-length non-cursor edits AND keeps P3 hits on cursor-line typing."""
+    from prompt_toolkit.completion import CompleteEvent
+
+    from vith.editor_buffer import EditorBuffer
+
+    eb = EditorBuffer(editor)
+    completer = eb.buffer.completer
+    assert completer is not None
+    words_completer = completer._words_completer  # type: ignore[attr-defined]
+    event = CompleteEvent()
+
+    # 1. Populate cache on line 1 while line 0 has 'beta'.
+    eb.buffer.text = 'beta\nbe'
+    eb.buffer.cursor_position = len(eb.buffer.text)
+    words = [c.text for c in completer.get_completions(eb.buffer.document, event)]
+    assert 'beta' in words
+    cached_list_1 = words_completer._other_words_sorted
+
+    # 2. Typing on the cursor line MUST preserve P3 cache hit (same list object!).
+    eb.buffer.insert_text('t')  # 'beta\nbet'
+    words = [c.text for c in completer.get_completions(eb.buffer.document, event)]
+    assert 'beta' in words
+    assert words_completer._other_words_sorted is cached_list_1
+
+    eb.buffer.delete_before_cursor(1)  # back to 'beta\nbe'
+    words = [c.text for c in completer.get_completions(eb.buffer.document, event)]
+    assert 'beta' in words
+    assert words_completer._other_words_sorted is cached_list_1
+
+    # 3. Same-length edit on non-cursor line via in-place overwrite MUST invalidate!
+    eb.buffer.cursor_position = 0
+    eb.buffer.insert_text('zzzz', overwrite=True)  # 'zzzz\nbe' (same length!)
+    eb.buffer.cursor_position = len(eb.buffer.text)
+    words = [c.text for c in completer.get_completions(eb.buffer.document, event)]
+    assert 'beta' not in words
+    assert words_completer._other_words_sorted is not cached_list_1
+
+    # 4. Adversarial: edit line 0, complete on line 1, go back and edit line 0 again,
+    #    then complete on line 1 -> MUST still invalidate!
+    eb.buffer.cursor_position = 0
+    eb.buffer.insert_text('best', overwrite=True)  # 'best\nbe'
+    eb.buffer.cursor_position = len(eb.buffer.text)
+    assert 'best' in [c.text for c in completer.get_completions(eb.buffer.document, event)]
+
+    eb.buffer.cursor_position = 0
+    eb.buffer.insert_text('xxxx', overwrite=True)  # 'xxxx\nbe'
+    eb.buffer.cursor_position = len(eb.buffer.text)
+    assert 'best' not in [c.text for c in completer.get_completions(eb.buffer.document, event)]
+
+    # 5. Direct buffer.text assignment (e.g., Ex commands / undo) also invalidates!
+    eb.buffer.text = 'bell\nbe'
+    eb.buffer.cursor_position = len(eb.buffer.text)
+    assert 'bell' in [c.text for c in completer.get_completions(eb.buffer.document, event)]
+    eb.buffer.text = 'yyyy\nbe'
+    eb.buffer.cursor_position = len(eb.buffer.text)
+    assert 'bell' not in [c.text for c in completer.get_completions(eb.buffer.document, event)]

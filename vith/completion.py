@@ -137,12 +137,20 @@ class DocumentCompleter(Completer):
         else:
             completer = self._words_completer
 
-        # Call completer. Pass the buffer text version so non-cursor word
-        # caches invalidate after edits on other lines (docs/bugs/149.md).
+        # Call completer. Pass the buffer's non-cursor edit version so
+        # same-length edits on other lines invalidate immediately while
+        # consecutive edits on the cursor line keep P3 cache hits
+        # (docs/bugs/149.md, 164.md).
         if completer is self._words_completer:
-            return completer.get_completions(
-                document, complete_event, getattr(editor_buffer, '_text_version', None)
-            )
+            buf = getattr(editor_buffer, 'buffer', None)
+            if buf is not None and hasattr(buf, '_non_cursor_version'):
+                buf._single_line_edit_start = (
+                    document.text.rfind('\n', 0, document.cursor_position) + 1
+                )
+                version = buf._non_cursor_version
+            else:
+                version = getattr(editor_buffer, '_text_version', None)
+            return completer.get_completions(document, complete_event, version)
         return completer.get_completions(document, complete_event)
 
 

@@ -188,6 +188,8 @@ class ColdTextBuffer(Buffer):
         self.cold_compression_name = cold_compression_name
         self.cold_compression_level = cold_compression_level
         self._text_version = 0
+        self._non_cursor_version = 0
+        self._single_line_edit_start: int | None = None
         self._vith_cell_column: tuple[int, int, int, int] | None = None
         self._suppress_undo_saves = 0
         self._track_edit_bounds = False
@@ -199,15 +201,21 @@ class ColdTextBuffer(Buffer):
 
     def _set_text(self, value: str) -> bool:
         changed = super()._set_text(value)
-        if changed and self._track_edit_bounds:
+        if changed:
             if self._in_known_edit:
                 self._known_edit_mutations += 1
                 if self._known_edit_mutations > 1:
+                    self._non_cursor_version += 1
+                    self._single_line_edit_start = None
+                    if self._track_edit_bounds:
+                        self._edit_min_pos = 0
+                        self._edit_newline_delta = None
+            else:
+                self._non_cursor_version += 1
+                self._single_line_edit_start = None
+                if self._track_edit_bounds:
                     self._edit_min_pos = 0
                     self._edit_newline_delta = None
-            else:
-                self._edit_min_pos = 0
-                self._edit_newline_delta = None
         return changed
 
     def insert_text(
@@ -217,7 +225,9 @@ class ColdTextBuffer(Buffer):
         move_cursor: bool = True,
         fire_event: bool = True,
     ) -> None:
+        otext = self.text
         ocpos = self.cursor_position
+        line_start = otext.rfind('\n', 0, ocpos) + 1 if data else -1
         prev_known = self._in_known_edit
         prev_mutations = self._known_edit_mutations
         self._in_known_edit = True
@@ -232,14 +242,21 @@ class ColdTextBuffer(Buffer):
         finally:
             self._in_known_edit = prev_known
             self._known_edit_mutations = prev_mutations
-        if data and self._track_edit_bounds:
-            if ocpos < self._edit_min_pos:
-                self._edit_min_pos = ocpos
-            if self._edit_newline_delta is not None and '\n' in data:
-                self._edit_newline_delta += data.count('\n')
+        if data:
+            has_nl = '\n' in data
+            if has_nl or line_start != self._single_line_edit_start:
+                self._non_cursor_version += 1
+                self._single_line_edit_start = None if has_nl else line_start
+            if self._track_edit_bounds:
+                if ocpos < self._edit_min_pos:
+                    self._edit_min_pos = ocpos
+                if self._edit_newline_delta is not None and has_nl:
+                    self._edit_newline_delta += data.count('\n')
 
     def delete(self, count: int = 1) -> str:
+        otext = self.text
         ocpos = self.cursor_position
+        line_start = otext.rfind('\n', 0, ocpos) + 1
         prev_known = self._in_known_edit
         prev_mutations = self._known_edit_mutations
         self._in_known_edit = True
@@ -249,15 +266,23 @@ class ColdTextBuffer(Buffer):
         finally:
             self._in_known_edit = prev_known
             self._known_edit_mutations = prev_mutations
-        if deleted and self._track_edit_bounds:
-            if ocpos < self._edit_min_pos:
-                self._edit_min_pos = ocpos
-            if self._edit_newline_delta is not None and '\n' in deleted:
-                self._edit_newline_delta -= deleted.count('\n')
+        if deleted:
+            has_nl = '\n' in deleted
+            if has_nl or line_start != self._single_line_edit_start:
+                self._non_cursor_version += 1
+                self._single_line_edit_start = None if has_nl else line_start
+            if self._track_edit_bounds:
+                if ocpos < self._edit_min_pos:
+                    self._edit_min_pos = ocpos
+                if self._edit_newline_delta is not None and has_nl:
+                    self._edit_newline_delta -= deleted.count('\n')
         return deleted
 
     def delete_before_cursor(self, count: int = 1) -> str:
+        otext = self.text
         ocpos = self.cursor_position
+        start_guess = 0 if count > ocpos else ocpos - count
+        line_start = otext.rfind('\n', 0, start_guess) + 1
         prev_known = self._in_known_edit
         prev_mutations = self._known_edit_mutations
         self._in_known_edit = True
@@ -267,12 +292,17 @@ class ColdTextBuffer(Buffer):
         finally:
             self._in_known_edit = prev_known
             self._known_edit_mutations = prev_mutations
-        if deleted and self._track_edit_bounds:
-            start = 0 if count > ocpos else ocpos - len(deleted)
-            if start < self._edit_min_pos:
-                self._edit_min_pos = start
-            if self._edit_newline_delta is not None and '\n' in deleted:
-                self._edit_newline_delta -= deleted.count('\n')
+        if deleted:
+            has_nl = '\n' in deleted
+            if has_nl or line_start != self._single_line_edit_start:
+                self._non_cursor_version += 1
+                self._single_line_edit_start = None if has_nl else line_start
+            if self._track_edit_bounds:
+                start = 0 if count > ocpos else ocpos - len(deleted)
+                if start < self._edit_min_pos:
+                    self._edit_min_pos = start
+                if self._edit_newline_delta is not None and has_nl:
+                    self._edit_newline_delta -= deleted.count('\n')
         return deleted
 
     def reset(
@@ -282,6 +312,8 @@ class ColdTextBuffer(Buffer):
     ) -> None:
         super().reset(document=document, append_to_history=append_to_history)
         self._text_version = 0
+        self._non_cursor_version = 0
+        self._single_line_edit_start = None
         self._vith_cell_column = None
         self._undo_stack = ColdTextStack(self._cold_compressor)  # type: ignore[assignment]
         self._redo_stack = ColdTextStack(self._cold_compressor)  # type: ignore[assignment]
