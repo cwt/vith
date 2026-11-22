@@ -1115,10 +1115,14 @@ def _thai_selection_range_at_line(self: Document, row: int) -> tuple[int, int] |
         line_len = len(line)
         eol_space = col1 <= line_len <= col2
         start, cell_end, total_width = _visual_block_row_span(line, v_low, v_high, ts)
-        if v_low >= total_width:
-            if eol_space:
-                return line_len, line_len + 1
+        # Use the same visual-column rule as `_thai_selection_ranges` so the
+        # highlighted cells are exactly the cells yank/delete act on. Codepoint
+        # endpoints can bracket a short tabbed row's length even when the block
+        # starts well past its display EOL (docs/bugs/181.md).
+        if v_low > total_width:
             return None
+        if v_low == total_width:
+            return line_len, line_len
         # If the block extends to or past EOL and prompt_toolkit's codepoint
         # bounds cover EOL (`col1 <= line_len <= col2`), keep the trailing
         # virtual space marker; otherwise end strictly at the visual cell

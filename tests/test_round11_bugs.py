@@ -262,3 +262,29 @@ def test_180_create_tab_on_empty_arrangement_makes_one_tab(editor: Any) -> None:
     wa.create_tab('other.py')
     assert len(wa.tab_pages) == 2
     assert wa.active_tab_index == 1
+
+
+def test_181_visual_block_highlight_matches_yank_on_short_row(editor: Any) -> None:
+    """A block past a short tabbed row's EOL must neither highlight nor yank it."""
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.selection import SelectionState, SelectionType
+
+    lines = ['\tABCDEFGHIJ', 'abcdef', '\tABCDEFGHIJ']
+    text = '\n'.join(lines)
+    anchor = 5  # row 0, codepoint 5 -> visual column 12
+    cursor = text.index('\n', text.index('\n') + 1) + 1 + 10  # row 2, col 10 -> visual 17
+    doc = Document(text, cursor_position=cursor, selection=SelectionState(anchor, SelectionType.BLOCK))
+
+    with set_app(editor.application):
+        # Highlight must agree with yank/delete: the short middle row is past
+        # the block's visual columns and is selected by neither API.
+        assert doc.selection_range_at_line(1) is None
+        highlighted_rows = [
+            row for row in (0, 1, 2) if doc.selection_range_at_line(row) is not None
+        ]
+        ranges = list(doc.selection_ranges())
+        assert len(ranges) == 2
+        assert highlighted_rows == [0, 2]
+        for start, end in ranges:
+            assert 0 <= start < end <= len(text)

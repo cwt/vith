@@ -1088,7 +1088,9 @@ def test_block_selection_rectangles_align_on_cells(editor):
         row2 = doc.selection_range_at_line(2)
         assert row0 == (5, 6)  # cell ordinal 2 on row 0 = น (was (2, 6) vanilla: mid-cluster)
         assert row2 == (2, 3)  # cell ordinal 2 on row 2 = แ (1 cell wide, docs/bugs/092.md)
-        assert row1 == (3, 4)  # row 1 has no cell at ordinal 2: only the EOL space stays
+        # 181: the block starts past row 1's display EOL, so highlight must
+        # agree with yank/delete and skip the row entirely.
+        assert row1 is None
 
         # LINES selection still spans its lines untouched:
         doc_lines = Document(
