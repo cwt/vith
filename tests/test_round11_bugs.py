@@ -343,3 +343,13 @@ def test_183_immediate_refresh_preserved_while_render_in_flight(
     finally:
         gate.set()
 
+
+def test_184_custom_command_alias_is_resolved_consistently() -> None:
+    """A command configured as 'md' must win for ft=markdown and vice versa."""
+    from vith.render import detect_render_format
+
+    commands = {'md': 'glow'}
+    assert detect_render_format(None, 'markdown', 'hi', commands) == 'md'
+    assert detect_render_format('note.md', None, 'hi', commands) == 'md'
+    assert detect_render_format(None, 'md', 'hi', {'markdown': 'glow'}) == 'markdown'
+

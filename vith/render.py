@@ -136,6 +136,23 @@ def _has_package(name: str) -> bool:
         return False
 
 
+def _custom_command_key(
+    raw: str, mapping: dict[str, str], commands: dict[str, str]
+) -> str | None:
+    """Find a configured command for `raw` across its aliases (docs/bugs/184.md)."""
+    if raw in commands:
+        return raw
+    canonical = mapping.get(raw)
+    if canonical is None:
+        return None
+    if canonical in commands:
+        return canonical
+    for key in commands:
+        if mapping.get(key) == canonical:
+            return key
+    return None
+
+
 def detect_render_format(
     location: str | None,
     filetype: str | None,
@@ -154,16 +171,18 @@ def detect_render_format(
 
     # 1. Explicit filetype match (custom command override takes precedence).
     if ft:
-        if ft in commands:
-            return ft
+        command_key = _custom_command_key(ft, _FT_TO_FORMAT, commands)
+        if command_key is not None:
+            return command_key
         mapped_ft = _FT_TO_FORMAT.get(ft)
         if mapped_ft is not None:
             return mapped_ft
 
     # 2. File extension match (custom command override takes precedence).
     if ext:
-        if ext in commands:
-            return ext
+        command_key = _custom_command_key(ext, _EXT_TO_FORMAT, commands)
+        if command_key is not None:
+            return command_key
         mapped_ext = _EXT_TO_FORMAT.get(ext)
         if mapped_ext is not None:
             return mapped_ext
@@ -175,8 +194,9 @@ def detect_render_format(
 
     sniffed = sniff_filetype_from_text(sample)
     if sniffed:
-        if sniffed in commands:
-            return sniffed
+        command_key = _custom_command_key(sniffed, _FT_TO_FORMAT, commands)
+        if command_key is not None:
+            return command_key
         mapped_sniff = _FT_TO_FORMAT.get(sniffed)
         if mapped_sniff is not None:
             return mapped_sniff
