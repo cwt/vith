@@ -108,6 +108,11 @@ from .registry import (
     location_cmd,
     set_cmd,
 )
+from .render import (
+    render_command,
+    render_split_horizontal,
+    render_split_vertical,
+)
 from .substitution import (
     _strip_regex_literals,
     parse_substitute_args,
@@ -189,6 +194,9 @@ __all__ = (
     'read_command',
     'redo_command',
     'registers_lines',
+    'render_command',
+    'render_split_horizontal',
+    'render_split_vertical',
     'retab_lines',
     'save_as',
     'set_cmd',

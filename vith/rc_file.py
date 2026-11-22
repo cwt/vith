@@ -92,7 +92,16 @@ _MAX_OPTION_INT = 9999
 # variables are not misclassified as TOML (docs/bugs/152.md).
 _TOML_DETECTION_KEYS = frozenset(
     {key for key in _CONFIG_OPTION_MAP if len(key) >= 3}
-    | {'editor', 'tabstop', 'filetype_tabstops', 'hooks', 'colorscheme', 'colo', 'colorcolumn'}
+    | {
+        'editor',
+        'tabstop',
+        'filetype_tabstops',
+        'hooks',
+        'render',
+        'colorscheme',
+        'colo',
+        'colorcolumn',
+    }
 )
 
 
@@ -356,6 +365,69 @@ def apply_toml_config(
                 editor.filetype_tabstops[str(ft)] = int(width)
             except (ValueError, TypeError):
                 pass
+
+    # Apply live `:render` preview configuration:
+    render_section = toml_data.get('render')
+    if render_section is not None:
+        if not isinstance(render_section, dict):
+            _report_rc_error('Invalid [render] section: expected a table', error_handler)
+            all_ok = False
+        else:
+            if 'default_split' in render_section:
+                raw_split = str(render_section['default_split']).strip().lower()
+                if raw_split in ('v', 'vert', 'vertical'):
+                    editor.render_default_split = 'vertical'
+                elif raw_split in ('h', 'horiz', 'horizontal'):
+                    editor.render_default_split = 'horizontal'
+                else:
+                    _report_rc_error(
+                        'Invalid value for render.default_split: expected vertical or horizontal',
+                        error_handler,
+                    )
+                    all_ok = False
+            if 'debounce_ms' in render_section:
+                raw_debounce = render_section['debounce_ms']
+                if (
+                    isinstance(raw_debounce, bool)
+                    or not isinstance(raw_debounce, int)
+                    or not 0 <= raw_debounce <= 10000
+                ):
+                    _report_rc_error(
+                        'Invalid value for render.debounce_ms: expected an integer in 0..10000',
+                        error_handler,
+                    )
+                    all_ok = False
+                else:
+                    editor.render_debounce_ms = raw_debounce
+            if 'sync_scroll' in render_section:
+                raw_sync = render_section['sync_scroll']
+                if not isinstance(raw_sync, bool):
+                    _report_rc_error(
+                        'Invalid value for render.sync_scroll: expected a boolean',
+                        error_handler,
+                    )
+                    all_ok = False
+                else:
+                    editor.render_sync_scroll = raw_sync
+            if 'commands' in render_section:
+                raw_cmds = render_section['commands']
+                if not isinstance(raw_cmds, dict):
+                    _report_rc_error(
+                        'Invalid [render.commands] section: expected a table',
+                        error_handler,
+                    )
+                    all_ok = False
+                else:
+                    for fmt_key, cmd_val in raw_cmds.items():
+                        if not isinstance(cmd_val, str) or not cmd_val.strip():
+                            _report_rc_error(
+                                'Invalid value for render.commands.%s: expected a non-empty command string'
+                                % fmt_key,
+                                error_handler,
+                            )
+                            all_ok = False
+                        else:
+                            editor.render_commands[str(fmt_key).strip().lower()] = cmd_val.strip()
 
     # Process and execute registered hooks:
     hooks_section = toml_data.get('hooks')

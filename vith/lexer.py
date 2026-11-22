@@ -183,12 +183,15 @@ class DocumentLexer(Lexer):
 
     def invalidation_hash(self):
         # Invalidate the fragment cache when the buffer location (or file
-        # explorer mode) changes, e.g. after `:w newname.py`, or when the
-        # `:set filetype` override changes.
+        # explorer mode) changes, e.g. after `:w newname.py`, when the
+        # `:set filetype` override changes, or when a live `:render` preview
+        # publishes a new styled frame.
+        rendered_ver = getattr(self.editor_buffer, '_rendered_version', 0)
         return (
             self.editor_buffer.location,
             getattr(self.editor_buffer, 'in_file_explorer_mode', False),
             getattr(self.editor_buffer, 'filetype_override', None),
+            rendered_ver if isinstance(rendered_ver, int) else 0,
         )
 
     def _get_directory_lexer(self):
@@ -326,6 +329,15 @@ class DocumentLexer(Lexer):
         """
         Call the lexer and return a get_tokens_for_line function.
         """
+        rendered_lines = getattr(self.editor_buffer, '_rendered_lines', None)
+        if isinstance(rendered_lines, list):
+            n_rendered = len(rendered_lines)
+
+            def get_rendered_line(i: int) -> Any:
+                return rendered_lines[i] if 0 <= i < n_rendered else []
+
+            return get_rendered_line
+
         location = self.editor_buffer.location
 
         if getattr(self.editor_buffer, 'in_file_explorer_mode', False):

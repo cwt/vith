@@ -114,10 +114,15 @@ class TabPage:
                 return parent
         return None
 
-    def _split(self, split_cls, editor_buffer=None):
+    def _split(self, split_cls, editor_buffer=None, *, after=False, focus_new=True):
         """
         Split horizontal or vertical.
         (when editor_buffer is None, show the current buffer there as well.)
+
+        With `after=True`, inserts the new window after the active window
+        (right/bottom) when appending to an existing split of the same kind.
+        With `focus_new=False`, keeps `active_window` focused on the source
+        window (used by live `:render` splits).
         """
         if editor_buffer is None:
             editor_buffer = self.active_window.editor_buffer
@@ -128,26 +133,29 @@ class TabPage:
 
         if isinstance(active_split, split_cls):
             # Add new window to active split.
-            active_split.insert(index, new_window)
+            insert_at = index + 1 if after else index
+            active_split.insert(insert_at, new_window)
         else:
             # Split in the other direction.
             active_split[index] = split_cls([active_split[index], new_window])
 
-        # Focus new window.
-        self.active_window = new_window
+        if focus_new:
+            # Focus new window.
+            self.active_window = new_window
         self._invalidate_windows_cache()
+        return new_window
 
-    def hsplit(self, editor_buffer=None):
+    def hsplit(self, editor_buffer=None, *, after=False, focus_new=True):
         """
         Split active window horizontally.
         """
-        self._split(HSplit, editor_buffer)
+        return self._split(HSplit, editor_buffer, after=after, focus_new=focus_new)
 
-    def vsplit(self, editor_buffer=None):
+    def vsplit(self, editor_buffer=None, *, after=False, focus_new=True):
         """
         Split active window vertically.
         """
-        self._split(VSplit, editor_buffer)
+        return self._split(VSplit, editor_buffer, after=after, focus_new=focus_new)
 
     def show_editor_buffer(self, editor_buffer):
         """
@@ -310,28 +318,41 @@ class WindowArrangement:
         # Clean up buffers.
         self._auto_close_new_empty_buffers()
 
-    def _split(self, split_cls, location=None, new=False, text=None):
+    def _split(
+        self,
+        split_cls,
+        location=None,
+        new=False,
+        text=None,
+        *,
+        after=False,
+        focus_new=True,
+    ):
         """Shared implementation for horizontal/vertical splits."""
         assert (location is not None) + (text is not None) + bool(
             new
         ) <= 1  # Don't pass two of them.
 
         if self.active_tab is None:
-            return
+            return None
 
-        if location or text or new:
+        if location is not None or text is not None or new:
             editor_buffer = self._get_or_create_editor_buffer(location=location, text=text)
         else:
             editor_buffer = None
-        self.active_tab._split(split_cls, editor_buffer)
+        return self.active_tab._split(split_cls, editor_buffer, after=after, focus_new=focus_new)
 
-    def hsplit(self, location=None, new=False, text=None):
+    def hsplit(self, location=None, new=False, text=None, *, after=False, focus_new=True):
         """Split horizontally."""
-        self._split(HSplit, location=location, new=new, text=text)
+        return self._split(
+            HSplit, location=location, new=new, text=text, after=after, focus_new=focus_new
+        )
 
-    def vsplit(self, location=None, new=False, text=None):
+    def vsplit(self, location=None, new=False, text=None, *, after=False, focus_new=True):
         """Split vertically."""
-        self._split(VSplit, location=location, new=new, text=text)
+        return self._split(
+            VSplit, location=location, new=new, text=text, after=after, focus_new=focus_new
+        )
 
     def keep_only_current_window(self):
         """
@@ -658,6 +679,7 @@ class WindowArrangement:
                 (eb.is_new and not eb.location and eb.buffer.text == '')
                 or (eb.is_scratch and not eb.has_unsaved_changes)
             ):
+                eb.close_live_render_previews()
                 self.editor_buffers.remove(eb)
                 if self.alternate_editor_buffer is eb:
                     self.alternate_editor_buffer = None
@@ -682,6 +704,7 @@ class WindowArrangement:
             # Window/buffer lists desynced; fall back to neighbouring buffer.
             index = 0
         if eb in self.editor_buffers:
+            eb.close_live_render_previews()
             self.editor_buffers.remove(eb)
         if self.alternate_editor_buffer is eb:
             self.alternate_editor_buffer = None

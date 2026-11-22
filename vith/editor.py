@@ -232,6 +232,12 @@ class Editor:
         self.cursorcolumn = False  # ':set cursorcolumn'
         self.colorcolumn = []  # ':set colorcolumn'. List of integers.
         self.fileformat = 'unix'  # ':set fileformat' (dos/unix/mac).
+        # Live `:render` split preview defaults (configurable via `[render]` in config.toml).
+        self.render_default_split = 'vertical'  # 'vertical' | 'horizontal'
+        self.render_debounce_ms = 150
+        self.render_sync_scroll = True
+        self.render_commands = {}
+        self._live_render_controllers = []
         # Simple line-register storage for `:d {x}` / `:y {x}` / `:pu {x}`.
         self.registers = {}
 
@@ -327,6 +333,13 @@ class Editor:
                 self.clear_hlsearch_suppression()
 
         self.application.key_processor.after_key_press += after_key_pressed
+
+        def after_render(_app):
+            if self._live_render_controllers:
+                for ctrl in list(self._live_render_controllers):
+                    ctrl.on_after_render()
+
+        self.application.after_render += after_render
 
         # Command line previewer.
         self.previewer = CommandPreviewer(self)
@@ -662,6 +675,8 @@ class Editor:
             # were deferred at startup (see EditorBuffer.run_reporter).
             for eb in self.window_arrangement.editor_buffers:
                 eb.run_reporter()
+            for ctrl in list(self._live_render_controllers):
+                ctrl.schedule(immediate=True)
 
         try:
             # Run eventloop of prompt_toolkit, propagating the result set by

@@ -17,7 +17,7 @@ poetry update
 # install current project as editable (silence the benign
 # BuildBackendWarning about ./vith shadowing the editable finder;
 # scoped to this line so pytest warnings stay visible)
-PYTHONWARNINGS='ignore:Editable installation' pip install -q -e .[jedi,lzo,dev]
+PYTHONWARNINGS='ignore:Editable installation' pip install -q -e .[jedi,lzo,render,dev]
 
 # regenerate poetry.lock based on installed/updated packages
 #rm -f poetry.lock && poetry lock --no-cache

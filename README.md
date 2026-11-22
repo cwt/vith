@@ -8,7 +8,7 @@
 
 **vith** (Thai: **วิธ**, from วิธี / Pali-Skt *vidhi*, "method"; also a portmanteau of **Vi**M + **TH**Ai) is a fork of [pyvim](https://github.com/prompt-toolkit/pyvim) — "an implementation of Vim in Python" originally created by Jonathan Slenders.
 
-The upstream project was idle for several years, so this fork continues development independently. It adds **Thai & Lao script support** (terminal cell-cluster navigation and editing, two-tier word segmentation, SARA AM differential rendering) and **speed / latency / modern-Python stability** work (streamed + cached Pygments highlighting, lazy colorscheme loading, O(1) pyflakes error index, Python 3.14+/3.15 `asyncio` startup fix).
+The upstream project was idle for several years, so this fork continues development independently. It adds **Thai & Lao script support** (terminal cell-cluster navigation and editing, two-tier word segmentation, SARA AM differential rendering), **live async `:render` split previews** (real-time formatted Markdown, reStructuredText, JSON, CSV/TSV, and ANSI rendering with heading-anchored scroll sync), and **speed / latency / modern-Python stability** work (streamed + cached Pygments highlighting, lazy colorscheme loading, O(1) pyflakes error index, Python 3.14+/3.15 `asyncio` startup fix).
 
 Full credit and history are preserved: Jonathan Slenders' original changelog is retained verbatim in the `CHANGELOG` appendix, and the BSD 3-clause license is retained with stacked copyright.
 
@@ -24,7 +24,7 @@ This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds three large, 
 - **Speed, latency & modern-Python stability**: streamed + cached Pygments highlighting, per-line word-span caches for Thai word motions, lazy colorscheme loading, cached word completion, an O(1) pyflakes error index, and the Python 3.14+/3.15 `asyncio` startup-crash fix. See [`docs/speed_latency_plan.md`](docs/speed_latency_plan.md).
 - **Ex command completeness & `:set` parity**: full Vim Ex command set across files (`:r`/`:read` incl. `:r !cmd`, `:sav`, `:up`, `:x`, `:wa`, `:xa`, `:so`, `:f`, `:enew`), buffers/windows/tabs (`:ls`, `:b #`, `:bf`/`:bl`, `:sb`, `:bd <target>`, `:clo`, `:on`, `:tabo`/`:tabm`/`:tabs`), generalized range editing (`:$`/`±N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:g`/`:v`, `:[range]!cmd`, `:[range]w` partial/append/pipe, `:[range]norm[!]`), `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, in-editor read-only info splits (`:ver`, `:mes`, `:reg`, `:marks`, `:set`), and ergonomic `:set` syntax (`?`, `!`, `inv`, multi-arg, `smartcase`, `shiftwidth`, `readonly`, `autoindent`, `fileencoding`, `fileformat`). See [`docs/command_completeness_plan.md`](docs/command_completeness_plan.md).
 
-All changes are audited in [`docs/bugs/`](docs/bugs/) (154 machine-verified findings across 9 audit rounds and 4 addenda, all fixed and closed); quality is enforced with pytest (505 passed), mypy and ruff.
+All changes are audited in [`docs/bugs/`](docs/bugs/) (166 machine-verified findings across 10 audit rounds and 4 addenda, all fixed and closed); quality is enforced with pytest (531 passed), mypy and ruff.
 
 Issues, questions, wishes, comments, feedback, remarks? Please create a GitHub issue, I appreciate it.
 
@@ -42,6 +42,12 @@ For Python autocompletion support (via Jedi):
 
 ```sh
 pip install "vith[jedi]"
+```
+
+For live async `:render` split preview (Markdown, reStructuredText, JSON, CSV/TSV via Rich):
+
+```sh
+pip install "vith[render]"
 ```
 
 It is a good idea to add the following to your `~/.bashrc` if you really want to use it:
@@ -63,12 +69,41 @@ We have already many nice things, for instance:
 - Thai/Lao input files: cell-cluster safe navigation and *syntax-aware* word segmentation, including dictionary segmentation when `libthai` is installed — with visual mode, visual-block editing (`C-v` highlight/`y`/`d`/`I`/`A` and block `p`/`P`), `{count}|`, and `j`/`k` staying on the *visual* display column across combining marks, CJK, and custom `tabstop`s, all cluster-aligned on Thai/Lao text.
 - Compressed undo/redo history: cold snapshots are stored with [quez](https://github.com/cwt/quez) (Zstandard level 1 by default), configurable via `editor.cold_text_compression` in `.vithrc` and inspectable with `:compression`.
 - Comprehensive `:set` / `:setlocal` options with bare `:set`, `:set all`, queries (`opt?`), toggles (`opt!`, `invopt`), multi-argument commands (`:set nu rnu ts=4 et`), and live preview: `number`/`relativenumber`, `hlsearch`, `incsearch`, `ignorecase`, `smartcase`, `expandtab`, `autoindent`, `tabstop`, `shiftwidth`, `readonly`, `fileencoding`/`fenc`, `fileformat`/`ff`, `filetype`/`ft`, `scrolloff`, `colorcolumn`, `cursorline`/`cursorcolumn`, `wrap`/`breakindent`, `list`, `paste`, `ruler`, `wildmenu`, `mouse`, `jedi`, and `tildeop`.
-- Rich Vim-style Ex commands: `:e`, `:enew`, `:r`/`:read` (`file` & `!cmd`), `:w`/`:w!` (incl. range, `>>` append, `!cmd` pipe), `:sav`/`:saveas`, `:up`, `:x`/`:xa`/`:wa`/`:wq`/`:wqa`/`:q`/`:qa`/`:cq` (plus `ZZ`/`ZQ`), `:so`/`:source`, `:f`/`:file`, `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, `:ls`/`:b` (names, 1-based indices, `#` alternate), `:bn`/`:bp`/`:bf`/`:bl`/`:bd`/`:sb`, `:sp`/`:vsp`/`:clo`/`:on`, `:tabe`/`:tabc`/`:tabo`/`:tabn`/`:tabp`/`:tabfir`/`:tabl`/`:tabm`/`:tabs`, `:u`/`:undo`, `:red`/`:redo`, `:noh`, generalized range editing (`:$`/`±N`, `:s`, `:g`/`:v`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:[range]!cmd`, `:[range]norm[!]`), and in-editor inspection splits (`:reg`, `:marks`, `:mes`, `:ver`, `:compression`, `:help`). Auto completion for Python source code uses Jedi, and code checking runs asynchronously via Pyflakes.
+- Rich Vim-style Ex commands: `:e`, `:enew`, `:r`/`:read` (`file` & `!cmd`), `:w`/`:w!` (incl. range, `>>` append, `!cmd` pipe), `:sav`/`:saveas`, `:up`, `:x`/`:xa`/`:wa`/`:wq`/`:wqa`/`:q`/`:qa`/`:cq` (plus `ZZ`/`ZQ`), `:so`/`:source`, `:f`/`:file`, `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, `:ls`/`:b` (names, 1-based indices, `#` alternate), `:bn`/`:bp`/`:bf`/`:bl`/`:bd`/`:sb`, `:sp`/`:vsp`/`:clo`/`:on`, `:tabe`/`:tabc`/`:tabo`/`:tabn`/`:tabp`/`:tabfir`/`:tabl`/`:tabm`/`:tabs`, `:u`/`:undo`, `:red`/`:redo`, `:noh`, generalized range editing (`:$`/`±N`, `:s`, `:g`/`:v`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:[range]!cmd`, `:[range]norm[!]`), live async preview splits (`:render`, `:render-split-v`, `:render-split-h` with optional `vith[render]`), and in-editor inspection splits (`:reg`, `:marks`, `:mes`, `:ver`, `:compression`, `:help`). Auto completion for Python source code uses Jedi, and code checking runs asynchronously via Pyflakes.
+- **Live async `:render` split preview**: split the current buffer vertically (`:render-split-v`), horizontally (`:render-split-h`), or with your configured default (`:render`) to preview formatted text in real time without lagging the editor. Powered by the optional `vith[render]` extra (`rich` + `rich-rst`, zero startup overhead when unused), rendering runs asynchronously off the main thread with debounce/coalescing and supports Markdown (headings, bold/italic/underline, tables, Pygments fenced code blocks, Thai/Lao text), reStructuredText, pretty-printed JSON (retaining the last valid render with a `stale` indicator while mid-edit), CSV/TSV tables, ANSI escape logs, and custom CLI renderers via `[render.commands]`. Preview cursor and scroll position stay synchronized with the editor via heading/landmark anchors and automatically pause when you focus the preview pane to scroll or yank (`/` search and `v`/`y` work inside the preview). Close anytime with `:render!`, `:q`, or `:only`.
 - Colorschemes can be changed at runtime.
 
 Further, when the project develops, it should also become possible to write extensions in Python, and use Python as a scripting language. (Instead of vimscript, for instance.)
 
 We can also do some cool stuff. Like for instance running the editor on the Python asyncio event loop and having other coroutines interact with the editor.
+
+## Live `:render` Split Preview
+
+Install the optional `render` extra to enable built-in Rich & reStructuredText rendering:
+
+```sh
+pip install "vith[render]"
+```
+
+| Command | Action |
+| :--- | :--- |
+| `:render` | Open/refresh live preview using `[render].default_split` (vertical by default) |
+| `:render-split-v` | Open (or re-orient) a vertical split preview on the right while keeping editor focus |
+| `:render-split-h` | Open (or re-orient) a horizontal split preview on the bottom while keeping editor focus |
+| `:render!` / `:render-split-v!` / `:render-split-h!` | Close the active buffer's live preview split (standard `:q` / `:only` also clean up automatically) |
+
+You can customize behavior and wire external CLI formatters (receiving the buffer on `stdin` with `COLUMNS` set to the preview pane width and emitting ANSI-styled text on `stdout`) in `~/.config/vith/config.toml`:
+
+```toml
+[render]
+default_split = "vertical"   # "vertical" or "horizontal"
+debounce_ms = 150            # debounce delay before background re-render
+sync_scroll = true           # heading/landmark-anchored cursor & scroll sync
+
+[render.commands]
+# Optional per-filetype external renderers (e.g. HTML via lynx/w3m, or glow)
+# html = "lynx -dump -stdin"
+```
 
 ## Configuring vith
 
@@ -96,13 +131,13 @@ Visual-block editing (`C-v`) is available — highlights, yanks, cuts, inserts, 
 
 ## Testing
 
-To run all tests, install the development dependencies (pytest, pytest-cov, pytest-xdist, mypy, ruff):
+To run all tests, install the optional and development dependencies (pytest, pytest-cov, pytest-xdist, mypy, ruff):
 
 ```sh
-pip install -e ".[dev]"
+pip install -e ".[jedi,lzo,render,dev]"
 ```
 
-Run unit tests via the test runner script (executes all 505 tests in parallel and enforces ≥85% test coverage):
+Run unit tests via the test runner script (executes all 531 tests in parallel and enforces ≥85% test coverage):
 
 ```sh
 bash scripts/runtest.sh
@@ -116,8 +151,8 @@ python -m pytest tests
 
 Developer helper scripts are provided in `scripts/`:
 
-- `scripts/runtest.sh`: run the full test suite in parallel with coverage enforcement (505 passed)
-- `scripts/type-check.sh`: run `mypy .` (typing, 83 source files checked against the 3.10 floor)
+- `scripts/runtest.sh`: run the full test suite in parallel with coverage enforcement (531 passed)
+- `scripts/type-check.sh`: run `mypy .` (typing, 87 source files checked against the 3.10 floor)
 - `scripts/lint-check-and-fix.sh`: run `ruff check --fix .` (linting)
 - `scripts/code-format.sh`: run `ruff format` (formatting)
 

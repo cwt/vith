@@ -47,6 +47,16 @@ css = 2
 json = 2
 yaml = 2
 
+[render]
+# Live async :render split preview (requires: pip install "vith[render]")
+default_split = "vertical"   # "vertical" or "horizontal"
+debounce_ms = 150            # debounce interval before background re-render
+sync_scroll = true           # heading/landmark-anchored cursor & viewport sync
+
+[render.commands]
+# Optional per-filetype external CLI renderers (reads stdin, writes ANSI stdout)
+# html = "lynx -dump -stdin"
+
 [hooks]
 # Python hook scripts to execute on startup.
 # Place scripts in ~/.config/vith/hooks/ (or <config_dir>/hooks/).

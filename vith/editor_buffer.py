@@ -68,7 +68,12 @@ class EditorBuffer:
         #: is_new: True when this file does not yet exist in the storage.
         self.is_new = True
         self.is_scratch = False
+        self.is_render_preview = False
         self.scratch_title: str | None = None
+        self._rendered_lines: list[Any] | None = None
+        self._rendered_version = 0
+        self._live_render_controllers: list[Any] = []
+        self._owned_render_controller: Any = None
 
         # Empty if not in file explorer mode, directory path otherwise.
         self.isdir = False
@@ -243,6 +248,17 @@ class EditorBuffer:
         self._last_text_len = len(text)
 
         self.run_reporter()
+        if self._live_render_controllers:
+            for ctrl in list(self._live_render_controllers):
+                ctrl.schedule()
+
+    def close_live_render_previews(self) -> None:
+        """Stop any live `:render` controller owned by or watching this buffer."""
+        owned = getattr(self, '_owned_render_controller', None)
+        if owned is not None:
+            owned.close()
+        for ctrl in list(getattr(self, '_live_render_controllers', ())):
+            ctrl.close()
 
     @property
     def has_unsaved_changes(self):
@@ -381,6 +397,9 @@ class EditorBuffer:
         # render after reload runs unsanitized until the next edit.
         note_document_text(text)
         self.run_reporter()
+        if self._live_render_controllers:
+            for ctrl in list(self._live_render_controllers):
+                ctrl.schedule()
 
     def _write_with_backend(self, io, target_location, payload):
         """
@@ -497,6 +516,9 @@ class EditorBuffer:
                 if location_changed:
                     self._detected_filetype = None
                     self.run_reporter()
+                    if self._live_render_controllers:
+                        for ctrl in list(self._live_render_controllers):
+                            ctrl.schedule()
                     note_document_text(self.location)
                     if self.editor is not None:
                         self.editor.update_title()

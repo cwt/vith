@@ -750,24 +750,36 @@ class EditorLayout:
 
         @Condition
         def wrap_lines():
+            if getattr(editor_buffer, 'is_render_preview', False):
+                return False
             return self.editor.wrap_lines
 
         def scroll_offset():
             return self.editor.scroll_offset
 
         def relative_numbers_enabled():
+            if getattr(editor_buffer, 'is_render_preview', False):
+                return False
             return self.editor.relative_number
 
         def line_numbers_enabled():
+            if getattr(editor_buffer, 'is_render_preview', False):
+                return False
             return self.editor.show_line_numbers
 
         def cursorline_enabled():
+            if getattr(editor_buffer, 'is_render_preview', False):
+                return False
             return self.editor.cursorline
 
         def cursorcolumn_enabled():
+            if getattr(editor_buffer, 'is_render_preview', False):
+                return False
             return self.editor.cursorcolumn
 
         def get_colorcolumns():
+            if getattr(editor_buffer, 'is_render_preview', False):
+                return []
             return [ColorColumn(pos) for pos in self.editor.colorcolumn]
 
         def on_focus():
@@ -826,6 +838,8 @@ class EditorLayout:
             return self.editor.highlight_search and not self.editor._hlsearch_suppressed
 
         def unprintable_enabled():
+            if getattr(editor_buffer, 'is_render_preview', False):
+                return False
             return self.editor.display_unprintable_characters
 
         def tabstop_value():

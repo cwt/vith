@@ -74,6 +74,9 @@ Inspection & Misc:
     :mes / :messages       Show message history in a split
     :ver / :version        Show vith/Python/backend version info in a split
     :comp / :compression   Show cold-text compression statistics in a split
+    :render[!]             Live async preview split (default: vertical; ! closes)
+    :render-split-v[!]     Live async vertical preview split (editor left, preview right)
+    :render-split-h[!]     Live async horizontal preview split (editor top, preview bottom)
     :colo[rscheme] name    Switch colorscheme
     :!cmd                  Run interactive shell command
     :h / :help             Show this help
