@@ -109,3 +109,48 @@ def test_156_try_char_cached() -> None:
     assert _try_char('\u2508', '.', 'utf-8') == '\u2508'
     info = _try_char_for_encoding.cache_info()
     assert info.hits >= 1
+
+
+def test_157_current_line_and_col_and_cursor_motions_avoid_line_index_build() -> None:
+    """157: O(line_len) cursor motions do not materialize Document._cache.lines."""
+    from prompt_toolkit.document import Document
+
+    from vith.thai import current_line_and_col, install_prompt_toolkit_thai_patches
+
+    install_prompt_toolkit_thai_patches()
+    for text, pos, expected in [
+        ('', 0, ('', 0)),
+        ('abc\ndef', 0, ('abc', 0)),
+        ('abc\ndef', 3, ('abc', 3)),
+        ('abc\ndef', 4, ('def', 0)),
+        ('abc\n', 4, ('', 0)),
+        ('ที่ดิน\nสวัสดี', 3, ('ที่ดิน', 3)),
+    ]:
+        doc = Document(text, cursor_position=pos)
+        assert current_line_and_col(doc) == expected
+        assert doc._cache.lines is None
+        assert doc._cache.line_indexes is None
+
+    ascii_doc = Document('line0\nline1_middle\nline2', cursor_position=10)
+    assert ascii_doc.get_cursor_left_position(2) == -2
+    assert ascii_doc.get_cursor_right_position(3) == 3
+    assert ascii_doc._cache.lines is None
+    assert ascii_doc._cache.line_indexes is None
+
+
+def test_157_on_text_changed_skips_document_lines_on_ascii_and_latches_thai(editor) -> None:
+    """157: `_on_text_changed` does not split `document.lines` on ASCII edits but still latches Thai."""
+    from vith.editor_buffer import EditorBuffer
+    from vith.thai import is_thai_gate_latched, reset_thai_text_gate
+
+    reset_thai_text_gate()
+    eb = EditorBuffer(editor)
+    eb.buffer.text = 'line0\nline1\nline2'
+    eb.buffer.cursor_position = 2
+    eb.buffer.insert_text('x')
+    assert eb.buffer.document._cache.lines is None
+    assert not is_thai_gate_latched()
+
+    # Non-ASCII Thai edit still latches the gate immediately:
+    eb.buffer.insert_text('ก')
+    assert is_thai_gate_latched()

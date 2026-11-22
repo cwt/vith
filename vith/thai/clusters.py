@@ -7,10 +7,28 @@ public names, so the import surface stays stable.
 
 from bisect import bisect_right
 from functools import lru_cache
+from typing import Any
 
 from prompt_toolkit.utils import get_cwidth
 
 from .classify import is_combining_char
+
+
+def current_line_and_col(doc: Any) -> tuple[str, int]:
+    """
+    Return `(line, col)` at `doc.cursor_position` in O(line length) time via
+    `str.rfind`/`str.find`, avoiding `prompt_toolkit`'s `Document.current_line`
+    (which copies 100% of `doc.text`) and `cursor_position_col` (which builds
+    `_line_start_indexes` across the entire document; docs/bugs/157.md).
+    """
+    text: str = doc.text
+    pos: int = doc.cursor_position
+    line_start = text.rfind("\n", 0, pos) + 1
+    line_end = text.find("\n", pos)
+    if line_end == -1:
+        line_end = len(text)
+    return text[line_start:line_end], pos - line_start
+
 
 # ---------------------------------------------------------------------------
 # 2. O(1) Local Cell-Cluster Boundary Scanners

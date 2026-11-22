@@ -67,6 +67,7 @@ from .clusters import (  # noqa: F401
     _line_visual_width,
     _map_column_across_lines,
     _start_of_cell_ordinal,
+    current_line_and_col,
     next_cell_offset,
     prev_cell_offset,
     snap_to_cell_start,
@@ -84,6 +85,7 @@ from .words import (
 
 __all__ = (
     "install_prompt_toolkit_thai_patches",
+    "is_thai_gate_latched",
     "note_document_text",
     "reset_thai_text_gate",
     "reset_thai_text_gate_if_all_buffers_ascii",
@@ -100,8 +102,12 @@ logger = logging.getLogger(__name__)
 def _doc_get_cursor_left_position(self: Document, count: int = 1) -> int:
     if count < 0:
         return self.get_cursor_right_position(-count)
-    line = self.current_line
-    col = self.cursor_position_col
+    text = self.text
+    if text.isascii():
+        pos = self.cursor_position
+        col = pos - (text.rfind("\n", 0, pos) + 1)
+        return -min(col, count)
+    line, col = current_line_and_col(self)
     if line.isascii():
         return -min(col, count)
     return prev_cell_offset(line, col, count) - col
@@ -110,8 +116,14 @@ def _doc_get_cursor_left_position(self: Document, count: int = 1) -> int:
 def _doc_get_cursor_right_position(self: Document, count: int = 1) -> int:
     if count < 0:
         return self.get_cursor_left_position(-count)
-    line = self.current_line
-    col = self.cursor_position_col
+    text = self.text
+    if text.isascii():
+        pos = self.cursor_position
+        line_end = text.find("\n", pos)
+        if line_end == -1:
+            line_end = len(text)
+        return min(count, line_end - pos)
+    line, col = current_line_and_col(self)
     if line.isascii():
         return min(count, len(line) - col)
     return next_cell_offset(line, col, count) - col
@@ -194,8 +206,7 @@ def _doc_get_column_cursor_position(self: Document, column: int) -> int:
     `column` onto the starting codepoint of that cell, honoring combining
     marks, CJK widths, and tab stops.
     """
-    line = self.current_line
-    current_column = self.cursor_position_col
+    line, current_column = current_line_and_col(self)
     if column <= 0:
         return -current_column
     target_col = _start_of_cell_ordinal(line, column, tabstop=_document_tabstop(self))
@@ -208,15 +219,27 @@ def _kp_fix_vi_cursor_position(self: KeyProcessor, event: KeyPressEvent) -> None
     In Vi navigation mode, ensures the cursor never rests past EOL or on a
     zero-width combining mark after a key handler runs.
     """
-    app = event.app
-    buff = app.current_buffer
-    preferred_column = buff.preferred_column
-    doc = buff.document
-    line = doc.current_line
+    is_nav = vi_navigation_mode()
+    if not is_nav and not vi_selection_mode():
+        return
 
-    if (vi_navigation_mode() or vi_selection_mode()) and len(line) > 0:
-        col = doc.cursor_position_col
-        if vi_navigation_mode() and doc.is_cursor_at_the_end_of_line:
+    buff = event.app.current_buffer
+    doc = buff.document
+    text = doc.text
+    pos = doc.cursor_position
+    if text.isascii():
+        if is_nav and (pos == len(text) or text[pos] == "\n"):
+            line_start = text.rfind("\n", 0, pos) + 1
+            if pos > line_start:
+                preferred_column = buff.preferred_column
+                buff.cursor_position = pos - 1
+                buff.preferred_column = preferred_column
+        return
+
+    preferred_column = buff.preferred_column
+    line, col = current_line_and_col(doc)
+    if len(line) > 0:
+        if is_nav and col == len(line):
             target_col = prev_cell_offset(line, len(line), 1)
         else:
             target_col = snap_to_cell_start(line, col)
@@ -287,6 +310,11 @@ class _ThaiTextGate:
 
 
 _THAI_GATE = _ThaiTextGate()
+
+
+def is_thai_gate_latched() -> bool:
+    """Return whether the sticky Thai/Lao renderer gate is currently latched."""
+    return _THAI_GATE.value
 
 
 def note_document_text(text: str | None) -> None:
@@ -1058,8 +1086,7 @@ def _thai_paste_clipboard_data(
         return Document(text=new_text, cursor_position=new_cursor_pos)
 
     if data.type == SelectionType.CHARACTERS and paste_mode == PasteMode.VI_AFTER:
-        line = self.current_line
-        col = self.cursor_position_col
+        line, col = current_line_and_col(self)
         if col < len(line):
             cell_end = next_cell_offset(line, col, 1)
             if cell_end > col + 1:

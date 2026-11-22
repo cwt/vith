@@ -11,7 +11,7 @@ from vith.cold_text import ColdTextBuffer, make_cold_text_compressor
 from vith.completion import DocumentCompleter
 from vith.io.base import find_backend
 from vith.reporting import checks_python_file, report
-from vith.thai import note_document_text
+from vith.thai import current_line_and_col, is_thai_gate_latched, note_document_text
 
 __all__ = ('EditorBuffer', 'UNTITLED_LABEL', 'is_same_write_target', 'normalize_write_target')
 
@@ -237,18 +237,18 @@ class EditorBuffer:
         else:
             self._has_unsaved_changes = text != self._file_content
 
-        # Keep the sticky Thai-text renderer gate up to date (O(1) for ASCII
-        # content; one C-regex scan per edit while unlatched and non-ASCII).
-        note_document_text(self.buffer.document.current_line)
-
-        # Multi-line edits (paste, undo/redo, full-buffer replacement) may
-        # introduce Thai on rows other than current_line (docs/bugs/097.md).
-        # When unlatched, note full text if line count changed or multiple chars changed.
-        lines = self.buffer.document.lines
-        if len(lines) != self._last_line_count or abs(len(text) - self._last_text_len) > 1:
-            note_document_text(text)
+        # Keep the sticky Thai-text renderer gate up to date without copying
+        # the full buffer (`current_line`) or splitting `document.lines` when
+        # the text is ASCII or the gate is already latched (docs/bugs/097.md, 157.md).
+        if not is_thai_gate_latched() and not text.isascii():
+            line, _col = current_line_and_col(self.buffer.document)
+            note_document_text(line)
+            if not is_thai_gate_latched():
+                line_count = text.count('\n') + 1
+                if line_count != self._last_line_count or abs(len(text) - self._last_text_len) > 1:
+                    note_document_text(text)
+                self._last_line_count = line_count
         self._last_text_len = len(text)
-        self._last_line_count = len(lines)
 
         self.run_reporter()
 

@@ -39,12 +39,14 @@ from .classify import (
 from .clusters import (
     cell_starts,
     cell_stops,
+    current_line_and_col,
     next_cell_offset,
     prev_cell_offset,
     snap_to_cell_start,
 )
 from .patches import (
     install_prompt_toolkit_thai_patches,
+    is_thai_gate_latched,
     note_document_text,
     reset_thai_text_gate,
     reset_thai_text_gate_if_all_buffers_ascii,
@@ -83,6 +85,7 @@ __all__ = (
     "prev_cell_offset",
     "cell_starts",
     "cell_stops",
+    "current_line_and_col",
     # Syllable & word segmentation / motions
     "find_thai_cluster_end",
     "find_thai_word_breaks",
@@ -94,6 +97,7 @@ __all__ = (
     "find_boundaries_of_current_word",
     # prompt_toolkit patches & renderer integration
     "install_prompt_toolkit_thai_patches",
+    "is_thai_gate_latched",
     "note_document_text",
     "reset_thai_text_gate",
     "reset_thai_text_gate_if_all_buffers_ascii",

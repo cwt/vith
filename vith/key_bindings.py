@@ -19,7 +19,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.keys import Keys
 
-from .thai import next_cell_offset, prev_cell_offset
+from .thai import current_line_and_col, next_cell_offset, prev_cell_offset
 
 __all__ = ('create_key_bindings',)
 
@@ -68,8 +68,7 @@ def _name_under_cursor(doc):
     the file/directory name under the cursor, not the whole line — lines may
     list several entries (docs/bugs/071.md).
     """
-    line = doc.current_line
-    col = doc.cursor_position_col
+    line, col = current_line_and_col(doc)
     last_token = ''
     for match in re.finditer(r'\S+', line):
         last_token = match.group(0)
@@ -83,9 +82,7 @@ def _delete_cell_clusters(event, backward):
     Delete `event.arg` cell clusters before/after the cursor on the current line.
     """
     buff = event.current_buffer
-    doc = buff.document
-    line = doc.current_line
-    col = doc.cursor_position_col
+    line, col = current_line_and_col(buff.document)
     count = _positive_count(event.arg)
     if backward:
         span = col - prev_cell_offset(line, col, count)
@@ -103,9 +100,7 @@ def _replace_cell_clusters(event):
     with one `x`; the cursor lands on the replacement).
     """
     buff = event.current_buffer
-    doc = buff.document
-    line = doc.current_line
-    col = doc.cursor_position_col
+    line, col = current_line_and_col(buff.document)
     span = next_cell_offset(line, col, _positive_count(event.arg)) - col
     if span > 0:
         buff.delete(count=span)
@@ -260,10 +255,9 @@ def whitespace_before_cursor_on_line():
     Filter which evaluates to True when the characters before the cursor are
     whitespace, or we are at the start of the line.
     """
-    b = get_app().current_buffer
-    before_cursor = b.document.current_line_before_cursor
-
-    return bool(not before_cursor or before_cursor[-1].isspace())
+    doc = get_app().current_buffer.document
+    pos = doc.cursor_position
+    return pos == 0 or doc.text[pos - 1].isspace()
 
 
 @Condition
@@ -498,9 +492,7 @@ def create_key_bindings(editor):
         Substitute `event.arg` cell clusters at the cursor and enter insert mode.
         """
         buff = event.current_buffer
-        doc = buff.document
-        line = doc.current_line
-        col = doc.cursor_position_col
+        line, col = current_line_and_col(buff.document)
         span = next_cell_offset(line, col, _positive_count(event.arg)) - col
         text = buff.delete(count=span) if span > 0 else ''
         event.app.clipboard.set_text(text)
@@ -547,9 +539,7 @@ def create_key_bindings(editor):
         Swap case of the current cell cluster and advance one cell cluster.
         """
         buff = event.current_buffer
-        doc = buff.document
-        line = doc.current_line
-        col = doc.cursor_position_col
+        line, col = current_line_and_col(buff.document)
         if col >= len(line):
             return
         end_col = next_cell_offset(line, col, _positive_count(event.arg))

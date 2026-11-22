@@ -24,7 +24,12 @@ from .classify import (
     is_thai_or_lao,
     is_thai_right_attaching,
 )
-from .clusters import next_cell_offset, prev_cell_offset, snap_to_cell_start  # noqa: F401
+from .clusters import (  # noqa: F401
+    current_line_and_col,
+    next_cell_offset,
+    prev_cell_offset,
+    snap_to_cell_start,
+)
 
 # Shared by the Document/KeyProcessor patch wrappers in `vith/thai.py` and
 # the ASCII fast-path delegates here (defined in this leaf module so both
@@ -505,7 +510,7 @@ def find_boundaries_of_current_word(
     Thai/Lao-aware replacement for `Document.find_boundaries_of_current_word`
     (used by `iw`, `aw`, `iW`, `aW`, `*`, `#`).
     """
-    line = doc.current_line
+    line, col = current_line_and_col(doc)
     if line.isascii():
         orig = _ORIGINAL_DOCUMENT_METHODS.get("find_boundaries_of_current_word")
         if orig is not None:
@@ -516,7 +521,6 @@ def find_boundaries_of_current_word(
                 include_trailing_whitespace=include_trailing_whitespace,
             )
 
-    col = doc.cursor_position_col
     n = len(line)
     if col >= n or line[col].isspace():
         if not include_leading_whitespace and not include_trailing_whitespace:
