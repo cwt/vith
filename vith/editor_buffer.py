@@ -350,6 +350,10 @@ class EditorBuffer:
         """
         Reload file again from storage.
         """
+        if self.location is None:
+            # Untitled buffers have nothing to reload from (docs/bugs/189.md).
+            self.editor.show_message('E32: No file name')
+            return
         existed_before = not self.is_new
         location_snapshot = self.location
         text = self._read(self.location)
@@ -366,23 +370,16 @@ class EditorBuffer:
             return
         cursor_position = min(self.buffer.cursor_position, len(text))
 
-        # A read-only buffer (directory, failed read, or `:set ro`) rejects a
-        # document assignment with EditReadOnlyBuffer. Lift the filter only
-        # for the assignment and restore it afterwards (docs/bugs/133.md).
-        read_only_filter = self.buffer.read_only
-        was_read_only = (
-            bool(read_only_filter()) if callable(read_only_filter) else bool(read_only_filter)
-        )
-        if was_read_only:
-            self.buffer.read_only = to_filter(False)
-        try:
-            self.buffer.document = Document(text, cursor_position)
-        finally:
-            self.buffer.read_only = read_only_filter
-            if self.isdir:
-                # `:e` may replace a file with a directory: keep the explorer
-                # read-only, even if the old filter allowed editing.
-                self.buffer.read_only = to_filter(True)
+        # `reset()` replaces the document AND clears undo/redo history and
+        # version counters. A plain `document =` assignment leaves snapshots
+        # from the previous file alive, so `u` after a clean reload resurrects
+        # pre-reload content (docs/bugs/177.md). It also bypasses the
+        # read-only filter that a document assignment trips (docs/bugs/133.md).
+        self.buffer.reset(document=Document(text, cursor_position))
+        if self.isdir:
+            # `:e` may replace a file with a directory: keep the explorer
+            # read-only, even if the old filter allowed editing.
+            self.buffer.read_only = to_filter(True)
 
         self._file_content = text
         self._has_unsaved_changes = False

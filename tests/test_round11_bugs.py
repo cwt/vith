@@ -187,3 +187,30 @@ def test_176_numeric_sort_keeps_ties_in_original_order(editor: Any, tmp_path: An
     eb.buffer.text = 'c\na\nb'
     handle_command(editor, ':sort n')
     assert eb.buffer.text.splitlines() == ['c', 'a', 'b']
+
+
+def test_177_reload_clears_stale_undo_history(editor: Any, tmp_path: Any) -> None:
+    """`:e` reload must not leave snapshots that restore pre-reload content."""
+    from vith.editor_buffer import EditorBuffer
+
+    path = tmp_path / 'undo.txt'
+    path.write_text('old text\n', encoding='utf-8')
+    eb = EditorBuffer(editor, str(path))
+    eb.buffer.text = 'edited text\n'
+    eb.buffer.save_to_undo_stack()
+
+    path.write_text('disk text\n', encoding='utf-8')
+    eb.reload()
+    assert eb.buffer.text == 'disk text'
+    assert not eb.buffer._undo_stack
+    eb.buffer.undo()
+    assert eb.buffer.text == 'disk text'
+
+
+def test_189_reload_untitled_buffer_is_guarded(editor: Any) -> None:
+    """Calling reload() on a [New file] buffer must not raise TypeError."""
+    from vith.editor_buffer import EditorBuffer
+
+    eb = EditorBuffer(editor)
+    eb.reload()
+    assert 'E32' in (editor.message or '')
