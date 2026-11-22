@@ -329,8 +329,8 @@ sync_scroll = true           # boolean: heading/landmark-anchored position sync
 
 | TOML Key | Editor Attribute | Type & Validation | Default |
 | :--- | :--- | :--- | :--- |
-| `[render].default_split` | `editor.render_default_split` | `'vertical'` or `'horizontal'` (invalid string logs error message) | `'vertical'` |
-| `[render].debounce_ms` | `editor.render_debounce_ms` | Non-negative `int` (rejects `bool` / negative) | `150` |
+| `[render].default_split` | `editor.render_default_split` | `'vertical'` (or `v` / `vert`) or `'horizontal'` (or `h` / `horiz`); invalid string logs an error message | `'vertical'` |
+| `[render].debounce_ms` | `editor.render_debounce_ms` | `int` in `0..10000` (rejects `bool`, negatives and values above `10000`) | `150` |
 | `[render].sync_scroll` | `editor.render_sync_scroll` | `bool` | `True` |
 | `[render.commands].<fmt>` | `editor.render_commands[fmt]` | Non-empty `str` command (keys normalized lowercase) | `{}` |
 
