@@ -288,3 +288,58 @@ def test_181_visual_block_highlight_matches_yank_on_short_row(editor: Any) -> No
         assert highlighted_rows == [0, 2]
         for start, end in ranges:
             assert 0 <= start < end <= len(text)
+
+
+def test_183_immediate_refresh_preserved_while_render_in_flight(
+    editor: Any, tmp_path: Any, monkeypatch: Any
+) -> None:
+    """An immediate request made during a render must stay immediate after coalescing."""
+    import threading
+
+    import vith.render as render_module
+
+    controller, _ = _open_render_controller(editor, tmp_path)
+    editor.render_debounce_ms = 400
+    gate = threading.Event()
+    calls: list[int] = []
+
+    def slow_render(*args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        if len(calls) == 1:
+            gate.wait(5)
+        return render_module.RenderResult('ok', [[('', 'ok')]], 'markdown')
+
+    monkeypatch.setattr(render_module, 'render_document', slow_render)
+
+    async def scenario() -> None:
+        loop = asyncio.get_running_loop()
+        original_call_later = loop.call_later
+        delays: list[float] = []
+
+        def recording_call_later(delay: float, callback: Any, *args: Any) -> Any:
+            if getattr(callback, '__self__', None) is controller:
+                delays.append(delay)
+            return original_call_later(delay, callback, *args)
+
+        monkeypatch.setattr(loop, 'call_later', recording_call_later)
+        controller.schedule(immediate=True)
+        await asyncio.sleep(0.05)
+        assert controller._in_flight
+        controller.schedule(immediate=True)
+        assert controller._pending_immediate is True
+        gate.set()
+        for _ in range(150):
+            if len(calls) >= 2 and not controller._in_flight:
+                break
+            await asyncio.sleep(0.01)
+
+        assert len(calls) >= 2
+        assert delays[0] == 0.0
+        assert delays[-1] == 0.0  # coalesced follow-up must not be debounced
+        assert controller._pending_immediate is False
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        gate.set()
+

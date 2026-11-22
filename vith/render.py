@@ -734,6 +734,7 @@ class LiveRenderController:
         self._closed = False
         self._in_flight = False
         self._pending = False
+        self._pending_immediate = False
         self._timer_handle: Any = None
         self._first_dirty_at: float | None = None
         self._last_width: int = self._compute_width()
@@ -850,6 +851,9 @@ class LiveRenderController:
 
         if self._in_flight:
             self._pending = True
+            # Remember an urgent request so the coalesced follow-up does not
+            # incur the full debounce delay (docs/bugs/183.md).
+            self._pending_immediate = self._pending_immediate or immediate
             return
 
         if self._timer_handle is not None:
@@ -978,7 +982,9 @@ class LiveRenderController:
                 )
                 if self._pending or cur_version != version:
                     self._pending = False
-                    self.schedule()
+                    immediate = self._pending_immediate
+                    self._pending_immediate = False
+                    self.schedule(immediate=immediate)
 
             loop.call_soon_threadsafe(finish)
 
