@@ -105,6 +105,7 @@ class EditorBuffer:
 
         # True when some changes are not yet written to file.
         self._has_unsaved_changes = False
+        self._suppress_text_changed = 0
         self._last_text_len = len(text)
         self._last_line_count = text.count('\n') + 1
 
@@ -226,6 +227,8 @@ class EditorBuffer:
 
     def _on_text_changed(self, *args):
         "Buffer text changed."
+        if self._suppress_text_changed > 0:
+            return
         # Amortized-O(1) dirty flag (docs/bugs/072.md): typing/deleting change
         # the text length, so the O(1) length check resolves the flag without
         # a linear memcmp; only same-length edits (overwrite/paste-over)

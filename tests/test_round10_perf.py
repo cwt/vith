@@ -237,3 +237,68 @@ def test_160_substitute_uses_c_template_for_non_case_replacements() -> None:
     assert _has_overlapping_alternatives('a|aa|b') is True
     assert _has_overlapping_alternatives('foo|bar|baz') is False
     assert _has_overlapping_alternatives('ab|cd|a') is True
+
+
+def test_161_normal_caches_key_processor_suppresses_intermediate_hooks_and_stays_linear(
+    editor,
+) -> None:
+    """161: `:norm` caches KeyProcessor, batches `_on_text_changed`, and avoids O(R*N) index rebuilds."""
+    from vith.commands.handler import handle_command
+    from vith.commands.normal import _build_normal_key_processor
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    editor.sync_with_prompt_toolkit()
+
+    # KeyProcessor is cached across calls and invalidated when a user binding is added.
+    kp1 = _build_normal_key_processor(editor, ignore_user_mappings=False)
+    kp2 = _build_normal_key_processor(editor, ignore_user_mappings=False)
+    kp_bang = _build_normal_key_processor(editor, ignore_user_mappings=True)
+    assert kp1 is kp2
+    assert kp_bang is not kp1
+
+    @editor.add_key_binding('Z')
+    def _dummy_binding(_event) -> None:
+        pass
+
+    kp3 = _build_normal_key_processor(editor, ignore_user_mappings=False)
+    kp_bang2 = _build_normal_key_processor(editor, ignore_user_mappings=True)
+    assert kp3 is not kp1
+    assert kp_bang2 is kp_bang
+
+    # Intermediate `_on_text_changed` / `run_reporter` calls are suppressed during `:norm`
+    # and fired once at completion; `Document._cache.lines` is not rebuilt on sequential edits.
+    n = 600
+    eb.buffer.text = '\n'.join(f'row_{i:04d}' for i in range(n))
+    reporter_calls = 0
+    orig_run_reporter = eb.run_reporter
+
+    def counted_reporter() -> None:
+        nonlocal reporter_calls
+        reporter_calls += 1
+        orig_run_reporter()
+
+    eb.run_reporter = counted_reporter
+    handle_command(editor, ':%norm A;')
+    assert reporter_calls == 1
+    assert eb.has_unsaved_changes is True
+    assert eb.buffer.document._cache.lines is None
+    assert eb.buffer.text.startswith('row_0000;')
+    assert eb.buffer.text.endswith(f'row_{n - 1:04d};')
+
+    # Cross-line edits (`kdd`, `dd`, `O`) invalidate the anchor safely and match Vim semantics:
+    # row 1 (l2) -> kdd deletes l1 -> [l2,l3,l4,l5]
+    # row 2 (l4) -> kdd deletes l3 -> [l2,l4,l5]
+    # row 3 (clamped to l5) -> kdd deletes l4 -> [l2,l5]
+    eb.buffer.text = 'l1\nl2\nl3\nl4\nl5'
+    handle_command(editor, ':2,4norm kdd')
+    assert eb.buffer.document.lines == ['l2', 'l5']
+
+    eb.buffer.text = 'a\nb\nc'
+    handle_command(editor, ':1,3norm O#')
+    assert eb.buffer.document.lines == ['#', '#', '#', 'a', 'b', 'c']
+
+    # `:g/.../norm` with line-count deltas tracks offsets accurately.
+    eb.buffer.text = 'keep 1\ndrop a\nkeep 2\ndrop b\nkeep 3'
+    handle_command(editor, ':g/drop/norm dd')
+    assert eb.buffer.document.lines == ['keep 1', 'keep 2', 'keep 3']

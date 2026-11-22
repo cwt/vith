@@ -190,7 +190,90 @@ class ColdTextBuffer(Buffer):
         self._text_version = 0
         self._vith_cell_column: tuple[int, int, int, int] | None = None
         self._suppress_undo_saves = 0
+        self._track_edit_bounds = False
+        self._edit_min_pos = 0
+        self._edit_newline_delta: int | None = 0
+        self._in_known_edit = False
+        self._known_edit_mutations = 0
         super().__init__(*args, **kwargs)
+
+    def _set_text(self, value: str) -> bool:
+        changed = super()._set_text(value)
+        if changed and self._track_edit_bounds:
+            if self._in_known_edit:
+                self._known_edit_mutations += 1
+                if self._known_edit_mutations > 1:
+                    self._edit_min_pos = 0
+                    self._edit_newline_delta = None
+            else:
+                self._edit_min_pos = 0
+                self._edit_newline_delta = None
+        return changed
+
+    def insert_text(
+        self,
+        data: str,
+        overwrite: bool = False,
+        move_cursor: bool = True,
+        fire_event: bool = True,
+    ) -> None:
+        ocpos = self.cursor_position
+        prev_known = self._in_known_edit
+        prev_mutations = self._known_edit_mutations
+        self._in_known_edit = True
+        self._known_edit_mutations = 0
+        try:
+            super().insert_text(
+                data,
+                overwrite=overwrite,
+                move_cursor=move_cursor,
+                fire_event=fire_event,
+            )
+        finally:
+            self._in_known_edit = prev_known
+            self._known_edit_mutations = prev_mutations
+        if data and self._track_edit_bounds:
+            if ocpos < self._edit_min_pos:
+                self._edit_min_pos = ocpos
+            if self._edit_newline_delta is not None and '\n' in data:
+                self._edit_newline_delta += data.count('\n')
+
+    def delete(self, count: int = 1) -> str:
+        ocpos = self.cursor_position
+        prev_known = self._in_known_edit
+        prev_mutations = self._known_edit_mutations
+        self._in_known_edit = True
+        self._known_edit_mutations = 0
+        try:
+            deleted = super().delete(count=count)
+        finally:
+            self._in_known_edit = prev_known
+            self._known_edit_mutations = prev_mutations
+        if deleted and self._track_edit_bounds:
+            if ocpos < self._edit_min_pos:
+                self._edit_min_pos = ocpos
+            if self._edit_newline_delta is not None and '\n' in deleted:
+                self._edit_newline_delta -= deleted.count('\n')
+        return deleted
+
+    def delete_before_cursor(self, count: int = 1) -> str:
+        ocpos = self.cursor_position
+        prev_known = self._in_known_edit
+        prev_mutations = self._known_edit_mutations
+        self._in_known_edit = True
+        self._known_edit_mutations = 0
+        try:
+            deleted = super().delete_before_cursor(count=count)
+        finally:
+            self._in_known_edit = prev_known
+            self._known_edit_mutations = prev_mutations
+        if deleted and self._track_edit_bounds:
+            start = 0 if count > ocpos else ocpos - len(deleted)
+            if start < self._edit_min_pos:
+                self._edit_min_pos = start
+            if self._edit_newline_delta is not None and '\n' in deleted:
+                self._edit_newline_delta -= deleted.count('\n')
+        return deleted
 
     def reset(
         self,
