@@ -401,7 +401,9 @@ def test_163_thai_sara_am_cache_document_tabstop_and_visual_block_fast_paths(
         r3 = doc.selection_range_at_line(3)
         assert r0 is not None and r0[0] == 1
         assert r1 is None  # empty row before col1=1
-        assert r2 == (2, 3)  # short row gets virtual EOL marker when col1 <= len <= col2
+        # 181: highlight must match yank — a row past the block's visual
+        # columns is skipped by both APIs.
+        assert r2 is None
         assert r3 is not None and r3[0] == 1
         assert hasattr(doc._cache, '_vith_block_bounds')
         # `selection_ranges` skips rows whose visual width is strictly less than v_low:
@@ -607,10 +609,12 @@ def test_166_secondary_io_editing_and_command_hot_spots(editor, tmp_path, monkey
     # 4. `:sort nu` / `:sort! nu` / `:sort iun` single-pass key extraction + adjacent dedup.
     eb.buffer.text = 'item 10 b\nitem 2 a\nitem 10 a\nno_num_b\nno_num_a\nno_num_a'
     handle_command(editor, ':%sort nu')
-    assert eb.buffer.document.lines == ['no_num_a', 'no_num_b', 'item 2 a', 'item 10 a']
+    # Stable numeric sort keeps original order within equal-key groups (Vim 9.1).
+    assert eb.buffer.document.lines == ['no_num_b', 'no_num_a', 'item 2 a', 'item 10 b']
     eb.buffer.text = 'Alpha\nalpha\nBETA\nbeta'
     handle_command(editor, ':%sort! iu')
-    assert eb.buffer.document.lines == ['BETA', 'Alpha']
+    # Reverse comparator reverses ties too, so the last original casing wins (Vim 9.1).
+    assert eb.buffer.document.lines == ['beta', 'alpha']
 
     # 5. `DirectoryIO.read` uses `os.scandir` and lists sorted dirs before sorted files.
     sub = tmp_path / 'dir_b'

@@ -176,9 +176,7 @@ def _validated_option(
         # make_cold_text_compressor() calls .strip() on this value; a TOML
         # int/bool/list would crash the first buffer's construction
         # (docs/bugs/178.md). Unknown strings still fall back safely there.
-        _report_rc_error(
-            'Invalid value for %s: expected a string' % config_key, error_handler
-        )
+        _report_rc_error('Invalid value for %s: expected a string' % config_key, error_handler)
         return None
 
     if attr_name == 'cold_text_compression_level' and (

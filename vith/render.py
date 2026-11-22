@@ -136,9 +136,7 @@ def _has_package(name: str) -> bool:
         return False
 
 
-def _custom_command_key(
-    raw: str, mapping: dict[str, str], commands: dict[str, str]
-) -> str | None:
+def _custom_command_key(raw: str, mapping: dict[str, str], commands: dict[str, str]) -> str | None:
     """Find a configured command for `raw` across its aliases (docs/bugs/184.md)."""
     if raw in commands:
         return raw

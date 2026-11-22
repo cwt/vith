@@ -429,12 +429,7 @@ def _apply_set_token(
     queries: list[str],
 ) -> bool:
     """Apply a single `:set` / `:setlocal` token; returns `False` on error."""
-    if (
-        is_local
-        and not opt.endswith('?')
-        and opt != 'all'
-        and opt not in _LOCAL_SET_OPTION_NAMES
-    ):
+    if is_local and not opt.endswith('?') and opt != 'all' and opt not in _LOCAL_SET_OPTION_NAMES:
         # Only genuinely buffer-local options may be set with `:setlocal`
         # (docs/bugs/147.md); the rest would silently mutate global state.
         # `all` is an inspection form, not an option assignment (docs/bugs/186.md).

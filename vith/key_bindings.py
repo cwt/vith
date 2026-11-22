@@ -218,7 +218,9 @@ def _record_word_search(editor, event, direction):
         pass
     # KeyPressEvent.arg is `str | None`; normalize it like every other counted
     # binding before passing it to Buffer.apply_search (docs/bugs/168.md).
-    buff.apply_search(search_state, include_current_position=False, count=_positive_count(event.arg))
+    buff.apply_search(
+        search_state, include_current_position=False, count=_positive_count(event.arg)
+    )
 
 
 def _shift_lines(editor, buff, count, indent):

@@ -94,14 +94,14 @@ def _open_render_controller(editor: Any, tmp_path: Any) -> tuple[Any, Any]:
     return controller, controller.preview_eb
 
 
-def test_171_generic_render_failure_shows_diagnostic(editor: Any, tmp_path: Any, monkeypatch: Any) -> None:
+def test_171_generic_render_failure_shows_diagnostic(
+    editor: Any, tmp_path: Any, monkeypatch: Any
+) -> None:
     """A permanent renderer exception must not be hidden behind a 'stale' badge."""
     import vith.render as render_module
 
     controller, preview = _open_render_controller(editor, tmp_path)
-    controller._apply_result(
-        1, render_module.RenderResult('good', [[('', 'good')]], 'markdown')
-    )
+    controller._apply_result(1, render_module.RenderResult('good', [[('', 'good')]], 'markdown'))
 
     def boom(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError('kaboom')
@@ -117,9 +117,7 @@ def test_172_dependency_error_clears_good_render_flag(editor: Any, tmp_path: Any
     import vith.render as render_module
 
     controller, preview = _open_render_controller(editor, tmp_path)
-    controller._apply_result(
-        1, render_module.RenderResult('good', [[('', 'good')]], 'markdown')
-    )
+    controller._apply_result(1, render_module.RenderResult('good', [[('', 'good')]], 'markdown'))
     controller._apply_error(2, "Optional package 'rich-rst' is required", incomplete=False)
     assert controller._has_good_render is False
     controller._apply_error(3, 'still broken', incomplete=True)
@@ -274,7 +272,9 @@ def test_181_visual_block_highlight_matches_yank_on_short_row(editor: Any) -> No
     text = '\n'.join(lines)
     anchor = 5  # row 0, codepoint 5 -> visual column 12
     cursor = text.index('\n', text.index('\n') + 1) + 1 + 10  # row 2, col 10 -> visual 17
-    doc = Document(text, cursor_position=cursor, selection=SelectionState(anchor, SelectionType.BLOCK))
+    doc = Document(
+        text, cursor_position=cursor, selection=SelectionState(anchor, SelectionType.BLOCK)
+    )
 
     with set_app(editor.application):
         # Highlight must agree with yank/delete: the short middle row is past
@@ -354,9 +354,7 @@ def test_184_custom_command_alias_is_resolved_consistently() -> None:
     assert detect_render_format(None, 'md', 'hi', {'markdown': 'glow'}) == 'markdown'
 
 
-def test_187_named_yank_and_delete_also_update_unnamed_register(
-    editor: Any, tmp_path: Any
-) -> None:
+def test_187_named_yank_and_delete_also_update_unnamed_register(editor: Any, tmp_path: Any) -> None:
     """`:y a` / `:d b` must also make the text available to a plain paste."""
     path = tmp_path / 'reg.txt'
     path.write_text('one\ntwo\nthree\n', encoding='utf-8')
@@ -417,4 +415,3 @@ def test_191_unassigned_u0ec7_is_not_a_combining_mark() -> None:
     assert get_cwidth(char) == 1
     assert is_thai_combining(0x0EC7) is False
     assert is_combining_char(char) is False
-
