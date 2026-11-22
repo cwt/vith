@@ -216,7 +216,9 @@ def _record_word_search(editor, event, direction):
         editor.search_buffer.history.append_string(word)
     except OSError:
         pass
-    buff.apply_search(search_state, include_current_position=False, count=event.arg)
+    # KeyPressEvent.arg is `str | None`; normalize it like every other counted
+    # binding before passing it to Buffer.apply_search (docs/bugs/168.md).
+    buff.apply_search(search_state, include_current_position=False, count=_positive_count(event.arg))
 
 
 def _shift_lines(editor, buff, count, indent):

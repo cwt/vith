@@ -569,7 +569,7 @@ def test_star_jumps_and_records_history(editor):
     event = MagicMock()
     event.app = editor.application
     event.current_buffer = eb.buffer
-    event.arg = 1
+    event.arg = None  # Real KeyPressEvent value for an uncounted `*`.
     handler(event)
 
     assert eb.buffer.cursor_position == 8
@@ -596,7 +596,7 @@ def test_hash_searches_backward_and_records_history(editor):
     event = MagicMock()
     event.app = editor.application
     event.current_buffer = eb.buffer
-    event.arg = 1
+    event.arg = None  # Real KeyPressEvent value for an uncounted `#`.
     handler(event)
 
     assert eb.buffer.cursor_position == 0
