@@ -345,6 +345,9 @@ class Editor:
         self.previewer = CommandPreviewer(self)
 
         self.last_substitute_text = ''
+        # Kept separate from the shared search state so a `/` search or `:g`
+        # cannot hijack the pattern reused by a bare `:s` (docs/bugs/175.md).
+        self.last_substitute_pattern = ''
 
     @property
     def filetype_tabstops(self) -> FiletypeTabstops:

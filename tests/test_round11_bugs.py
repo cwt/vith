@@ -154,3 +154,21 @@ def test_186_setlocal_all_lists_options(editor: Any, tmp_path: Any) -> None:
         editor.message = ''
         handle_command(editor, command)
         assert 'E518' not in (editor.message or ''), command
+
+
+def test_175_bare_substitute_ignores_intervening_search(editor: Any, tmp_path: Any) -> None:
+    """A bare `:s` repeats the last substitute pattern, not a later `/` search."""
+    path = tmp_path / 'sub.txt'
+    path.write_text('aaa bbb aaa\n', encoding='utf-8')
+    editor.load_initial_files([str(path)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    handle_command(editor, ':s/a/X/')
+    assert eb.buffer.text == 'Xaa bbb aaa'
+
+    # Simulate a subsequent `/b` search, which must not hijack bare `:s`.
+    editor.application.current_search_state.text = 'b'
+    handle_command(editor, ':%s')
+    # Repeats pattern 'a' with replacement 'X' on the current text; using the
+    # intervening search pattern 'b' would have produced 'Xaa Xbb aaa'.
+    assert eb.buffer.text == 'XXa bbb aaa'

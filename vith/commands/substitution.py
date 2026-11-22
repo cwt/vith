@@ -355,6 +355,9 @@ def _record_substitute_state(
     the enclosing global pattern, and `:noh` suppression must be cleared.
     """
     editor.last_substitute_text = replace
+    editor.last_substitute_pattern = search
+    # Keep publishing to the shared search register for `/`-style history and
+    # `:g`, but never *read* it for a bare `:s` (docs/bugs/175.md).
     search_state.text = search
     editor.clear_hlsearch_suppression()
 
@@ -370,7 +373,12 @@ def prepare_substitute(
     and replacement callable for `:s` and `:g/.../s`.
     """
     search_state = editor.application.current_search_state
-    if not search:
+    if search is None:
+        # Bare `:s` repeats the last *substitution*, not the latest `/` search
+        # (docs/bugs/175.md). An empty pattern from `:s//.../` still refers to
+        # the shared search register, like Vim.
+        search = getattr(editor, 'last_substitute_pattern', '') or search_state.text
+    elif not search:
         search = search_state.text
     if not search:
         editor.show_message('No previous regular expression')
