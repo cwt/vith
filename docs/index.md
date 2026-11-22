@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-20T09:47:00Z"
-timestamp: "2026-11-20T09:47:00Z"
+  at: "2026-11-22T11:00:00Z"
+timestamp: "2026-11-22T11:00:00Z"
 ---
 
 # vith Documentation Bundle
@@ -25,7 +25,8 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Audit & Findings
 
-* [Findings Bundle](bugs/index.md) — **154 machine-verified findings across 9 audit rounds and 4 addenda (all closed)**:
+* [Findings Bundle](bugs/index.md) — **166 machine-verified findings across 10 audit rounds and 4 addenda (154 closed, 12 open)**:
+  * **Round 10 (2026-11-22, deep performance & algorithmic audit — [155](bugs/155.md)–[166](bugs/166.md), `fix_status: open`)**: 12 profiled performance, memory, and algorithmic bottlenecks across startup ([155](bugs/155.md)), per-frame rendering ([156](bugs/156.md), [163](bugs/163.md)), per-keystroke latency ([157](bugs/157.md)), quadratic Ex commands ([158](bugs/158.md), [159](bugs/159.md), [161](bugs/161.md)), `:substitute` ([160](bugs/160.md)), lexer memory & `guess_lexer` ([162](bugs/162.md)), word completion caching ([164](bugs/164.md)), Thai clusters/words ([165](bugs/165.md)), and secondary I/O/editing hot spots ([166](bugs/166.md)).
   * **Round 9 addendum (2026-11-20, user field report — [154](bugs/154.md), `fix_status: fixed`)**: vertical cursor motion (`j`/`k`), `{count}|`, visual-block selection (`<C-v>` highlight/`y`/`d`/`I`/`A`), and block paste (`p`/`P`) drifting after tabs on Thai text (and pure ASCII with tabs), fixed with tab-expanded visual-column math honoring `:set`/`:setlocal`/per-filetype/per-split `tabstop`, display-column block iteration, `TextObject.operator_range` `BLOCK` fix, and visual-column `|` and `p`/`P`.
   * **Round 9 (2026-11-20, deep read-only analysis & re-validation — [151](bugs/151.md)–[153](bugs/153.md), `fix_status: fixed`)**: validated residual performance, duplication/logic-drift, and readability inventories at `v0.15.0` (rev 384), all closed with regression tests: [151](bugs/151.md) (`splice_buffer_lines`, inactive-tab frame retention, $O(n)$/$O(m\sqrt{n})$ `:g` move/copy, visible-buffer Thai gate decay/re-latch + single-pass SARA-AM scan, cached `:b` regex, `:retab` fast paths); [152](bugs/152.md) (medium — catalog-derived `_default_options`/`_CONFIG_OPTION_MAP`, shared `_resolve_editor_buffer`/`apply_int_option_value`, shared 1-based address resolver, unified `resolve_ignore_case`, and unified write-target normalization fixing the `:set ro` symlink bypass & stale dirty flag); [153](bugs/153.md) (`vith/lexer.py` top import consolidation, `completer.py` class ordering, and `vith/thai/__init__.py` public surface tightened via PEP 562 `__getattr__`/`__dir__` + `cold_text.py` direct submodule import).
   * **Round 8 (2026-11-19–20, hg rev 358 → fixed rev 360–381 — [130](bugs/130.md)–[150](bugs/150.md), `fix_status: fixed`)**: fresh full-project re-audit of the post-`v0.14.0` Ex-command work. All 17 defects (same-file `:w` rejection, `:wq`/`ZZ` exit/data-loss, tab dirty guards, read-only `:e` crash, mouse-focus wrong-buffer dispatch, `:g` substitute state, search-buffer Tab, non-UTF-8 shell crashes, TOML validation, Vim replacement semantics, CRLF loss/`fileformat`, CJK visual widths, ReDoS guard bypass, `:[range]norm`, `:retab`, `:cq`, Thai gate) and 4 cleanup inventories fixed one-by-one with regression tests (466 passed, `mypy .` clean, ruff clean); `vith/commands/commands.py` subsequently split into flat submodules in rev 382.

@@ -1,18 +1,18 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 154 machine-verified findings across 9 audit rounds and 4 addenda (001–154; all closed)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 166 machine-verified findings across 10 audit rounds and 4 addenda (001–154 closed; Round 10 155–166 open)."
 status: stable
 sources:
   - docs/bugs/
   - docs/
 verified: machine-confirmed
-stale_after: 2027-05-20T00:00:00Z
-tags: [bugs, findings, audit, round-6, round-7, round-8, round-9]
+stale_after: 2027-05-22T00:00:00Z
+tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10]
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-20T09:47:00Z"
-timestamp: "2026-11-20T09:47:00Z"
+  at: "2026-11-22T11:00:00Z"
+timestamp: "2026-11-22T11:00:00Z"
 ---
 
 # vith Findings Bundle
@@ -34,6 +34,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 7 (2026-11-09, upstream triage — [116](116.md)–[123](123.md), `fix_status: fixed`)**: 8 worth-fixing upstream `prompt-toolkit/pyvim` issues that still reproduced in `vith`, filed as new findings and fixed one-by-one with regression tests (274 passed, `mypy .` 57 files clean, ruff clean): `ZZ`/`ZQ` ([116](116.md)), `:w!` read-only ([117](117.md)), `>>`/`<<` vs `tabstop` ([118](118.md)), `Ctrl-[` ([119](119.md)), counted `i`/`a` ([120](120.md)), extensionless highlight ([121](121.md)), `*` history ([122](122.md)), `:s` ReDoS guard ([123](123.md)).
 * **Round 9 (2026-11-20, deep read-only analysis & re-validation — [151](151.md)–[153](153.md), `fix_status: fixed`)**: residual performance, duplication/logic-drift, and readability inventories against `v0.15.0` (rev 384), all closed with regression tests: [151](151.md) (`splice_buffer_lines`, inactive-tab frame retention, $O(n)$/$O(m\sqrt{n})$ `:g` move/copy, visible-buffer Thai gate decay/re-latch + single-pass SARA-AM scan, cached `:b` regex, `:retab` fast paths); [152](152.md) (medium — catalog-derived `_default_options`/`_CONFIG_OPTION_MAP`, shared `_resolve_editor_buffer`/`apply_int_option_value`, shared 1-based address resolver, unified `resolve_ignore_case`, and unified write-target normalization fixing the `:set ro` symlink bypass & stale dirty flag); [153](153.md) (`vith/lexer.py` top import consolidation, `completer.py` class ordering, and `vith/thai/__init__.py` public surface tightened via PEP 562 `__getattr__`/`__dir__` + `cold_text.py` direct submodule import).
 * **Round 9 addendum (2026-11-20, user field report — [154](154.md), `fix_status: fixed`)**: vertical cursor movement (`j`/`k`), `{count}|`, visual-block selection (`<C-v>` highlight, `y`, `d`, `I`, `A`), and block paste (`p`/`P`) drifting after tabs on Thai text (and pure ASCII with tabs), fixed with tab-expanded visual-column math honoring buffer/local/global `tabstop`, visual-column block row iteration, `TextObject.operator_range` `BLOCK` corner fix, and visual-column `|` and `p`/`P`.
+* **Round 10 (2026-11-22, deep performance & algorithmic audit — [155](155.md)–[166](166.md), `fix_status: open`)**: 12 machine-verified performance, memory, and algorithmic findings profiled across all 38 modules on Python 3.15.2 / `prompt_toolkit 3.0.53` / `Pygments 2.21.0` — eager 32-lexer startup imports ([155](155.md)), unconditional per-frame `TabsProcessor` fragment explosion ([156](156.md)), per-keystroke $O(\text{file size})$ `Document.current_line` copy & eager `_on_text_changed` line splits ([157](157.md)), quadratic `:join` ([158](158.md)) and `:render` HTML fallback ([159](159.md)), `:substitute` char-by-char callback ([160](160.md)), quadratic `:norm` replay ([161](161.md)), `DocumentLexer` backward-scroll leak & 215-module `guess_lexer` freeze ([162](162.md)), Thai render/Visual-Block hot spots ([163](163.md)), broken `DocumentWordsCompleter` cache key ([164](164.md)), Thai cluster/word/libthai hot spots ([165](165.md)), and secondary I/O/editing/command hot spots ([166](166.md)).
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
@@ -392,6 +393,25 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | ID | Finding | Area | Priority |
 | :--- | :--- | :--- | :--- |
 | [154](154.md) | Vertical cursor motion (`j`/`k`), `{count}\|`, visual blocks (`<C-v>` highlight/`y`/`d`/`I`/`A`), and block paste (`p`/`P`) drift after tabs on Thai text (and ignore custom `tabstop`) | thai/tabs/selection | **high** |
+
+## Round 10 Findings (2026-11-22 deep performance & algorithmic audit, `v0.15.1` / rev 392)
+
+### Defects & Performance Improvements (`fix_status: open`)
+
+| ID | Finding | Category | Priority | Status |
+| :-- | :--- | :--- | :--- | :--- |
+| [155](155.md) | Startup `FiletypeTabstops(DEFAULT_FILETYPE_TABSTOPS)` eagerly imports 32 Pygments lexer modules (187.8 ms / 63% of cold startup) | startup/pygments | **high** | open |
+| [156](156.md) | Per-frame `TabsProcessor` unconditionally explodes fragments and scans every character on tab-free lines (36.3% of ASCII frame) | rendering/tabs | **high** | open |
+| [157](157.md) | Per-keystroke $O(\text{file size})$ copy via `Document.current_line` (even in Insert mode) and eager `Document.lines` split in `_on_text_changed` | keystroke/latency | **high** | open |
+| [158](158.md) | Quadratic $O(N^2)$ string concatenation in `:j` / `:join` (258.7 ms at 20k lines) | commands/algorithms | **high** | open |
+| [159](159.md) | Quadratic $O(K^2)$ whole-document join in `:render` HTML fallback `_Renderer._ensure_block` (97.6 ms at 4k `<p>` tags) | commands/render | **high** | open |
+| [160](160.md) | `:substitute` runs a per-match char-by-char Python callback even for literals and plain backreferences (428 ms vs 11.3 ms) | commands/substitute | medium | open |
+| [161](161.md) | Quadratic $O(R \cdot N)$ `:norm` line replay and uncached `KeyProcessor` rebuild (478 ms on 2k lines) | commands/normal | medium | open |
+| [162](162.md) | `DocumentLexer` unbounded `line_generators` leak (+18.4 MB on 642 KB file), out-of-range EOF drain, and 215-module `guess_lexer` freeze | lexer/memory | medium | open |
+| [163](163.md) | Thai per-frame render overhead in `_sanitize_and_invalidate_sara_am`, `_patched_copy_body`, and Visual Block `_thai_selection_range_at_line` | thai/rendering | medium | open |
+| [164](164.md) | `DocumentWordsCompleter` reads nonexistent `editor_buffer._text_version` (stale in prod) and breaks P3 if wired to `_text_version` | completion/caching | medium | open |
+| [165](165.md) | Thai cluster & word-motion hot spots: `_compute_cell_columns` slices/generators, linear word-span scans, and `libthai` ctypes `*gen` | thai/algorithms | low | open |
+| [166](166.md) | Secondary I/O, editing, and command hot spots (`>>` splice, `:w >>` append, `_read` CR scan, `:sort nu`, `DirectoryIO` scandir, static `:g/pat/m N`, completer double `get_all_lexers`) | io/commands/editing | low | open |
 
 ## Meta
 
