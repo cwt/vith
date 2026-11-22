@@ -372,3 +372,34 @@ def test_187_named_yank_and_delete_also_update_unnamed_register(
     unnamed = editor.application.clipboard.get_data()
     assert unnamed is not None and unnamed.text == 'one'
 
+
+def test_190_reporter_recovers_after_worker_exception(
+    editor: Any, tmp_path: Any, monkeypatch: Any
+) -> None:
+    """A raising reporter must not leave diagnostics permanently disabled."""
+    import vith.editor_buffer as eb_module
+
+    calls: list[int] = []
+
+    def flaky_report(*args: Any) -> list[Any]:
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError('reporter boom')
+        return []
+
+    monkeypatch.setattr(eb_module, 'report', flaky_report)
+    path = tmp_path / 'module.py'
+    path.write_text('x = 1\n', encoding='utf-8')
+    editor.load_initial_files([str(path)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    async def scenario() -> None:
+        eb.run_reporter()
+        await asyncio.sleep(0.05)
+        assert eb._reporter_is_running is False
+        eb.run_reporter()
+        await asyncio.sleep(0.05)
+
+    asyncio.run(scenario())
+    assert len(calls) == 2
+

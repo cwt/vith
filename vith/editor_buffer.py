@@ -583,10 +583,22 @@ class EditorBuffer:
 
         def in_executor():
             # Call reporter with (location, document), as in reporting.report.
-            report_errors = report(location, document)
+            # An unexpected worker failure must still schedule `ready()`, or
+            # `_reporter_is_running` stays True and diagnostics freeze forever
+            # (docs/bugs/190.md).
+            reporter_error: Exception | None = None
+            try:
+                report_errors = report(location, document)
+            except Exception as exc:
+                report_errors = []
+                reporter_error = exc
 
             def ready():
                 self._reporter_is_running = False
+                if reporter_error is not None:
+                    editor = self.editor
+                    if editor is not None:
+                        editor.show_message(f'Reporter error: {reporter_error}')
 
                 # If the text has not changed while running in the worker
                 # thread, update report_errors and only invalidate the UI
