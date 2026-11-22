@@ -31,12 +31,11 @@ def _strip_regex_literals(pattern_text: str) -> str:
 
 
 def _has_overlapping_alternatives(body: str) -> bool:
-    """Whether a group body has alternatives where one prefixes another."""
-    alternatives = [part for part in body.split('|') if part]
-    for index, first in enumerate(alternatives):
-        for second in alternatives[index + 1 :]:
-            if first.startswith(second) or second.startswith(first):
-                return True
+    """Whether a group body has alternatives where one prefixes another (O(A log A))."""
+    alternatives = sorted(part for part in body.split('|') if part)
+    for index in range(len(alternatives) - 1):
+        if alternatives[index + 1].startswith(alternatives[index]):
+            return True
     return False
 
 
@@ -167,9 +166,14 @@ class _PreparedSubstitute:
     repl: Any
 
 
+_VIM_CASE_OPS = frozenset('ulULeE')
+
+
 def _vim_replacement_function(replace: str, previous: str, group_count: int) -> Any:
     """
-    Translate a Vim `:s` replacement into a `re.sub` callable (docs/bugs/139.md).
+    Translate a Vim `:s` replacement into a C-level `re.sub` template string
+    (when no case operators are present) or a coalesced `re.sub` callable
+    (docs/bugs/139.md, 160.md).
 
     Vim's replacement dialect differs from Python's: `&` is the whole match,
     `\\&` is a literal ampersand, `\\r` inserts a line break, `\\n` inserts a
@@ -177,69 +181,75 @@ def _vim_replacement_function(replace: str, previous: str, group_count: int) -> 
     and `\\u`/`\\U`/`\\l`/`\\L`/`\\e`/`\\E` are case operators. Raises
     `ValueError` for invalid backreferences or unsupported escapes.
     """
-    case_ops = frozenset('ulULeE')
     tokens: list[tuple[str, Any]] = []
+    literal_buf: list[str] = []
+    has_case_op = False
     i = 0
-    while i < len(replace):
+    length = len(replace)
+
+    def flush_literal() -> None:
+        if literal_buf:
+            tokens.append(('text', ''.join(literal_buf)))
+            literal_buf.clear()
+
+    while i < length:
         ch = replace[i]
-        if ch == '\\' and i + 1 < len(replace):
+        if ch == '\\' and i + 1 < length:
             nxt = replace[i + 1]
-            if nxt in case_ops:
+            if nxt in _VIM_CASE_OPS:
+                flush_literal()
                 tokens.append(('case', nxt))
+                has_case_op = True
             elif nxt == '&':
-                tokens.append(('text', '&'))
+                literal_buf.append('&')
             elif nxt == 'r':
-                tokens.append(('text', '\n'))
+                literal_buf.append('\n')
             elif nxt == 'n':
-                tokens.append(('text', '\x00'))
+                literal_buf.append('\x00')
             elif nxt == '\\':
-                tokens.append(('text', '\\'))
+                literal_buf.append('\\')
             elif nxt.isdigit():
                 group = int(nxt)
                 if group > group_count:
                     raise ValueError('invalid backreference \\%d' % group)
+                flush_literal()
                 tokens.append(('group', group))
             elif nxt.isalpha():
                 raise ValueError('invalid escape \\%s in replacement' % nxt)
             else:
-                tokens.append(('text', nxt))
+                literal_buf.append(nxt)
             i += 2
             continue
         if ch == '&':
+            flush_literal()
             tokens.append(('group', 0))
         elif ch == '~':
-            tokens.append(('text', previous))
+            literal_buf.append(previous)
         else:
-            tokens.append(('text', ch))
+            literal_buf.append(ch)
         i += 1
+    flush_literal()
+
+    if not has_case_op:
+        # Compile to a Python `re.sub` template string so substitution runs
+        # entirely in C without a per-match Python callback (docs/bugs/160.md).
+        template_parts: list[str] = []
+        for kind, value in tokens:
+            if kind == 'text':
+                template_parts.append(value.replace('\\', '\\\\'))
+            else:
+                template_parts.append(f'\\g<{value}>')
+        return ''.join(template_parts)
+
+    compiled_tokens = tuple(tokens)
 
     def expand(match: Any) -> str:
         mode: str | None = None
         one_shot: str | None = None
         pieces: list[str] = []
 
-        def emit(text: str) -> None:
-            nonlocal one_shot
-            for char in text:
-                if one_shot == 'u':
-                    pieces.append(char.upper())
-                    one_shot = None
-                elif one_shot == 'l':
-                    pieces.append(char.lower())
-                    one_shot = None
-                elif mode == 'U':
-                    pieces.append(char.upper())
-                elif mode == 'L':
-                    pieces.append(char.lower())
-                else:
-                    pieces.append(char)
-
-        for kind, value in tokens:
-            if kind == 'text':
-                emit(value)
-            elif kind == 'group':
-                emit(match.group(value) or '')
-            elif kind == 'case':
+        for kind, value in compiled_tokens:
+            if kind == 'case':
                 if value in ('u', 'l'):
                     one_shot = value
                 elif value in ('U', 'L'):
@@ -247,6 +257,26 @@ def _vim_replacement_function(replace: str, previous: str, group_count: int) -> 
                 else:
                     mode = None
                     one_shot = None
+                continue
+
+            chunk: str = value if kind == 'text' else (match.group(value) or '')
+            if not chunk:
+                continue
+
+            if one_shot is not None:
+                first = chunk[0].upper() if one_shot == 'u' else chunk[0].lower()
+                one_shot = None
+                pieces.append(first)
+                chunk = chunk[1:]
+                if not chunk:
+                    continue
+
+            if mode == 'U':
+                pieces.append(chunk.upper())
+            elif mode == 'L':
+                pieces.append(chunk.lower())
+            else:
+                pieces.append(chunk)
         return ''.join(pieces)
 
     return expand

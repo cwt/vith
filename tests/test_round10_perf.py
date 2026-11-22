@@ -207,3 +207,33 @@ def test_159_render_html_markdown_rst_linear(monkeypatch) -> None:
     assert 'Section\n=======' in rst_out
     assert '.. note:: hello' in rst_out
     assert 'Use code and target.' in rst_out
+
+
+def test_160_substitute_uses_c_template_for_non_case_replacements() -> None:
+    """160: Literal & backref `:s` compile to C template strings; case ops remain exact."""
+    import re
+
+    from vith.commands.substitution import (
+        _has_overlapping_alternatives,
+        _vim_replacement_function,
+    )
+
+    # Literal, backslash, &, ~, and backreferences compile to str (C re.subn fast path).
+    lit = _vim_replacement_function(r'foo\\bar\&~', 'PREV', 0)
+    assert isinstance(lit, str)
+    assert re.sub('x', lit, 'x') == r'foo\bar&PREV'
+
+    backref = _vim_replacement_function(r'[\1]-[&]-[\2]', '', 2)
+    assert isinstance(backref, str)
+    assert re.sub(r'(a)?(b)', backref, 'b') == '[]-[b]-[b]'
+    assert re.sub(r'(a)?(b)', backref, 'ab') == '[a]-[ab]-[b]'
+
+    # Case operators still return a callable and preserve Vim case semantics.
+    case_fn = _vim_replacement_function(r'\u\1 \U\2\E \l\3', '', 3)
+    assert callable(case_fn)
+    assert re.sub(r'(\w+) (\w+) (\w+)', case_fn, 'hello world TEST') == 'Hello WORLD tEST'
+
+    # O(A log A) overlapping-alternatives check preserves exact results.
+    assert _has_overlapping_alternatives('a|aa|b') is True
+    assert _has_overlapping_alternatives('foo|bar|baz') is False
+    assert _has_overlapping_alternatives('ab|cd|a') is True
