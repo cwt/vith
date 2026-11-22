@@ -404,7 +404,7 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [156](156.md) | Per-frame `TabsProcessor` unconditionally explodes fragments and scans every character on tab-free lines (36.3% of ASCII frame) | rendering/tabs | **high** | fixed |
 | [157](157.md) | Per-keystroke $O(\text{file size})$ copy via `Document.current_line` (even in Insert mode) and eager `Document.lines` split in `_on_text_changed` | keystroke/latency | **high** | fixed |
 | [158](158.md) | Quadratic $O(N^2)$ string concatenation in `:j` / `:join` (258.7 ms at 20k lines) | commands/algorithms | **high** | fixed |
-| [159](159.md) | Quadratic $O(K^2)$ whole-document join in `:render` HTML fallback `_Renderer._ensure_block` (97.6 ms at 4k `<p>` tags) | commands/render | **high** | fixed |
+| [159](159.md) | Quadratic $O(K^2)$ whole-document join in `:render` HTML fallback `_Renderer._ensure_block` (97.6 ms at 4k `<p>` tags) | commands/render | **high** | withdrawn (experimental `:render` reverted) |
 | [160](160.md) | `:substitute` runs a per-match char-by-char Python callback even for literals and plain backreferences (428 ms vs 11.3 ms) | commands/substitute | medium | fixed |
 | [161](161.md) | Quadratic $O(R \cdot N)$ `:norm` line replay and uncached `KeyProcessor` rebuild (478 ms on 2k lines) | commands/normal | medium | fixed |
 | [162](162.md) | `DocumentLexer` unbounded `line_generators` leak (+18.4 MB on 642 KB file), out-of-range EOF drain, and 215-module `guess_lexer` freeze | lexer/memory | medium | fixed |
