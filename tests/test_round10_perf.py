@@ -177,3 +177,33 @@ def test_158_join_linear_and_preserves_spacing_semantics(editor) -> None:
     assert eb.buffer.text.startswith('  w0 w1 w2 ')
     assert eb.buffer.text.endswith(f' w{n - 1}')
     assert '\n' not in eb.buffer.text
+
+
+def test_159_render_html_markdown_rst_linear(monkeypatch) -> None:
+    """159: `_render_html` avoids O(K^2) full-document joins and preserves block spacing."""
+    from vith.commands import info as cmd_info
+
+    monkeypatch.setattr(cmd_info.shutil, 'which', lambda _name: None)
+
+    small_html = '<html><body><h1>Title</h1><p>First <b>para</b></p><p>Second<br>line</p><hr><pre>  x  </pre><p>end</p></body></html>'
+    out = cmd_info._render_html(small_html)
+    assert 'Title\n\nFirst para\n\nSecond\nline\n\n---\n\n  x  \n\nend' == out
+
+    # 4,000 block tags should complete linearly without O(K^2) blowup.
+    large_html = (
+        '<html><body>' + ''.join(f'<p>Paragraph {i}</p>' for i in range(4000)) + '</body></html>'
+    )
+    rendered = cmd_info._render_html(large_html)
+    assert rendered.startswith('Paragraph 0\n\nParagraph 1')
+    assert rendered.endswith('Paragraph 3999')
+
+    # Verify Markdown & RST fallback renderers with precompiled regexes.
+    md = '# Heading\n\nSubheading\n----------\n\n* **bold** [link](https://example.com) `code`\n'
+    md_out = cmd_info._render_markdown(md)
+    assert 'Heading' in md_out and 'bold' in md_out and 'link' in md_out
+
+    rst = 'Section\n=======\n\n.. note:: hello\n\nUse ``code`` and :ref:`target`.\n'
+    rst_out = cmd_info._render_rst(rst)
+    assert 'Section\n=======' in rst_out
+    assert '.. note:: hello' in rst_out
+    assert 'Use code and target.' in rst_out
