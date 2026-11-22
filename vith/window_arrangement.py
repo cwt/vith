@@ -752,7 +752,20 @@ class WindowArrangement:
         """
         Create a new tab page.
         """
+        had_tabs = bool(self.tab_pages)
         eb = self._get_or_create_editor_buffer(location)
+
+        if not self.tab_pages:
+            # The buffer already existed and there are no tabs left: create
+            # the tab that `_add_editor_buffer` would have created otherwise.
+            self.tab_pages.append(TabPage(Window(eb)))
+            self.active_tab_index = 0
+            return
+        if not had_tabs:
+            # `_add_editor_buffer` already created the initial tab for this
+            # buffer; reusing it avoids two tabs for one buffer (docs/bugs/180.md).
+            self.active_tab_index = 0
+            return
 
         insert_index = 0 if self.active_tab_index is None else self.active_tab_index + 1
         self.tab_pages.insert(insert_index, TabPage(Window(eb)))

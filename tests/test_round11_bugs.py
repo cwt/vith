@@ -247,3 +247,18 @@ def test_179_config_fileformat_applies_to_new_buffers(editor: Any) -> None:
     eb = editor.window_arrangement.active_editor_buffer
     assert eb.fileformat == 'dos'
     assert eb.line_ending() == '\r\n'
+
+
+def test_180_create_tab_on_empty_arrangement_makes_one_tab(editor: Any) -> None:
+    """create_tab() on a fresh editor must not create two tabs for one buffer."""
+    wa = editor.window_arrangement
+    assert not wa.tab_pages
+    wa.create_tab('somefile.py')
+    assert len(wa.tab_pages) == 1
+    assert wa.active_tab_index == 0
+    assert len(wa.editor_buffers) == 1
+
+    # Normal path: an existing arrangement still inserts a new tab.
+    wa.create_tab('other.py')
+    assert len(wa.tab_pages) == 2
+    assert wa.active_tab_index == 1
