@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-22T15:40:00Z"
-timestamp: "2026-11-22T15:40:00Z"
+  at: "2026-11-22T15:55:00Z"
+timestamp: "2026-11-22T15:55:00Z"
 ---
 
 # Documentation Bundle Log
@@ -59,3 +59,4 @@ This file tracks all modifications, extensions, and updates to the `vith` OKF do
 | 2026-11-22T14:07:00Z | [bugs/159.md](bugs/159.md), [bugs/index.md](bugs/index.md), [bugs/log.md](bugs/log.md), [log.md](log.md) | Reverted experimental `:render` | Reverted the experimental `:render` prototype from `vith/commands/info.py` and `vith/commands/__init__.py`, deleted untracked `vith/commands/render.py`, removed `test_159_render_html_markdown_rst_linear`, and marked [159](bugs/159.md) as `status: archived` / `fix_status: withdrawn`. |
 | 2026-11-22T15:10:00Z | [../vith/render.py](../vith/render.py), [../vith/commands/render.py](../vith/commands/render.py), [../README.md](../README.md), [log.md](log.md) | Added live `:render` splits | Implemented real-time asynchronous `:render`, `:render-split-v`, and `:render-split-h` live preview splits powered by optional `vith[render]` (`rich` + `rich-rst`), with direct `Segment -> StyleAndTextTuples` conversion, debounced executor rendering, last-good-render fallback on incomplete edits, heading-anchored position & scroll sync, resize detection, and `[render]` / `[render.commands]` TOML configuration (hg rev `407:cc09ab108f1b`). |
 | 2026-11-22T15:40:00Z | [live_render.md](live_render.md), [index.md](index.md), [log.md](log.md), [../README.md](../README.md) | Created / Updated | Authored full-length OKF v0.2 technical architecture & reference document [`live_render.md`](live_render.md) covering the live `:render` pipeline, Rich→`prompt_toolkit` style bridge, async coalescing, heading-anchored scroll sync, latency optimizations & benchmarks, and `[render]` config; indexed in `docs/index.md` and linked from `README.md`. |
+| 2026-11-22T15:55:00Z | [log.md](log.md), [index.md](index.md), [bugs/index.md](bugs/index.md), [../pyproject.toml](../pyproject.toml), [../vith/__init__.py](../vith/__init__.py), [../vith/help.py](../vith/help.py), [../CHANGELOG](../CHANGELOG), [../README.md](../README.md) | Updated (`v0.16.0` release) | Bumped version to `0.16.0`, added `CHANGELOG` release notes covering live async `:render` split preview and Round 10 performance/algorithmic optimizations (155–166; 159 archived), and reconciled stale counts/credits across `README.md`, `vith/help.py`, `docs/index.md`, and `docs/bugs/index.md` (**531 passed**, 88.98% coverage, `mypy .` 87 files clean, `ruff` clean). |

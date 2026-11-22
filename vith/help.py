@@ -87,4 +87,5 @@ Thanks to:
     - Pyflakes: the tool for checking Python source files for errors.
     - Jedi: the Python autocompletion library.
     - Pygments: Python syntax highlighter.
+    - Rich & rich-rst: optional terminal rendering backends for :render.
     - prompt_toolkit: the terminal UI toolkit."""

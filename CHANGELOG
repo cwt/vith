@@ -1,6 +1,71 @@
 CHANGELOG
 =========
 
+0.16.0: 2026-11-22
+-------------------
+
+Live async ``:render`` split preview & Round 10 deep performance / algorithmic optimizations:
+
+Live async ``:render`` split preview (``docs/live_render.md``):
+
+- Added real-time asynchronous preview split Ex commands ``:render[!]``,
+  ``:render-split-v[!]`` (editor left, preview right), and ``:render-split-h[!]``
+  (editor top, preview bottom) in ``vith/render.py`` and
+  ``vith/commands/render.py``, keeping keyboard focus in the editing pane via
+  backward-compatible ``after=True`` / ``focus_new=False`` split placement in
+  ``WindowArrangement``.
+- Added optional ``vith[render]`` packaging extra (``rich>=13.0.0``,
+  ``rich-rst>=1.3.0``) with zero eager imports on cold startup; supports
+  Markdown (headings, bold/italic/underline, tables, Pygments fenced code blocks,
+  Thai/Lao text), reStructuredText (``allow_file_access=False``), JSON (retaining
+  the last valid preview with a ``stale`` title while mid-edit), CSV/TSV tables
+  (capped at 5,000 rows), built-in ANSI escape logs, Rich Syntax fallback, and
+  custom external CLI renderers via ``[render.commands]``.
+- Converted Rich ``Console.render_lines()`` ``Segment`` output directly into
+  cached ``prompt_toolkit`` ``StyleAndTextTuples`` (with ``console.options.update_width``
+  width locking and fragment coalescing) and wired an ``O(1)``
+  ``DocumentLexer`` fast path with ``_rendered_version`` invalidation,
+  preview chrome suppression in ``vith/layout.py``, and sticky Thai/Lao
+  ``SARA AM`` gate latching.
+- Implemented single-flight debounced background rendering (``render_debounce_ms``
+  with max-wait ceiling and edit coalescing), automatic terminal/split resize
+  re-rendering, heading/landmark-anchored cursor & viewport scroll sync
+  (auto-paused when focused in the preview pane), and lazy ``Document._cache``
+  preservation (``_source_row_and_line_count`` + precomputed
+  ``_preview_line_starts``) for near-zero editing overhead.
+- Added validated ``[render]`` (``default_split``, ``debounce_ms``,
+  ``sync_scroll``) and ``[render.commands]`` TOML configuration in
+  ``vith/rc_file.py`` and ``examples/config/config.toml``, plus full OKF v0.2
+  technical documentation in ``docs/live_render.md``.
+
+Round 10 deep performance & algorithmic audit (findings 155–166; 159 archived):
+
+- Startup & rendering (155, 156, 163): resolved ``FiletypeTabstops`` through
+  Pygments ``_mapping`` without eagerly importing 32 lexer modules; added
+  tab-free fast path & cached ``_try_char`` in ``TabsProcessor``; cached
+  ``SARA AM`` screen rows, filtered ``copy_body`` margin first, and optimized
+  Visual Block selection in ``vith/thai/patches.py``.
+- Keystroke latency & completion caching (157, 164): eliminated ``O(file size)``
+  ``Document.current_line`` copies with ``O(line length)`` ``current_line_and_col``
+  and ASCII-fast ``_on_text_changed``; tracked ``ColdTextBuffer._non_cursor_version``
+  in ``DocumentWordsCompleter`` to invalidate non-cursor edits while keeping P3
+  typing cache hits.
+- Ex commands & lexer memory (158, 160, 161, 162): replaced ``O(N^2)`` string
+  concatenation in ``:join``; compiled non-case ``:substitute`` replacements to
+  C ``re.sub`` templates with ``O(A log A)`` overlap checking; cached ``:norm``
+  ``KeyProcessor`` with batched ``_on_text_changed`` and row-anchor tracking;
+  capped ``DocumentLexer`` ``line_generators``, guarded out-of-range EOF drains,
+  and replaced 215-module ``guess_lexer`` with deterministic
+  ``sniff_filetype_from_text``.
+- Thai/Lao algorithms & secondary hot spots (165, 166): single-pass
+  ``_compute_cell_columns``, UTF-32 ``libthai`` buffer, ``O(log W)`` ``bisect``
+  word motions, ``>>`` splice, ``:w >>`` append, ``_read`` CR guard,
+  ``:sort nu``, ``DirectoryIO`` ``scandir``, static ``:g/pat/m N``, and
+  single-pass ``FiletypeCompleter`` (finding 159 withdrawn when the earlier
+  experimental ``:render`` prototype was reverted).
+- Full test suite passing: 531 passed (88.98% coverage), mypy clean on 87
+  source files (Python 3.10 target), ruff clean.
+
 0.15.1: 2026-11-20
 -------------------
 
