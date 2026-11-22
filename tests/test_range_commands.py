@@ -270,9 +270,10 @@ def test_sort_command_flags_ranges_unicode_thai_and_undo(editor):
     assert eb.buffer.document.lines == ['Apple', 'apple', 'banana', 'cherry']
     handle_command(editor, ':u')
 
-    # Case-insensitive unique reverse (`:sort! iu`).
+    # Case-insensitive unique reverse (`:sort! iu`). Vim reverses the whole
+    # comparator including ties, so the last original `apple` is kept.
     handle_command(editor, ':sort! iu')
-    assert eb.buffer.document.lines == ['cherry', 'banana', 'Apple']
+    assert eb.buffer.document.lines == ['cherry', 'banana', 'apple']
     handle_command(editor, ':u')
 
     # Numeric sort (`:sort n`) + reverse flag `r`.
@@ -282,7 +283,8 @@ def test_sort_command_flags_ranges_unicode_thai_and_undo(editor):
     handle_command(editor, ':sort nr')
     assert eb.buffer.document.lines == ['item 10', 'item 2 dup', 'item 2', 'item -3', 'header']
     handle_command(editor, ':sort nu')
-    assert eb.buffer.document.lines == ['header', 'item -3', 'item 2', 'item 10']
+    # Stable numeric sort keeps the first equal-key line in the current order.
+    assert eb.buffer.document.lines == ['header', 'item -3', 'item 2 dup', 'item 10']
 
     # Sub-range sort leaves lines outside range untouched; supports Thai lines.
     reset_thai_text_gate()

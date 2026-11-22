@@ -172,3 +172,18 @@ def test_175_bare_substitute_ignores_intervening_search(editor: Any, tmp_path: A
     # Repeats pattern 'a' with replacement 'X' on the current text; using the
     # intervening search pattern 'b' would have produced 'Xaa Xbb aaa'.
     assert eb.buffer.text == 'XXa bbb aaa'
+
+
+def test_176_numeric_sort_keeps_ties_in_original_order(editor: Any, tmp_path: Any) -> None:
+    """`:sort n` must be stable for equal keys, like Vim."""
+    path = tmp_path / 'sort.txt'
+    path.write_text('b2\na2\nc2\n', encoding='utf-8')
+    editor.load_initial_files([str(path)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    handle_command(editor, ':sort n')
+    assert eb.buffer.text.splitlines() == ['b2', 'a2', 'c2']
+
+    eb.buffer.text = 'c\na\nb'
+    handle_command(editor, ':sort n')
+    assert eb.buffer.text.splitlines() == ['c', 'a', 'b']

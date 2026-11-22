@@ -385,26 +385,32 @@ def sort_lines(editor: Any, variables: Any) -> None:
     segment = eb.buffer.document.lines[start_row : end_row + 1]
 
     def sort_key(line: str) -> Any:
-        part = line.casefold() if ignore_case else line
         if numeric:
             match = _FIRST_INT_RE.search(line)
             if match is None:
-                return (0, 0, part)
-            return (1, int(match.group(0)), part)
-        return part
+                return (0,)
+            # No line-text component: Python's stable sort keeps original order
+            # for equal numbers, as Vim's `:sort n` does (docs/bugs/176.md).
+            return (1, int(match.group(0)))
+        return line.casefold() if ignore_case else line
 
     if unique:
         # Compute numeric/casefold keys once and deduplicate adjacent items in
         # O(1) extra space instead of re-running regexes and allocating a `seen`
         # set (docs/bugs/166.md).
         keyed = [(sort_key(line), line) for line in segment]
-        keyed.sort(key=itemgetter(0), reverse=reverse)
+        keyed.sort(key=itemgetter(0))
+        if reverse:
+            # Vim reverses the entire comparator, including ties; Python's
+            # reverse=True would keep ties in their original order.
+            keyed.reverse()
         deduped: list[str] = []
         has_prev = False
         prev_dedup_key: Any = None
         for sk, line in keyed:
-            if numeric:
-                dedup_key: Any = (0, sk[2]) if sk[0] == 0 else (1, sk[1])
+            if numeric and sk[0] == 0:
+                # Lines without a number deduplicate by their text.
+                dedup_key: Any = (0, line.casefold() if ignore_case else line)
             else:
                 dedup_key = sk
             if not has_prev or dedup_key != prev_dedup_key:
@@ -413,7 +419,9 @@ def sort_lines(editor: Any, variables: Any) -> None:
                 deduped.append(line)
         sorted_segment = deduped
     else:
-        sorted_segment = sorted(segment, key=sort_key, reverse=reverse)
+        sorted_segment = sorted(segment, key=sort_key)
+        if reverse:
+            sorted_segment.reverse()
 
     splice_buffer_lines(
         editor, eb, start_row, end_row, sorted_segment, start_row, first_non_blank=True
