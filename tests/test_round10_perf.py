@@ -498,3 +498,77 @@ def test_164_completer_invalidates_non_cursor_edits_and_preserves_p3_cursor_line
     eb.buffer.text = 'yyyy\nbe'
     eb.buffer.cursor_position = len(eb.buffer.text)
     assert 'bell' not in [c.text for c in completer.get_completions(eb.buffer.document, event)]
+
+
+def test_165_thai_clusters_cell_columns_and_bisect_word_motions_parity() -> None:
+    """165: Optimized `cell_stops`, `_compute_cell_columns`, and bisect word motions match exact references."""
+    from prompt_toolkit.document import Document
+
+    from vith.thai.clusters import _compute_cell_columns, cell_stops, prev_cell_offset
+    from vith.thai.words import (
+        _cluster_aligned_spans,
+        _iter_word_spans,
+        find_boundaries_of_current_word,
+        find_next_word_beginning,
+        find_next_word_ending,
+        find_previous_word_beginning,
+        find_previous_word_ending,
+        find_thai_cluster_end,
+    )
+
+    # 1. `cell_stops` ASCII fast path and `_compute_cell_columns` ASCII+tab / Thai+CJK+tab parity.
+    assert cell_stops('abc\td') == [0, 1, 2, 3, 4, 5]
+    assert cell_stops('ที่ดิน') == [0, 3, 5, 6]
+    assert _compute_cell_columns('', 4) == ((), (), 0)
+    assert _compute_cell_columns('a\tb', 4) == ((0, 1, 2), (0, 1, 4), 5)
+    assert _compute_cell_columns('ที่\tก', 4) == ((0, 3, 4), (0, 1, 4), 5)
+    assert _compute_cell_columns('中\ta', 4) == ((0, 1, 2), (0, 2, 4), 5)
+
+    # 2. Ro Han (รร) cluster detection and ASCII early return in `_cluster_aligned_spans`.
+    assert find_thai_cluster_end('ธรรม', 0) == 3  # ธ + ร + ร
+    assert find_thai_cluster_end('ที่ดิน', 0) == 3
+    ascii_spans = [(0, 3), (4, 7)]
+    assert _cluster_aligned_spans('foo bar', ascii_spans) is ascii_spans
+
+    # 3. Exhaustive bisect word-motion parity against `_iter_word_spans` across multi-line mixed text.
+    sample = 'ที่ดิน สวัสดี\n  hello การบ้าน!@#\n\nคำถาม สุดท้าย\tไทย'
+    spans = _iter_word_spans(sample, False)
+    for pos in range(len(sample) + 1):
+        d = Document(sample, cursor_position=pos)
+        for cnt in (1, 2, 3):
+            exp_w = [s for s, _ in spans if s > pos]
+            assert find_next_word_beginning(d, cnt, False) == (
+                exp_w[cnt - 1] - pos if len(exp_w) >= cnt else None
+            )
+            exp_b = [s for s, _ in reversed(spans) if s < pos]
+            assert find_previous_word_beginning(d, cnt, False) == (
+                exp_b[cnt - 1] - pos if len(exp_b) >= cnt else None
+            )
+            exp_ge = [e for _, e in reversed(spans) if e <= pos]
+            assert find_previous_word_ending(d, cnt, False) == (
+                exp_ge[cnt - 1] - pos if len(exp_ge) >= cnt else None
+            )
+            exp_ei = [e for _, e in spans if e > pos]
+            assert find_next_word_ending(d, True, cnt, False) == (
+                exp_ei[cnt - 1] - pos if len(exp_ei) >= cnt else None
+            )
+            exp_e = []
+            for s, e in spans:
+                r, c_e = d.translate_index_to_position(e)
+                ls = d.translate_row_col_to_index(r, 0)
+                if ls + prev_cell_offset(d.lines[r], c_e, 1) > pos:
+                    exp_e.append(e)
+            assert find_next_word_ending(d, False, cnt, False) == (
+                exp_e[cnt - 1] - pos if len(exp_e) >= cnt else None
+            )
+
+    # 4. `find_boundaries_of_current_word` bisect matches span containing cursor.
+    doc_iw = Document('ที่ดิน สวัสดี', cursor_position=1)
+    start_rel, end_rel = find_boundaries_of_current_word(doc_iw)
+    assert doc_iw.text[1 + start_rel : 1 + end_rel] == 'ที่ดิน'
+
+    # 5. Cursor-line motions do not build `Document._cache.lines`.
+    unique_thai = 'uniq165 ที่ดิน สวัสดี การบ้าน\nบรรทัดสอง'
+    d_fast = Document(unique_thai, cursor_position=0)
+    assert find_next_word_beginning(d_fast, 1, False) is not None
+    assert d_fast._cache.lines is None

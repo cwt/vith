@@ -98,9 +98,11 @@ def cell_stops(line: str) -> list[int]:
     Return all cell-cluster boundary offsets in `line`, including `len(line)`
     at the end (e.g. `"ที่ดิน"` -> `[0, 3, 5, 6]`).
     """
+    n = len(line)
+    if line.isascii():
+        return list(range(n + 1))
     stops = [0]
     col = 0
-    n = len(line)
     while col < n:
         col = next_cell_offset(line, col, 1)
         stops.append(col)
@@ -154,20 +156,51 @@ def _compute_cell_columns(
     Thai/Lao combining marks are zero-width, CJK/full-width/emoji bases occupy
     two cells (docs/bugs/141.md), and `\\t` advances to the next multiple of
     `tabstop` (matching `TabsProcessor` in `vith/thai/patches.py`).
+
+    Computed in a single pass with an ASCII+tabs fast path and no per-cluster
+    string slices or generator `sum()` allocations (docs/bugs/165.md).
     """
     ts = max(1, int(tabstop))
-    stops = cell_stops(line)
-    starts = stops[:-1]
-    columns: list[int] = []
+    n = len(line)
+    if n == 0:
+        return (), (), 0
+
+    if line.isascii():
+        starts = tuple(range(n))
+        columns: list[int] = [0] * n
+        visual = 0
+        for i, ch in enumerate(line):
+            columns[i] = visual
+            if ch == "\t":
+                visual += ts - (visual % ts)
+            elif " " <= ch <= "~":
+                visual += 1
+            else:
+                visual += get_cwidth(ch)
+        return starts, tuple(columns), visual
+
+    starts_list: list[int] = []
+    columns_list: list[int] = []
+    append_start = starts_list.append
+    append_col = columns_list.append
     visual = 0
-    for index, start in enumerate(starts):
-        columns.append(visual)
-        end = stops[index + 1]
-        if line[start] == "\t":
+    idx = 0
+    while idx < n:
+        append_start(idx)
+        append_col(visual)
+        ch = line[idx]
+        idx += 1
+        if ch == "\t":
             visual += ts - (visual % ts)
+            while idx < n and is_combining_char(line[idx]):
+                idx += 1
         else:
-            visual += sum(get_cwidth(char) for char in line[start:end])
-    return tuple(starts), tuple(columns), visual
+            w = 1 if " " <= ch <= "~" else get_cwidth(ch)
+            while idx < n and is_combining_char(line[idx]):
+                w += get_cwidth(line[idx])
+                idx += 1
+            visual += w
+    return tuple(starts_list), tuple(columns_list), visual
 
 
 @lru_cache(maxsize=4096)
