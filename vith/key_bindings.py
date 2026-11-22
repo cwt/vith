@@ -270,17 +270,6 @@ def _shift_lines(editor, buff, count, indent):
 
 
 @Condition
-def whitespace_before_cursor_on_line():
-    """
-    Filter which evaluates to True when the characters before the cursor are
-    whitespace, or we are at the start of the line.
-    """
-    doc = get_app().current_buffer.document
-    pos = doc.cursor_position
-    return pos == 0 or doc.text[pos - 1].isspace()
-
-
-@Condition
 def tilde_operator_enabled():
     "True while `:set tildeop` is active."
     return bool(get_app().vi_state.tilde_operator)
@@ -381,15 +370,15 @@ def create_key_bindings(editor):
         'tab',
         filter=vi_insert_mode
         & ~has_focus(editor.command_buffer)
-        & ~has_focus(editor.search_buffer)
-        & whitespace_before_cursor_on_line,
+        & ~has_focus(editor.search_buffer),
     )
     def insert_indentation(event):
         """
         Insert one indentation step (tabstop spaces with `expand_tab`,
-        otherwise a literal tab). Despite the whitespace-only-before-cursor
-        filter this deliberately does NOT trigger autocompletion — Tab is
-        reserved for indentation here (docs/bugs/071.md).
+        otherwise a literal tab) anywhere in Insert mode, like Vim. Tab is
+        reserved for indentation — completion uses Ctrl-N/Ctrl-P
+        (docs/bugs/071.md). The command/search buffers are excluded so Tab
+        keeps its prompt-toolkit behavior there (docs/bugs/136.md).
         """
         _insert_indentation(editor, event.app.current_buffer)
 

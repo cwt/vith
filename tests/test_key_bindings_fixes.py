@@ -677,3 +677,50 @@ def test_positive_count_clamps_non_positive_event_args():
     event.arg = -2
     _delete_cell_clusters(event, backward=False)
     assert buff.document.text == "bcdef"
+
+
+def test_tab_indents_in_middle_of_line_in_insert_mode(editor):
+    """Tab must insert an indentation step anywhere in Insert mode, like Vim."""
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.key_binding.key_processor import KeyPress
+    from prompt_toolkit.key_binding.vi_state import InputMode
+    from prompt_toolkit.keys import Keys
+
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    eb = editor.current_editor_buffer
+    key_processor = editor.application.key_processor
+    for expand_tab, expected in ((False, 'ab\tcd'), (True, 'ab' + ' ' * 8 + 'cd')):
+        editor.expand_tab = expand_tab
+        eb.buffer.document = Document('abcd', cursor_position=2)
+        editor.application.vi_state.input_mode = InputMode.INSERT
+        editor.application.layout.focus(eb.buffer)
+        with set_app(editor.application):
+            key_processor.feed(KeyPress(Keys.Tab))
+            key_processor.process_keys()
+        assert eb.buffer.text == expected, (expand_tab, eb.buffer.text)
+
+
+def test_tab_indent_binding_excludes_command_and_search_buffers(editor):
+    """The Tab indent binding still excludes the ':' and '/' prompts."""
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.key_binding.vi_state import InputMode
+
+    from vith.key_bindings import create_key_bindings
+
+    editor.load_initial_files([None])
+    editor.sync_with_prompt_toolkit()
+    document_buffer = editor.current_editor_buffer.buffer
+    binding = [
+        b
+        for b in create_key_bindings(editor).bindings
+        if getattr(b.handler, '__name__', None) == 'insert_indentation'
+    ][0]
+    with set_app(editor.application):
+        editor.application.vi_state.input_mode = InputMode.INSERT
+        editor.application.layout.focus(editor.search_buffer)
+        assert binding.filter() is False
+        editor.application.layout.focus(editor.command_buffer)
+        assert binding.filter() is False
+        editor.application.layout.focus(document_buffer)
+        assert binding.filter() is True

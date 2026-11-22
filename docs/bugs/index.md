@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 191 machine-verified findings across 11 audit rounds and 4 addenda (001–191; 190 closed, 1 withdrawn)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 192 machine-verified findings across 11 audit rounds and 4 addenda (001–192; 191 closed, 1 withdrawn)."
 status: stable
 sources:
   - docs/bugs/
@@ -36,6 +36,8 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 9 addendum (2026-11-20, user field report — [154](154.md), `fix_status: fixed`)**: vertical cursor movement (`j`/`k`), `{count}|`, visual-block selection (`<C-v>` highlight, `y`, `d`, `I`, `A`), and block paste (`p`/`P`) drifting after tabs on Thai text (and pure ASCII with tabs), fixed with tab-expanded visual-column math honoring buffer/local/global `tabstop`, visual-column block row iteration, `TextObject.operator_range` `BLOCK` corner fix, and visual-column `|` and `p`/`P`.
 * **Round 10 (2026-11-22, deep performance & algorithmic audit — [155](155.md)–[166](166.md), 11 fixed + [159](159.md) withdrawn)**: 12 machine-verified performance, memory, and algorithmic findings profiled across all 38 modules on Python 3.15.2 / `prompt_toolkit 3.0.53` / `Pygments 2.21.0` — eager 32-lexer startup imports ([155](155.md)), unconditional per-frame `TabsProcessor` fragment explosion ([156](156.md)), per-keystroke $O(\text{file size})$ `Document.current_line` copy & eager `_on_text_changed` line splits ([157](157.md)), quadratic `:join` ([158](158.md)), `:substitute` char-by-char callback ([160](160.md)), quadratic `:norm` replay ([161](161.md)), `DocumentLexer` backward-scroll leak & 215-module `guess_lexer` freeze ([162](162.md)), Thai render/Visual-Block hot spots ([163](163.md)), broken `DocumentWordsCompleter` cache key ([164](164.md)), Thai cluster/word/libthai hot spots ([165](165.md)), and secondary I/O/editing/command hot spots ([166](166.md)); [159](159.md) archived/withdrawn when the earlier experimental `:render` prototype was reverted and superseded by [`../live_render.md`](../live_render.md). Closed with regression tests in `tests/test_round10_perf.py`.
 * **Round 11 (2026-11-23, post-`v0.16.0` deep correctness audit — [167](167.md)–[191](191.md), `fix_status: fixed`)**: 25 newly discovered defects from a four-auditor read-only review of the `v0.16.0` tree (rev 410), with live reproduction probes, a 7 000-command fuzz, and a 250-case render fuzz. All 25 were fixed finding-by-finding (one commit per bug or tightly related group) with regression tests in `tests/test_round11_bugs.py` and updates to existing suites. Highlights: bare `:!{cmd}` is a silent no-op ([167](167.md), critical), `*` / `#` crash on real `KeyPressEvent.arg` ([168](168.md)), CSV cells interpreted as Rich markup corrupt content or raise `MarkupError` ([169](169.md)), `:j x` raises `ValueError` ([170](170.md)); plus render error-state defects ([171](171.md)–[173](173.md)), `:set`/`:s`/`:sort` and undo-reload semantics ([174](174.md)–[177](177.md)), config validation/no-op issues ([178](178.md), [179](179.md)), tab/visual-block/config/register invariants ([180](180.md)–[187](187.md)), and five low-severity robustness/Unicode findings ([188](188.md)–[191](191.md)). Static gates at audit time: ruff clean, mypy clean (46 files), 531 tests passing; `vith/render.py` at 83% line coverage with the error paths largely untested.
+
+* **Round 12 (2026-11-23, user field report — [192](192.md), `fix_status: fixed`)**: Tab in Insert mode did nothing while editing mid-line text because the indentation binding was gated on leading whitespace; the key press fell through to prompt_toolkit's `menu_complete`. Removed the filter (keeping the command/search buffer exclusions) and added regression tests.
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
@@ -445,6 +447,14 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [189](189.md) | `EditorBuffer.reload()` on an untitled buffer raises `TypeError` | editor-buffer/api | low | fixed |
 | [190](190.md) | Reporter permanently disabled if the executor worker raises before `ready()` (`unverified`) | reporting/concurrency | low | fixed |
 | [191](191.md) | U+0EC7 hard-coded as zero-width combining mark though unassigned (width 1) | thai/unicode | low | fixed |
+
+## Round 12 Findings (2026-11-23 user field report)
+
+### Defects (`type: bug`)
+
+| ID | Finding | Area | Priority | Status |
+| :-- | :--- | :--- | :--- | :--- |
+| [192](192.md) | Tab cannot be pressed while editing text in Insert mode — whitespace-only filter falls through to completion | key-bindings/insert | medium | fixed |
 
 ## Meta
 
