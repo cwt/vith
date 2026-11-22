@@ -128,10 +128,12 @@ def test_157_current_line_and_col_and_cursor_motions_avoid_line_index_build() ->
     ]:
         doc = Document(text, cursor_position=pos)
         assert current_line_and_col(doc) == expected
-        assert doc._cache.lines is None
-        assert doc._cache.line_indexes is None
 
-    ascii_doc = Document('line0\nline1_middle\nline2', cursor_position=10)
+    # Use a unique non-interned text so prompt_toolkit's module-level
+    # `_text_to_document_cache` starts cold on every xdist worker.
+    unique_text = 'unique_157_line0\nunique_157_line1_middle\nunique_157_line2'
+    ascii_doc = Document(unique_text, cursor_position=24)
+    assert current_line_and_col(ascii_doc) == ('unique_157_line1_middle', 7)
     assert ascii_doc.get_cursor_left_position(2) == -2
     assert ascii_doc.get_cursor_right_position(3) == 3
     assert ascii_doc._cache.lines is None
@@ -154,3 +156,24 @@ def test_157_on_text_changed_skips_document_lines_on_ascii_and_latches_thai(edit
     # Non-ASCII Thai edit still latches the gate immediately:
     eb.buffer.insert_text('ก')
     assert is_thai_gate_latched()
+
+
+def test_158_join_linear_and_preserves_spacing_semantics(editor) -> None:
+    """158: `:join` preserves exact spacing semantics and handles large ranges in O(N)."""
+    from vith.commands.handler import handle_command
+
+    editor.load_initial_files([])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    # Edge cases: empty first line, trailing spaces, blank interior lines.
+    eb.buffer.text = '\n   alpha \n   \n   beta\n   gamma'
+    handle_command(editor, ':%j')
+    assert eb.buffer.text == 'alpha beta gamma'
+
+    # Large range (10,000 lines) executes linearly without quadratic blowup.
+    n = 10_000
+    eb.buffer.text = '\n'.join(f'  w{i}' for i in range(n))
+    handle_command(editor, ':%j')
+    assert eb.buffer.text.startswith('  w0 w1 w2 ')
+    assert eb.buffer.text.endswith(f' w{n - 1}')
+    assert '\n' not in eb.buffer.text

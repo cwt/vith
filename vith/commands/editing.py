@@ -324,15 +324,19 @@ def join_lines(editor: Any, variables: Any) -> None:
     if variables.get('force'):
         joined = ''.join(segment)
     else:
-        joined = segment[0]
+        # Accumulate into a list and join once in O(total chars) instead of
+        # quadratic `joined = joined + ' ' + stripped` concatenation (docs/bugs/158.md).
+        parts: list[str] = [segment[0]]
+        last_piece = segment[0]
         for part in segment[1:]:
             stripped = part.lstrip()
             if not stripped:
                 continue
-            if joined and not joined[-1].isspace():
-                joined = joined + ' ' + stripped
-            else:
-                joined = joined + stripped
+            if last_piece and not last_piece[-1].isspace():
+                parts.append(' ')
+            parts.append(stripped)
+            last_piece = stripped
+        joined = ''.join(parts)
 
     splice_buffer_lines(editor, eb, start_row, end_row, [joined], start_row, first_non_blank=True)
 
