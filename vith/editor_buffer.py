@@ -10,6 +10,7 @@ from prompt_toolkit.filters import to_filter
 from vith.cold_text import ColdTextBuffer, make_cold_text_compressor
 from vith.completion import DocumentCompleter
 from vith.io.base import find_backend
+from vith.lexer import sniff_filetype_from_text
 from vith.reporting import checks_python_file, report
 from vith.thai import current_line_and_col, is_thai_gate_latched, note_document_text
 
@@ -159,22 +160,10 @@ class EditorBuffer:
         if not text and hasattr(self, 'buffer'):
             text = self.buffer.text
         if text:
-            first_line = text.split('\n', 1)[0]
-            if first_line.startswith('#!') and 'python' in first_line:
-                self._detected_filetype = 'python'
+            sniffed = sniff_filetype_from_text(text)
+            if sniffed:
+                self._detected_filetype = sniffed
                 return self._detected_filetype
-            try:
-                from pygments.lexers import guess_lexer
-
-                sample = text if len(text) <= 4096 else text[:4096]
-                if sample.strip():
-                    lexer = guess_lexer(sample)
-                    aliases = getattr(lexer, 'aliases', None)
-                    if aliases:
-                        self._detected_filetype = aliases[0].lower()
-                        return self._detected_filetype
-            except Exception:
-                pass
         self._detected_filetype = ''
         return ''
 

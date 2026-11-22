@@ -407,7 +407,7 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [159](159.md) | Quadratic $O(K^2)$ whole-document join in `:render` HTML fallback `_Renderer._ensure_block` (97.6 ms at 4k `<p>` tags) | commands/render | **high** | fixed |
 | [160](160.md) | `:substitute` runs a per-match char-by-char Python callback even for literals and plain backreferences (428 ms vs 11.3 ms) | commands/substitute | medium | fixed |
 | [161](161.md) | Quadratic $O(R \cdot N)$ `:norm` line replay and uncached `KeyProcessor` rebuild (478 ms on 2k lines) | commands/normal | medium | fixed |
-| [162](162.md) | `DocumentLexer` unbounded `line_generators` leak (+18.4 MB on 642 KB file), out-of-range EOF drain, and 215-module `guess_lexer` freeze | lexer/memory | medium | open |
+| [162](162.md) | `DocumentLexer` unbounded `line_generators` leak (+18.4 MB on 642 KB file), out-of-range EOF drain, and 215-module `guess_lexer` freeze | lexer/memory | medium | fixed |
 | [163](163.md) | Thai per-frame render overhead in `_sanitize_and_invalidate_sara_am`, `_patched_copy_body`, and Visual Block `_thai_selection_range_at_line` | thai/rendering | medium | open |
 | [164](164.md) | `DocumentWordsCompleter` reads nonexistent `editor_buffer._text_version` (stale in prod) and breaks P3 if wired to `_text_version` | completion/caching | medium | open |
 | [165](165.md) | Thai cluster & word-motion hot spots: `_compute_cell_columns` slices/generators, linear word-span scans, and `libthai` ctypes `*gen` | thai/algorithms | low | open |

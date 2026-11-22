@@ -302,3 +302,67 @@ def test_161_normal_caches_key_processor_suppresses_intermediate_hooks_and_stays
     eb.buffer.text = 'keep 1\ndrop a\nkeep 2\ndrop b\nkeep 3'
     handle_command(editor, ':g/drop/norm dd')
     assert eb.buffer.document.lines == ['keep 1', 'keep 2', 'keep 3']
+
+
+def test_162_sniff_filetype_avoids_pygments_guess_lexer_import_storm() -> None:
+    """162: Plain extensionless/unnamed buffers must not import 215 Pygments lexer modules."""
+    code = (
+        "import sys\n"
+        "from vith.editor import Editor\n"
+        "from vith.lexer import DocumentLexer, sniff_filetype_from_text\n"
+        "from prompt_toolkit.document import Document\n"
+        "before = {m for m in sys.modules if m.startswith('pygments.lexers.')}\n"
+        "for plain in ('12345\\n67890\\n', 'README\\nPlain notes\\n', 'สวัสดีชาวโลก\\n'):\n"
+        "    assert sniff_filetype_from_text(plain) is None\n"
+        "assert sniff_filetype_from_text('#!/usr/bin/env bash\\necho hi\\n') == 'bash'\n"
+        "assert sniff_filetype_from_text('#!/usr/bin/env -S python3.14\\nprint(1)\\n') == 'python'\n"
+        "assert sniff_filetype_from_text('<!DOCTYPE html><html></html>') == 'html'\n"
+        "assert sniff_filetype_from_text('<?xml version=\"1.0\"?><a/>') == 'xml'\n"
+        "assert sniff_filetype_from_text('<?php echo 1;') == 'php'\n"
+        "assert sniff_filetype_from_text('{\"key\": [1, 2]}') == 'json'\n"
+        "assert sniff_filetype_from_text('diff --git a/x b/x\\n--- a/x\\n+++ b/x\\n') == 'diff'\n"
+        "e = Editor()\n"
+        "e.load_initial_files([None])\n"
+        "eb = e.window_arrangement.active_editor_buffer\n"
+        "eb.buffer.text = '12345\\n67890\\n'\n"
+        "assert eb.filetype == ''\n"
+        "assert eb.tabstop == e.tabstop\n"
+        "after = {m for m in sys.modules if m.startswith('pygments.lexers.')}\n"
+        "loaded = sorted(m for m in (after - before) if m != 'pygments.lexers._mapping')\n"
+        "assert not loaded, f'Unexpected Pygments lexer imports: {loaded}'\n"
+    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+
+
+def test_162_document_lexer_bounds_line_generators_and_guards_eof() -> None:
+    """162: Backward jumps cap active `line_generators` and out-of-range `get_line` returns `[]` in O(1)."""
+    from prompt_toolkit.document import Document
+
+    from vith.lexer import DocumentLexer
+
+    class _StubEB:
+        def __init__(self, location: str, text: str) -> None:
+            self.location = location
+            self.in_file_explorer_mode = False
+            self.filetype_override = None
+            self.buffer = type('_B', (), {'text': text, '_text_version': 0})()
+
+    py_text = '\n'.join(f'def f_{i}():\n    return {i}' for i in range(600))
+    doc = Document(py_text, 0)
+    lexer = DocumentLexer(_StubEB('sample.py', py_text))
+    get_line = lexer.lex_document(doc)
+
+    # Out-of-range lines return [] immediately without creating/draining a generator.
+    assert get_line(-1) == []
+    assert get_line(len(doc.lines)) == []
+    assert get_line(len(doc.lines) + 50) == []
+
+    # Backward jumps cap `line_generators` at `MAX_LINE_GENERATORS` (<= 2).
+    for row in range(1100, 100, -150):
+        frags = get_line(row)
+        assert frags
+    closure = dict(
+        zip(get_line.__code__.co_freevars, (c.cell_contents for c in get_line.__closure__))
+    )
+    assert len(closure['line_generators']) <= DocumentLexer.MAX_LINE_GENERATORS

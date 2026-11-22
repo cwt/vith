@@ -1,3 +1,6 @@
+import json
+import os
+import re
 from functools import lru_cache
 from typing import Any
 
@@ -15,7 +18,133 @@ try:
 except ImportError:
     _STREAMING_AVAILABLE = False
 
-__all__ = ('DocumentLexer',)
+__all__ = ('DocumentLexer', 'sniff_filetype_from_text')
+
+_SHEBANG_VERSION_RE = re.compile(r'[\d.]+$')
+_SHEBANG_INTERPRETER_MAP: dict[str, str] = {
+    'python': 'python',
+    'pypy': 'python',
+    'micropython': 'python',
+    'bash': 'bash',
+    'sh': 'bash',
+    'zsh': 'bash',
+    'dash': 'bash',
+    'ksh': 'bash',
+    'ash': 'bash',
+    'mksh': 'bash',
+    'fish': 'fish',
+    'node': 'javascript',
+    'nodejs': 'javascript',
+    'deno': 'javascript',
+    'bun': 'javascript',
+    'ts-node': 'typescript',
+    'tsx': 'typescript',
+    'ruby': 'ruby',
+    'jruby': 'ruby',
+    'perl': 'perl',
+    'lua': 'lua',
+    'luajit': 'lua',
+    'php': 'php',
+    'awk': 'awk',
+    'gawk': 'awk',
+    'mawk': 'awk',
+    'nawk': 'awk',
+    'rscript': 'r',
+    'pwsh': 'powershell',
+    'powershell': 'powershell',
+    'tclsh': 'tcl',
+    'wish': 'tcl',
+    'sed': 'sed',
+}
+_JSON_OBJECT_START_RE = re.compile(r'^\{\s*"[^"\n]+"\s*:')
+_PYTHON_DEF_OR_CLASS_RE = re.compile(
+    r'^(?:async\s+)?(?:def\s+[A-Za-z_]\w*\s*\([^)]*\)\s*(?:->\s*[^:\n]+)?'
+    r'|class\s+[A-Za-z_]\w*(?:\s*\([^)]*\))?):\s*(?:#.*)?$',
+    re.MULTILINE,
+)
+_PYTHON_IMPORT_RE = re.compile(
+    r'^(?:from\s+[A-Za-z_][\w.]*\s+import\s+\S+|import\s+[A-Za-z_][\w.]*(?:\s+as\s+[A-Za-z_]\w*)?)\s*(?:#.*)?$',
+    re.MULTILINE,
+)
+_PYTHON_BODY_HINT_RE = re.compile(
+    r'(?:^if\s+__name__\s*==|^\s+return\b|\bprint\()',
+    re.MULTILINE,
+)
+
+
+def _filetype_from_shebang(first_line: str) -> str | None:
+    """Resolve a canonical Pygments alias from a `#!` shebang line."""
+    parts = first_line[2:].strip().split()
+    if not parts:
+        return None
+    cmd = os.path.basename(parts[0]).lower()
+    if cmd == 'env':
+        cmd = ''
+        for tok in parts[1:]:
+            if tok.startswith('-'):
+                continue
+            if '=' in tok and not tok.startswith('='):
+                continue
+            cmd = os.path.basename(tok).lower()
+            break
+    if not cmd:
+        return None
+    mapped = _SHEBANG_INTERPRETER_MAP.get(cmd)
+    if mapped is not None:
+        return mapped
+    stripped = _SHEBANG_VERSION_RE.sub('', cmd)
+    if stripped:
+        return _SHEBANG_INTERPRETER_MAP.get(stripped)
+    return None
+
+
+def sniff_filetype_from_text(text: str) -> str | None:
+    """
+    Lightweight, deterministic content sniffer returning a canonical Pygments
+    lexer alias (or `None` for plain text) without calling
+    `pygments.lexers.guess_lexer()`, which imports all 215+ Pygments lexer
+    modules (~67-89 ms freeze; docs/bugs/162.md).
+    """
+    if not text or not text.strip():
+        return None
+
+    sample = text if len(text) <= 4096 else text[:4096]
+    first_line = sample.split('\n', 1)[0].strip()
+    if first_line.startswith('#!'):
+        shebang_ft = _filetype_from_shebang(first_line)
+        if shebang_ft is not None:
+            return shebang_ft
+
+    stripped = sample.lstrip()
+    head = stripped[:64].lower()
+    if head.startswith('<?php'):
+        return 'php'
+    if head.startswith(('<!doctype html', '<html')):
+        return 'html'
+    if head.startswith('<?xml'):
+        return 'xml'
+    if sample.startswith('diff --git ') or (
+        '\n--- ' in '\n' + sample and '\n+++ ' in sample and '\n@@ ' in sample
+    ):
+        return 'diff'
+
+    if stripped.startswith(('{', '[')):
+        if len(text) <= 65536:
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, (dict, list)):
+                return 'json'
+        elif _JSON_OBJECT_START_RE.match(stripped):
+            return 'json'
+
+    if _PYTHON_DEF_OR_CLASS_RE.search(sample) or (
+        _PYTHON_IMPORT_RE.search(sample) and _PYTHON_BODY_HINT_RE.search(sample)
+    ):
+        return 'python'
+
+    return None
 
 
 # Cache from Pygments token type to prompt_toolkit style class name.
@@ -40,12 +169,14 @@ class DocumentLexer(Lexer):
 
     MIN_LINES_BACKWARDS = 50
     REUSE_GENERATOR_MAX_DISTANCE = 100
+    MAX_LINE_GENERATORS = 2
 
     def __init__(self, editor_buffer: Any) -> None:
         self.editor_buffer = editor_buffer
         self._cached_location: str | None = None
         self._cached_filetype: str | None = None
         self._cached_text_version: int = -1
+        self._filename_lookup_missed: bool = False
         self._pygments_lexer: Any = None
         self._syntax_sync: Any = None
         self._directory_lexer: Any = None
@@ -75,26 +206,22 @@ class DocumentLexer(Lexer):
     def _sniff_lexer_for_location(self, location: str | None) -> Any | None:
         """
         Guess a Pygments lexer from buffer content for files Pygments cannot
-        identify by name (extensionless scripts, docs/bugs/121.md).
+        identify by name (extensionless scripts, docs/bugs/121.md, 162.md).
 
-        Returns a lexer instance, or `None` when nothing can be guessed.
-        The result is cached per location by `_ensure_lexer`, so the
-        registry scan happens at most once per file.
+        Uses `sniff_filetype_from_text` so plain extensionless files never
+        import all 215+ Pygments lexer modules via `guess_lexer()`.
         """
         buffer = getattr(self.editor_buffer, 'buffer', None)
         text = getattr(buffer, 'text', '')
         if not isinstance(text, str) or not text.strip():
             return None
-        first_line = text.split('\n', 1)[0]
-        if first_line.startswith('#!') and 'python' in first_line:
-            from pygments.lexers.python import PythonLexer
-
-            return PythonLexer(stripnl=False, stripall=False, ensurenl=False)
+        filetype = sniff_filetype_from_text(text)
+        if not filetype:
+            return None
         try:
-            from pygments.lexers import guess_lexer
+            from pygments.lexers import get_lexer_by_name
 
-            sample = text if len(text) <= 4096 else text[:4096]
-            return guess_lexer(sample)
+            return get_lexer_by_name(filetype, stripnl=False, stripall=False, ensurenl=False)
         except Exception:
             return None
 
@@ -113,22 +240,23 @@ class DocumentLexer(Lexer):
         """Load/cache the Pygments lexer for this location."""
         override = getattr(self.editor_buffer, 'filetype_override', None)
         text_version = getattr(getattr(self.editor_buffer, 'buffer', None), '_text_version', 0)
+        location_unchanged = self._cached_location == location and self._cached_filetype == override
         miss_is_fresh = self._pygments_lexer is not None or (
             _STREAMING_AVAILABLE and self._cached_text_version == text_version
         )
-        if (
-            self._cached_location == location
-            and self._cached_filetype == override
-            and miss_is_fresh
-        ):
+        if location_unchanged and miss_is_fresh:
             # Already looked up: reuse the result (including a cached miss,
             # so we don't re-scan the Pygments registry on every edit).
             return self._pygments_lexer is not None
+
+        if not location_unchanged:
+            self._filename_lookup_missed = False
 
         # `:set filetype=...` takes precedence over filename detection.
         if override:
             lexer_inst = self._lexer_for_override(override)
             if lexer_inst is not None:
+                self._filename_lookup_missed = False
                 if not _STREAMING_AVAILABLE:
                     self._pygments_lexer = PygmentsLexer(
                         lexer_inst.__class__, sync_from_start=False
@@ -165,18 +293,19 @@ class DocumentLexer(Lexer):
             self._syntax_sync = None
             return self._pygments_lexer is not None
 
-        from pygments.lexers import get_lexer_for_filename
-        from pygments.util import ClassNotFound
+        lexer_inst = None
+        if location and not self._filename_lookup_missed:
+            from pygments.lexers import get_lexer_for_filename
+            from pygments.util import ClassNotFound
 
-        try:
-            lexer_inst = (
-                get_lexer_for_filename(location, stripnl=False, stripall=False, ensurenl=False)
-                if location
-                else None
-            )
-            if lexer_inst is None:
-                raise ClassNotFound('no location')
-        except ClassNotFound:
+            try:
+                lexer_inst = get_lexer_for_filename(
+                    location, stripnl=False, stripall=False, ensurenl=False
+                )
+            except ClassNotFound:
+                self._filename_lookup_missed = True
+
+        if lexer_inst is None:
             lexer_inst = self._sniff_lexer_for_location(location)
             if lexer_inst is None:
                 self._cached_location = location
@@ -218,6 +347,8 @@ class DocumentLexer(Lexer):
 
             cache: dict[int, list[Any]] = {}
             line_generators: dict[Any, int] = {}
+            num_lines = len(document.lines)
+            max_generators = self.MAX_LINE_GENERATORS
 
             def create_line_generator(start_lineno, column=0):
                 def get_text_fragments():
@@ -256,10 +387,19 @@ class DocumentLexer(Lexer):
                 if column:
                     next(generator)
                     row += 1
+                # Evict and close the least-recently-used generator before
+                # inserting so old `document.text[start_index:]` slices are
+                # freed immediately on backward scrolls (docs/bugs/162.md).
+                while len(line_generators) >= max_generators:
+                    oldest_gen = next(iter(line_generators))
+                    del line_generators[oldest_gen]
+                    oldest_gen.close()
                 line_generators[generator] = row
                 return generator
 
             def get_line(i):
+                if i < 0 or i >= num_lines:
+                    return []
                 try:
                     return cache[i]
                 except KeyError:
@@ -267,10 +407,12 @@ class DocumentLexer(Lexer):
                     for num, line in generator:
                         cache[num] = line
                         if num == i:
+                            line_generators.pop(generator, None)
                             line_generators[generator] = i
                             if num + 1 in cache:
                                 del cache[num + 1]
                             return cache[num]
+                    line_generators.pop(generator, None)
                     return []
 
             return get_line
