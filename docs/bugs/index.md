@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 203 machine-verified findings across 17 audit rounds and 4 addenda (001–203; 195 fixed, 1 withdrawn, 7 open)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 203 machine-verified findings across 17 audit rounds and 4 addenda (001–203; 202 fixed, 1 withdrawn)."
 status: stable
 sources:
   - docs/bugs/
