@@ -506,7 +506,7 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [200](200.md) | `:norm` uses identity (`is not`) instead of equality (`!=`) for buffer-text change detection | commands/normal | low | fixed |
 | [201](201.md) | `FiletypeTabstops` alias contract breaks on delete/pop and accepts unvalidated values | editor/filetype | low | fixed |
 | [202](202.md) | `HttpIO.read` has no timeout, headers, or error mapping and can hang the TUI | io/http | medium | fixed |
-| [203](203.md) | Cell-cluster `x`/`X`/`~` (and `i`/`a`) miss the read-only guard that `s`/`>>`/`<<`/`o`/`O` have | key-bindings/read-only | medium | open |
+| [203](203.md) | Cell-cluster `x`/`X`/`~` (and `i`/`a`) miss the read-only guard that `s`/`>>`/`<<`/`o`/`O` have | key-bindings/read-only | medium | fixed |
 
 ## Meta
 

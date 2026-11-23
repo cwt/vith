@@ -745,3 +745,20 @@ def test_default_expandtab_is_off_like_vim(editor):
         key_processor.feed(KeyPress(Keys.Tab))
         key_processor.process_keys()
     assert eb.buffer.text == 'ab\tcd'
+
+
+def test_203_cell_edits_require_writable_buffer():
+    # 203: x/X/i/a/~/r must carry ~is_read_only like s/>>/<</o/O.
+    src = open('vith/key_bindings.py').read()
+
+    for key in ("@kb.add('x'", "@kb.add('X'", "@kb.add('i'", "@kb.add('a'"):
+        line = next(ln for ln in src.splitlines() if ln.strip().startswith(key))
+        assert '~is_read_only' in line, line
+    tilde_line = next(
+        ln for ln in src.splitlines() if ln.strip().startswith("@kb.add('~'")
+    )
+    assert '~is_read_only' in tilde_line, tilde_line
+    replace_line = next(
+        ln for ln in src.splitlines() if 'vi_replace_single_mode' in ln and 'Keys.Any' in ln
+    )
+    assert '~is_read_only' in replace_line, replace_line

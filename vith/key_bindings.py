@@ -481,14 +481,14 @@ def create_key_bindings(editor):
     # Ensure `x`, `X`, `s`, `r`, `~`, `$`, `e`, and `E` operate on whole
     # visual cell clusters (`base + comb*`) rather than slicing raw codepoints.
 
-    @kb.add('x', filter=vi_navigation_mode)
+    @kb.add('x', filter=vi_navigation_mode & ~is_read_only)
     def delete_cell_after_cursor(event):
         """
         Delete `event.arg` cell clusters at/after the cursor on the current line.
         """
         _delete_cell_clusters(event, backward=False)
 
-    @kb.add('X', filter=vi_navigation_mode)
+    @kb.add('X', filter=vi_navigation_mode & ~is_read_only)
     def delete_cell_before_cursor(event):
         """
         Delete `event.arg` cell clusters before the cursor on the current line.
@@ -511,14 +511,14 @@ def create_key_bindings(editor):
     # the repeat count, `Esc`/`Ctrl-[` replay the typed text. The text-object
     # exclusion keeps operator-pending `iw`/`aw` (e.g. `diw`) on the
     # prompt_toolkit path.
-    @kb.add('i', filter=in_navigation_mode & ~vi_waiting_for_text_object_mode)
+    @kb.add('i', filter=in_navigation_mode & ~is_read_only & ~vi_waiting_for_text_object_mode)
     def insert_with_count(event):
         """
         Enter insert mode, replaying typed text `event.arg` times on exit.
         """
         _begin_counted_insert(event, move_right=False)
 
-    @kb.add('a', filter=in_navigation_mode & ~vi_waiting_for_text_object_mode)
+    @kb.add('a', filter=in_navigation_mode & ~is_read_only & ~vi_waiting_for_text_object_mode)
     def append_with_count(event):
         """
         Move one character right and enter insert mode (counted like `i`).
@@ -534,7 +534,7 @@ def create_key_bindings(editor):
         """
         _leave_insert_with_repeat(event)
 
-    @kb.add(Keys.Any, filter=vi_replace_single_mode)
+    @kb.add(Keys.Any, filter=vi_replace_single_mode & ~is_read_only)
     def replace_single_cell(event):
         """
         Replace `event.arg` cell clusters at the cursor position with a
@@ -542,7 +542,7 @@ def create_key_bindings(editor):
         """
         _replace_cell_clusters(event)
 
-    @kb.add('~', filter=vi_navigation_mode & ~tilde_operator_enabled)
+    @kb.add('~', filter=vi_navigation_mode & ~is_read_only & ~tilde_operator_enabled)
     def reverse_case_cell(event):
         """
         Swap case of the current cell cluster and advance one cell cluster.
