@@ -220,3 +220,25 @@ def test_preview_set_filetype(editor, tmp_path):
     previewer.restore()
     assert eb.filetype == 'text'
     assert eb.tabstop == 8
+
+
+def test_filetype_tabstops_alias_delete_and_validation_201():
+    # 201: alias-aware delete/pop + value validation.
+    ft = FiletypeTabstops({'python': 4})
+    assert 'py' in ft
+    assert ft.pop('py') == 4
+    assert 'python' not in ft
+
+    ft = FiletypeTabstops({'python': 4})
+    del ft['py']
+    assert 'python' not in ft
+
+    import pytest
+
+    for bad in (0, -1, True, False, 2.9, '4'):
+        with pytest.raises(ValueError):
+            ft['python'] = bad
+    with pytest.raises(ValueError):
+        ft.setdefault('py', 0)
+    assert ft.setdefault('py', 4) == 4
+    assert ft['python'] == 4

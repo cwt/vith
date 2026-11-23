@@ -164,8 +164,31 @@ class FiletypeTabstops(dict[str, int]):
         self.update(*args, **kwargs)
 
     def __setitem__(self, key: str, value: int) -> None:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError('tabstop must be an integer >= 1')
+        if value < 1:
+            raise ValueError('tabstop must be an integer >= 1')
         canonical = _canonical_filetype(str(key).lower())
-        super().__setitem__(canonical, int(value))
+        super().__setitem__(canonical, value)
+
+    def __delitem__(self, key: str) -> None:
+        canonical = _canonical_filetype(str(key).lower())
+        super().__delitem__(canonical)
+
+    def pop(self, key: str, *args: Any) -> Any:
+        canonical = _canonical_filetype(str(key).lower())
+        return super().pop(canonical, *args)
+
+    def popitem(self) -> tuple[str, int]:
+        return super().popitem()
+
+    def setdefault(self, key: str, default: Any = None) -> Any:  # type: ignore[override]
+        canonical = _canonical_filetype(str(key).lower())
+        if default is None:
+            return super().setdefault(canonical, None)  # type: ignore[arg-type]
+        if isinstance(default, bool) or not isinstance(default, int) or default < 1:
+            raise ValueError('tabstop must be an integer >= 1')
+        return super().setdefault(canonical, default)
 
     def update(self, *args: Any, **kwargs: Any) -> None:
         other = dict(*args, **kwargs)
