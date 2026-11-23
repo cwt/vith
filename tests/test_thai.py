@@ -1578,7 +1578,10 @@ def test_win32_input_patch_accepts_conpty_vk_menu_keyup(monkeypatch) -> None:
 
     from ctypes.wintypes import DWORD
 
-    from prompt_toolkit.input.win32 import ConsoleInputReader, Vt100ConsoleInputReader
+    from prompt_toolkit.input.win32 import (  # type: ignore[attr-defined]
+        ConsoleInputReader,
+        Vt100ConsoleInputReader,
+    )
     from prompt_toolkit.win32_types import INPUT_RECORD
 
     assert thai.install_prompt_toolkit_thai_patches() is True
@@ -1627,7 +1630,10 @@ def test_version_gate_rollback_covers_win32_input_patch(monkeypatch) -> None:
     if sys.platform != "win32":
         pytest.skip("Win32 console input patch only applies on Windows")
 
-    from prompt_toolkit.input.win32 import ConsoleInputReader, Vt100ConsoleInputReader
+    from prompt_toolkit.input.win32 import (  # type: ignore[attr-defined]
+        ConsoleInputReader,
+        Vt100ConsoleInputReader,
+    )
 
     for cls in (Vt100ConsoleInputReader, ConsoleInputReader):
         orig = getattr(cls._get_keys, "_vith_original", None)

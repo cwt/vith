@@ -112,6 +112,8 @@ For full technical details (architecture, Rich-to-`prompt_toolkit` style bridgin
 
 Vith uses a declarative TOML configuration file loaded from `~/.config/vith/config.toml` (or `~/.vithrc`). Advanced Python callbacks and keybindings can be placed in `~/.config/vith/hooks/` and registered under `[hooks]`.
 
+Wide-emoji note: terminals that widen emoji presentation (Kitty, Alacritty, szn with `variation-selector-always-wide on`) render some narrow bases followed by U+FE0F (e.g. `❤️`) as 2 cells. Set `variation_selector_always_wide = true` under `[editor]` in `config.toml` (or `:set variation_selector_always_wide`) so vith counts them as 2 cells and keeps cursor, wrapping, and block selection aligned.
+
 Have a look at these examples:
 - TOML configuration: [`config.toml`](examples/config/config.toml)
 - Modular Python hook: [`build-and-run.py`](examples/config/hooks/build-and-run.py)

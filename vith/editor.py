@@ -196,6 +196,46 @@ class Editor:
     :param output: (Optionally) `prompt_toolkit.output.Output` object.
     """
 
+    @property
+    def variation_selector_always_wide(self) -> bool:
+        try:
+            import vith.thai.clusters as _clusters_mod
+
+            if getattr(_clusters_mod, 'variation_selector_always_wide', False) or getattr(
+                _clusters_mod, 'VARIATION_SELECTOR_ALWAYS_WIDE', False
+            ):
+                return True
+        except Exception:
+            pass
+        try:
+            import vith.thai as _thai_mod
+
+            if getattr(_thai_mod, 'variation_selector_always_wide', False) or getattr(
+                _thai_mod, 'VARIATION_SELECTOR_ALWAYS_WIDE', False
+            ):
+                return True
+        except Exception:
+            pass
+        return bool(getattr(self, '_variation_selector_always_wide', False))
+
+    @variation_selector_always_wide.setter
+    def variation_selector_always_wide(self, value: bool) -> None:
+        self._variation_selector_always_wide = bool(value)
+        try:
+            import vith.thai.clusters as _clusters_mod
+
+            _clusters_mod.variation_selector_always_wide = bool(value)
+            _clusters_mod.VARIATION_SELECTOR_ALWAYS_WIDE = bool(value)
+        except Exception:
+            pass
+        try:
+            import vith.thai as _thai_mod
+
+            _thai_mod.variation_selector_always_wide = bool(value)
+            _thai_mod.VARIATION_SELECTOR_ALWAYS_WIDE = bool(value)
+        except Exception:
+            pass
+
     def __init__(self, config_directory='~/.vith', input=None, output=None):
         set_process_name('vith')
         install_prompt_toolkit_thai_patches()
@@ -232,6 +272,9 @@ class Editor:
         self.break_indent = False  # ':set breakindent'
         self.cursorline = False  # ':set cursorline'
         self.cursorcolumn = False  # ':set cursorcolumn'
+        # Opt-in: treat VS16-promoted narrow emoji bases as 2 cells
+        # (szn `variation-selector-always-wide`).
+        self._variation_selector_always_wide = False
         self.colorcolumn = []  # ':set colorcolumn'. List of integers.
         self.fileformat = 'unix'  # ':set fileformat' (dos/unix/mac).
         # Live `:render` split preview defaults (configurable via `[render]` in config.toml).

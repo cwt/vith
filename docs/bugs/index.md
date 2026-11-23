@@ -473,6 +473,7 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | ID | Finding | Area | Priority | Status |
 | :-- | :--- | :--- | :--- | :--- |
 | [194](194.md) | Environment variables (`%VAR%` on Windows, `$VAR`/`${VAR}`) not expanded in CLI, Ex command, config, or completion paths | io/commands/paths | medium | fixed |
+| [195](195.md) | VS16-promoted narrow emoji counted as 1 cell instead of 2 (wide emoji drift) | thai/unicode/display-width | medium | fixed |
 
 ## Meta
 

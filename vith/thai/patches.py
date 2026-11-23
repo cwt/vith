@@ -44,7 +44,8 @@ from prompt_toolkit.layout.processors import (
     explode_text_fragments,
 )
 from prompt_toolkit.layout.screen import Char, Screen
-from prompt_toolkit.utils import get_cwidth, to_int, to_str
+from prompt_toolkit.utils import get_cwidth as _ORIGINAL_PTK_GET_CWIDTH
+from prompt_toolkit.utils import to_int, to_str
 
 try:
     from prompt_toolkit.layout.containers import _CHAR_CACHE as _PtkCharCache
@@ -64,6 +65,7 @@ from .classify import (
     is_sara_am,
 )
 from .clusters import (  # noqa: F401
+    _VS16_NARROW_BASES,
     DEFAULT_TABSTOP,
     _cell_columns,
     _cell_ordinal,
@@ -71,6 +73,7 @@ from .clusters import (  # noqa: F401
     _line_visual_width,
     _map_column_across_lines,
     _start_of_cell_ordinal,
+    _vsaw_enabled,
     current_line_and_col,
     next_cell_offset,
     prev_cell_offset,
@@ -86,6 +89,9 @@ from .words import (
     find_previous_word_ending,
     find_start_of_previous_word,
 )
+
+# Keep a module-level alias used by the rest of this file.
+get_cwidth = _ORIGINAL_PTK_GET_CWIDTH
 
 __all__ = (
     "install_prompt_toolkit_thai_patches",
@@ -550,6 +556,46 @@ def _apply_patch(
     setattr(target, attr_name, wrapper)
     if applied is not None:
         applied.append((target, attr_name, orig_fn))
+
+
+def _vith_get_cwidth(string: str) -> int:
+    """prompt_toolkit-compatible width that honors VS16-always-wide."""
+    if not _vsaw_enabled():
+        return _ORIGINAL_PTK_GET_CWIDTH(string)
+    total = 0
+    i = 0
+    n = len(string)
+    while i < n:
+        ch = string[i]
+        if i + 1 < n and ord(ch) in _VS16_NARROW_BASES and string[i + 1] == "\ufe0f":
+            total += 2
+            i += 2
+            continue
+        total += _ORIGINAL_PTK_GET_CWIDTH(ch)
+        i += 1
+    return total
+
+
+def _install_get_cwidth_patch() -> None:
+    """Point prompt_toolkit (and vith) get_cwidth at the VS16-aware wrapper."""
+    try:
+        import prompt_toolkit.utils as _ptk_utils
+
+        _ptk_utils.get_cwidth = _vith_get_cwidth
+    except Exception:
+        pass
+    # Patch every module that imported get_cwidth by name so the override
+    # actually takes effect in renderer/cursor/layout code paths.
+    import sys as _sys
+
+    for _mod in list(_sys.modules.values()):
+        if _mod is None:
+            continue
+        try:
+            if getattr(_mod, "get_cwidth", None) is _ORIGINAL_PTK_GET_CWIDTH:
+                setattr(_mod, "get_cwidth", _vith_get_cwidth)
+        except Exception:
+            continue
 
 
 def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | None = None) -> bool:
@@ -1490,6 +1536,7 @@ def install_prompt_toolkit_thai_patches() -> bool:
         _install_renderer_patch(applied)
         _install_tabs_processor_patch(applied)
         _install_win32_input_patch(applied)
+        _install_get_cwidth_patch()
 
         # Startup self-test required by Section 4.1:
         _thai_install_selftest()

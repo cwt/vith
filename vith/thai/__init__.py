@@ -37,12 +37,14 @@ from .classify import (
     is_thai_right_attaching,
 )
 from .clusters import (
+    VARIATION_SELECTOR_ALWAYS_WIDE,
     cell_starts,
     cell_stops,
     current_line_and_col,
     next_cell_offset,
     prev_cell_offset,
     snap_to_cell_start,
+    variation_selector_always_wide,
 )
 from .patches import (
     install_prompt_toolkit_thai_patches,
@@ -86,6 +88,9 @@ __all__ = (
     "cell_starts",
     "cell_stops",
     "current_line_and_col",
+    # VS16 emoji presentation width (variation-selector-always-wide)
+    "variation_selector_always_wide",
+    "VARIATION_SELECTOR_ALWAYS_WIDE",
     # Syllable & word segmentation / motions
     "find_thai_cluster_end",
     "find_thai_word_breaks",

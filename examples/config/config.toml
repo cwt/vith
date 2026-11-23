@@ -25,6 +25,10 @@ list = true
 # Use Jedi for autocompletion of Python files (:set jedi)
 jedi = true
 
+# Treat VS16-promoted narrow emoji bases (e.g. ❤️) as 2 terminal cells to
+# match terminals that widen emoji presentation (szn: variation-selector-always-wide)
+variation_selector_always_wide = false
+
 # Cold-text compression for undo/redo snapshots
 # Options: zstd (default), zlib, zlib-fast, zlib-best, lzo, none
 cold_text_compression = "zstd"

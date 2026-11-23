@@ -11,7 +11,42 @@ from typing import Any
 
 from prompt_toolkit.utils import get_cwidth
 
+try:
+    from wcwidth.table_vs16 import VS16_NARROW_TO_WIDE as _WCWIDTH_VS16_NARROW_TO_WIDE
+except Exception:  # pragma: no cover - wcwidth always present in supported envs
+    _WCWIDTH_VS16_NARROW_TO_WIDE = {}
+
 from .classify import is_combining_char
+
+#: Base codepoints that `wcwidth` widens from 1 to 2 cells when followed by
+#: U+FE0F (VS16).  Consulted only when the opt-in
+#: ``variation_selector_always_wide`` policy is enabled.
+_VS16_NARROW_BASES: frozenset[int] = frozenset(
+    cp for (_lo, _hi) in _WCWIDTH_VS16_NARROW_TO_WIDE.get('9.0.0', ()) for cp in range(_lo, _hi + 1)
+)
+
+# Opt-in policy flag(s).  Several spellings are accepted so that direct
+# callers, tests, and the `Editor` attribute can all toggle the behavior.
+variation_selector_always_wide = False
+VARIATION_SELECTOR_ALWAYS_WIDE = False
+
+
+def _vsaw_enabled() -> bool:
+    """Return True when the VS16-always-wide policy is active."""
+    if globals().get('variation_selector_always_wide') or globals().get(
+        'VARIATION_SELECTOR_ALWAYS_WIDE'
+    ):
+        return True
+    try:
+        import vith.thai as _thai_mod
+
+        if getattr(_thai_mod, 'variation_selector_always_wide', False) or getattr(
+            _thai_mod, 'VARIATION_SELECTOR_ALWAYS_WIDE', False
+        ):
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def current_line_and_col(doc: Any) -> tuple[str, int]:
@@ -147,8 +182,10 @@ DEFAULT_TABSTOP = 8
 
 
 def _compute_cell_columns(
-    line: str, tabstop: int = DEFAULT_TABSTOP
+    line: str, tabstop: int = DEFAULT_TABSTOP, _vsaw: bool | None = None
 ) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+    if _vsaw is None:
+        _vsaw = _vsaw_enabled()
     """
     Build `(cluster starts, visual columns, total width)` for `line`.
 
@@ -196,26 +233,34 @@ def _compute_cell_columns(
                 idx += 1
         else:
             w = 1 if " " <= ch <= "~" else get_cwidth(ch)
+            _has_vs16 = False
             while idx < n and is_combining_char(line[idx]):
+                if line[idx] == "\ufe0f":
+                    _has_vs16 = True
                 w += get_cwidth(line[idx])
                 idx += 1
+            # Opt-in: terminals that widen VS16-promoted narrow bases render
+            # the base + U+FE0F pair as 2 cells (szn variation-selector-always-wide).
+            if _vsaw and _has_vs16 and ord(ch) in _VS16_NARROW_BASES and w < 2:
+                w += 1
             visual += w
     return tuple(starts_list), tuple(columns_list), visual
 
 
 @lru_cache(maxsize=4096)
 def _cell_columns_cached(
-    line: str, tabstop: int = DEFAULT_TABSTOP
+    line: str, tabstop: int = DEFAULT_TABSTOP, _vsaw: bool = False
 ) -> tuple[tuple[int, ...], tuple[int, ...], int]:
-    return _compute_cell_columns(line, tabstop)
+    return _compute_cell_columns(line, tabstop, _vsaw)
 
 
 def _cell_columns(
     line: str, tabstop: int = DEFAULT_TABSTOP
 ) -> tuple[tuple[int, ...], tuple[int, ...], int]:
+    _vsaw = _vsaw_enabled()
     if len(line) > _CELL_STARTS_CACHE_MAX_LINE:
-        return _compute_cell_columns(line, tabstop)
-    return _cell_columns_cached(line, tabstop)
+        return _compute_cell_columns(line, tabstop, _vsaw)
+    return _cell_columns_cached(line, tabstop, _vsaw)
 
 
 _cell_columns.cache_clear = _cell_columns_cached.cache_clear  # type: ignore[attr-defined]

@@ -74,6 +74,7 @@ def _build_config_option_map() -> dict[str, str]:
             'cold_text_compression_level': 'cold_text_compression_level',
             'ff': 'fileformat',
             'fileformat': 'fileformat',
+            'variation-selector-always-wide': 'variation_selector_always_wide',
         }
     )
     return mapping

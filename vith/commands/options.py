@@ -39,6 +39,12 @@ SET_TOGGLE_GROUPS = (
     ('mouse', 'enable_mouse_support', ('mouse',), ('nomouse',)),
     ('cursorline', 'cursorline', ('cursorline', 'cul'), ('nocursorline', 'nocul')),
     ('cursorcolumn', 'cursorcolumn', ('cursorcolumn', 'cuc'), ('nocursorcolumn', 'nocuc')),
+    (
+        'variation_selector_always_wide',
+        'variation_selector_always_wide',
+        ('variation_selector_always_wide', 'vsaw'),
+        ('novariation_selector_always_wide', 'novsaw'),
+    ),
 )
 
 #: (display name, editor attribute, aliases, minimum)
