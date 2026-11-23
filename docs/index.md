@@ -7,9 +7,9 @@ sources:
   - docs/
 verified: machine-confirmed
 generated:
-  by: "OpenCode (Hy4 flash Free)"
-  at: "2026-11-23T12:00:00Z"
-timestamp: "2026-11-23T12:00:00Z"
+  by: "Antigravity (Gemini 4 Neon)"
+  at: "2026-11-23T10:52:00+07:00"
+timestamp: "2026-11-23T10:52:00+07:00"
 ---
 
 # vith Documentation Bundle
@@ -26,7 +26,8 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Audit & Findings
 
-* [Findings Bundle](bugs/index.md) — **192 machine-verified findings across 12 audit rounds and 4 addenda (191 fixed, 1 withdrawn)**:
+* [Findings Bundle](bugs/index.md) — **193 machine-verified findings across 13 audit rounds and 4 addenda (192 fixed, 1 withdrawn)**:
+  * **Round 13 (2026-11-23, user field report — [193](bugs/193.md), `fix_status: fixed`)**: Thai/Lao upper/lower vowels, tone marks, symbols (`ฯ`, `ๆ`, `฿`), and digits were dropped on Windows ConPTY input because `conhost.exe` delivers non-`C3_ALPHA` characters via synthesized Alt+Numpad `VK_MENU` (`0x12`) key-up records ignored by `prompt_toolkit.input.win32`; fixed with `_install_win32_input_patch` (`Vt100ConsoleInputReader` + `ConsoleInputReader`) and regression tests.
   * **Round 12 (2026-11-23, user field report — [192](bugs/192.md), `fix_status: fixed`)**: Tab in Insert mode did nothing mid-line because the indent binding was gated on leading whitespace; fixed by removing the filter (keeping the `:`/`/` exclusions) and correcting the default `expand_tab` to Vim's `noexpandtab`, so a plain Tab now inserts a literal tab.
   * **Round 11 (2026-11-23, post-`v0.16.0` deep correctness audit — [167](bugs/167.md)–[191](bugs/191.md), `fix_status: fixed`)**: 25 newly discovered defects from a four-auditor read-only review (rev 410), with live reproduction probes and a 7 000-command / 250-case render fuzz; all fixed finding-by-finding with regression tests. Critical/high: bare `:!{cmd}` is a silent no-op ([167](bugs/167.md)), `*` / `#` crash on real `KeyPressEvent.arg` ([168](bugs/168.md)), CSV cells interpreted as Rich markup corrupt content or raise `MarkupError` ([169](bugs/169.md)), `:j x` raises `ValueError` ([170](bugs/170.md)). Medium/low: render error-state leaks ([171](bugs/171.md)–[173](bugs/173.md)), `:set`/`:s`/`:sort`/undo-reload semantics ([174](bugs/174.md)–[177](bugs/177.md)), config validation/no-ops ([178](bugs/178.md), [179](bugs/179.md)), tab/visual-block/register invariants ([180](bugs/180.md)–[187](bugs/187.md)), and five robustness/Unicode lows ([188](bugs/188.md)–[191](bugs/191.md)). All fixed; static gates clean (ruff, mypy, 558 tests).
   * **Round 10 (2026-11-22, deep performance & algorithmic audit — [155](bugs/155.md)–[166](bugs/166.md), 11 fixed + [159](bugs/159.md) withdrawn)**: 12 profiled performance, memory, and algorithmic bottlenecks resolved with regression tests in `tests/test_round10_perf.py` across startup ([155](bugs/155.md)), per-frame rendering ([156](bugs/156.md), [163](bugs/163.md)), per-keystroke latency ([157](bugs/157.md)), quadratic Ex commands ([158](bugs/158.md), [161](bugs/161.md)), `:substitute` ([160](bugs/160.md)), lexer memory & `guess_lexer` ([162](bugs/162.md)), word completion caching ([164](bugs/164.md)), Thai clusters/words ([165](bugs/165.md)), and secondary I/O/editing hot spots ([166](bugs/166.md)); [159](bugs/159.md) archived/withdrawn when the earlier experimental `:render` prototype was reverted and superseded by [`live_render.md`](live_render.md).

@@ -1,6 +1,21 @@
 CHANGELOG
 =========
 
+0.16.2: 2026-11-23
+-------------------
+
+Windows ConPTY Thai/Lao input fix (finding 193):
+
+- Windows input: patch ``prompt_toolkit.input.win32``'s
+  ``Vt100ConsoleInputReader._get_keys`` and ``ConsoleInputReader._get_keys``
+  (with signature verification and rollback support) to accept synthesized
+  Alt+Numpad ``VK_MENU`` (``0x12``) key-up Unicode deliveries emitted by
+  Windows ConPTY (``conhost.exe``) for non-``C3_ALPHA`` characters — fixing
+  dropped Thai/Lao upper/lower vowels, tone marks, ``ฯ``, ``ๆ``, ``฿``, and
+  Thai/Lao digits during both typing and bracketed paste (193).
+- Tests: added Win32 ConPTY ``VK_MENU`` key-up and rollback regression tests
+  in ``tests/test_thai.py``.
+
 0.16.1: 2026-11-23
 -------------------
 
