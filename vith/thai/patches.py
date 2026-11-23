@@ -15,6 +15,7 @@ import asyncio
 import inspect
 import logging
 import re
+import sys
 from bisect import bisect_right
 from typing import Any, Callable, Iterable
 
@@ -954,6 +955,98 @@ def _install_tabs_processor_patch(applied: list[tuple[Any, str, object]] | None 
     return True
 
 
+_VK_MENU = 0x12
+
+
+def _iter_win32_events(read: Any, input_records: Any, event_types: dict[int, str]) -> Iterable[Any]:
+    """Yield decoded Win32 console `INPUT_RECORD` payloads recognized by `event_types`."""
+    for i in range(read.value):
+        ir = input_records[i]
+        attr = event_types.get(ir.EventType)
+        if attr is not None:
+            yield getattr(ir.Event, attr)
+
+
+def _install_win32_input_patch(applied: list[tuple[Any, str, object]] | None = None) -> bool:
+    """
+    On Windows, ConPTY (`conhost.exe` `CharToKeyEvents`) checks
+    `GetStringTypeW(CT_CTYPE3) & C3_ALPHA` when `VkKeyScanW` fails under a
+    non-Thai thread keyboard layout. All Thai/Lao combining marks (upper/lower
+    vowels and tone marks) plus `ฯ`, `ๆ`, `฿`, and Thai/Lao digits lack
+    `C3_ALPHA`, so `conhost.exe` falls back to `SynthesizeNumpadEvents`, which
+    delivers the Unicode character exclusively on the `VK_MENU` (`0x12`)
+    key-up record (`KeyDown == 0`, `uChar.UnicodeChar != '\\x00'`).
+
+    `prompt_toolkit.input.win32`'s `Vt100ConsoleInputReader._get_keys` and
+    `ConsoleInputReader._get_keys` ignore all `KeyDown == False` records,
+    silently dropping those characters during both typing and bracketed paste.
+    Wrap both readers (with signature checks and rollback tracking) so they
+    also emit `VK_MENU` key-up Unicode deliveries.
+    """
+    if sys.platform != "win32":
+        return False
+
+    try:
+        from prompt_toolkit.input import win32 as ptk_win32
+        from prompt_toolkit.key_binding.key_processor import KeyPress
+        from prompt_toolkit.keys import Keys
+        from prompt_toolkit.win32_types import (
+            KEY_EVENT_RECORD,
+            MOUSE_EVENT_RECORD,
+            EventTypes,
+        )
+    except Exception:  # pragma: no cover
+        return False
+
+    def _alt_numpad_key_press(mappings: dict[bytes, Any], u_char: str) -> KeyPress:
+        mapped = mappings.get(u_char.encode("utf-8", "surrogatepass"))
+        if mapped is None:
+            return KeyPress(u_char, u_char)
+        return KeyPress(mapped, "\n" if mapped == Keys.ControlJ else u_char)
+
+    def _patched_vt100_get_keys(self: Any, read: Any, input_records: Any) -> Iterable[str]:
+        for ev in _iter_win32_events(read, input_records, EventTypes):
+            match ev:
+                case KEY_EVENT_RECORD(KeyDown=down, VirtualKeyCode=vk) if (
+                    down or vk == _VK_MENU
+                ) and (u_char := ev.uChar.UnicodeChar) != "\x00":
+                    yield u_char
+
+    def _patched_console_get_keys(self: Any, read: Any, input_records: Any) -> Iterable[KeyPress]:
+        for ev in _iter_win32_events(read, input_records, EventTypes):
+            match ev:
+                case KEY_EVENT_RECORD(KeyDown=down) if down:
+                    yield from self._event_to_key_presses(ev)
+                case KEY_EVENT_RECORD(VirtualKeyCode=vk) if (
+                    vk == _VK_MENU and (u_char := ev.uChar.UnicodeChar) != "\x00"
+                ):
+                    yield _alt_numpad_key_press(self.mappings, u_char)
+                case MOUSE_EVENT_RECORD():
+                    yield from self._handle_mouse(ev)
+
+    installed = False
+    for cls_name, replacement in (
+        ("Vt100ConsoleInputReader", _patched_vt100_get_keys),
+        ("ConsoleInputReader", _patched_console_get_keys),
+    ):
+        reader_cls = getattr(ptk_win32, cls_name, None)
+        orig_get_keys = getattr(reader_cls, "_get_keys", None) if reader_cls is not None else None
+        if orig_get_keys is None:
+            continue
+        if getattr(orig_get_keys, "_vith_thai_patched", False):
+            installed = True
+            continue
+        if _verify_signature(orig_get_keys, ("self", "read", "input_records")) is None:
+            logger.warning(
+                "Unexpected %s._get_keys signature; skipping Win32 input patch.", cls_name
+            )
+            continue
+        _apply_patch(reader_cls, "_get_keys", replacement, orig_get_keys, applied)
+        installed = True
+
+    return installed
+
+
 # ---------------------------------------------------------------------------
 # 6. Version-Gated prompt_toolkit Patch Installer (Section 4.1)
 # ---------------------------------------------------------------------------
@@ -1389,13 +1482,14 @@ def install_prompt_toolkit_thai_patches() -> bool:
                 setattr(_thai_operator_range, "_vith_thai_patched", True)
                 _PtkTextObject.operator_range = _thai_operator_range  # type: ignore[method-assign]
 
-        # Window copy-body, renderer, and tabs-processor patches. They fail soft (warn + skip)
-        # on genuine signature drift; an unexpected raise inside them still
-        # reaches the rollback below because each install appends its own
-        # (target, attribute, original) triple on success.
+        # Window copy-body, renderer, tabs-processor, and Win32 ConPTY input patches.
+        # They fail soft (warn + skip) on genuine signature drift; an unexpected
+        # raise inside them still reaches the rollback below because each install
+        # appends its own (target, attribute, original) triple on success.
         _install_window_copy_body_patch(applied)
         _install_renderer_patch(applied)
         _install_tabs_processor_patch(applied)
+        _install_win32_input_patch(applied)
 
         # Startup self-test required by Section 4.1:
         _thai_install_selftest()

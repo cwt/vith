@@ -1564,3 +1564,85 @@ def test_version_gate_rollback_covers_tabs_processor_patch(monkeypatch):
     monkeypatch.undo()
     assert thai.install_prompt_toolkit_thai_patches() is True
     assert getattr(TabsProcessor.apply_transformation, "_vith_thai_patched", False) is True
+
+
+def test_win32_input_patch_accepts_conpty_vk_menu_keyup(monkeypatch) -> None:
+    """Windows ConPTY delivers Thai upper/lower vowels and tone marks via
+    synthesized Alt+Numpad `VK_MENU` key-up events (`KeyDown=False`,
+    `VirtualKeyCode=0x12`, `uChar.UnicodeChar != '\\x00'`). Both Win32 input
+    readers must emit those characters while still ignoring ordinary key-ups."""
+    import sys
+
+    if sys.platform != "win32":
+        pytest.skip("Win32 console input patch only applies on Windows")
+
+    from ctypes.wintypes import DWORD
+
+    from prompt_toolkit.input.win32 import ConsoleInputReader, Vt100ConsoleInputReader
+    from prompt_toolkit.win32_types import INPUT_RECORD
+
+    assert thai.install_prompt_toolkit_thai_patches() is True
+    assert getattr(Vt100ConsoleInputReader._get_keys, "_vith_thai_patched", False) is True
+    assert getattr(ConsoleInputReader._get_keys, "_vith_thai_patched", False) is True
+
+    # Build a synthetic ReadConsoleInputW buffer matching ConPTY's exact event
+    # sequence for "ที่" (ท as KeyDown, ี and ่ as Alt+Numpad VK_MENU KeyUp)
+    # plus a regular 'a' key-up (which must NOT be duplicated).
+    specs = [
+        (True, 0, "ท", 0x0),  # KeyDown 'ท'
+        (False, 0, "ท", 0x0),  # KeyUp 'ท' -> ignored
+        (True, 0x12, "\x00", 0x2),  # Alt down -> ignored
+        (True, 0x66, "\x00", 0x2),  # Numpad 6 down -> ignored
+        (False, 0x66, "\x00", 0x2),  # Numpad 6 up -> ignored
+        (False, 0x12, "\u0e35", 0x0),  # VK_MENU KeyUp carrying 'ี' -> emitted!
+        (True, 0x12, "\x00", 0x2),  # Alt down -> ignored
+        (False, 0x12, "\u0e48", 0x0),  # VK_MENU KeyUp carrying '่' -> emitted!
+        (True, 0x41, "a", 0x0),  # KeyDown 'a'
+        (False, 0x41, "a", 0x0),  # KeyUp 'a' -> ignored
+        (False, 0x12, "\x00", 0x0),  # Bare Alt up with NUL -> ignored
+    ]
+    records = (INPUT_RECORD * len(specs))()
+    for idx, (key_down, vk, ch, ctrl_state) in enumerate(specs):
+        records[idx].EventType = 1  # KEY_EVENT
+        ev = records[idx].Event.KeyEvent
+        ev.KeyDown = key_down
+        ev.RepeatCount = 1
+        ev.VirtualKeyCode = vk
+        ev.uChar.UnicodeChar = ch
+        ev.ControlKeyState = ctrl_state
+
+    read = DWORD(len(specs))
+    vt_reader = object.__new__(Vt100ConsoleInputReader)
+    assert "".join(vt_reader._get_keys(read, records)) == "ที่a"
+
+    con_reader = object.__new__(ConsoleInputReader)
+    con_keys = list(con_reader._get_keys(read, records))
+    assert "".join(kp.data for kp in con_keys) == "ที่a"
+
+
+def test_version_gate_rollback_covers_win32_input_patch(monkeypatch) -> None:
+    """Failure during the startup self-test must roll back the Win32 input patches."""
+    import sys
+
+    if sys.platform != "win32":
+        pytest.skip("Win32 console input patch only applies on Windows")
+
+    from prompt_toolkit.input.win32 import ConsoleInputReader, Vt100ConsoleInputReader
+
+    for cls in (Vt100ConsoleInputReader, ConsoleInputReader):
+        orig = getattr(cls._get_keys, "_vith_original", None)
+        if orig is not None:
+            monkeypatch.setattr(cls, "_get_keys", orig)
+
+    def _broken_next_cell_offset(line: str, col: int, count: int = 1) -> int:
+        return col + 99
+
+    monkeypatch.setattr(thai.patches, "next_cell_offset", _broken_next_cell_offset)
+    assert thai.install_prompt_toolkit_thai_patches() is False
+    assert getattr(Vt100ConsoleInputReader._get_keys, "_vith_thai_patched", False) is False
+    assert getattr(ConsoleInputReader._get_keys, "_vith_thai_patched", False) is False
+
+    monkeypatch.undo()
+    assert thai.install_prompt_toolkit_thai_patches() is True
+    assert getattr(Vt100ConsoleInputReader._get_keys, "_vith_thai_patched", False) is True
+    assert getattr(ConsoleInputReader._get_keys, "_vith_thai_patched", False) is True

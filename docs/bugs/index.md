@@ -1,18 +1,18 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 192 machine-verified findings across 12 audit rounds and 4 addenda (001–192; 191 closed, 1 withdrawn)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 193 machine-verified findings across 13 audit rounds and 4 addenda (001–193; 192 closed, 1 withdrawn)."
 status: stable
 sources:
   - docs/bugs/
   - docs/
 verified: machine-confirmed
 stale_after: 2027-05-23T00:00:00Z
-tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11, round-12]
+tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11, round-12, round-13]
 generated:
-  by: "OpenCode (Hy4 flash Free)"
-  at: "2026-11-23T12:00:00Z"
-timestamp: "2026-11-23T12:00:00Z"
+  by: "Antigravity (Gemini 4 Neon)"
+  at: "2026-11-23T10:52:00+07:00"
+timestamp: "2026-11-23T10:52:00+07:00"
 ---
 
 # vith Findings Bundle
@@ -38,6 +38,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 11 (2026-11-23, post-`v0.16.0` deep correctness audit — [167](167.md)–[191](191.md), `fix_status: fixed`)**: 25 newly discovered defects from a four-auditor read-only review of the `v0.16.0` tree (rev 410), with live reproduction probes, a 7 000-command fuzz, and a 250-case render fuzz. All 25 were fixed finding-by-finding (one commit per bug or tightly related group) with regression tests in `tests/test_round11_bugs.py` and updates to existing suites. Highlights: bare `:!{cmd}` is a silent no-op ([167](167.md), critical), `*` / `#` crash on real `KeyPressEvent.arg` ([168](168.md)), CSV cells interpreted as Rich markup corrupt content or raise `MarkupError` ([169](169.md)), `:j x` raises `ValueError` ([170](170.md)); plus render error-state defects ([171](171.md)–[173](173.md)), `:set`/`:s`/`:sort` and undo-reload semantics ([174](174.md)–[177](177.md)), config validation/no-op issues ([178](178.md), [179](179.md)), tab/visual-block/config/register invariants ([180](180.md)–[187](187.md)), and five low-severity robustness/Unicode findings ([188](188.md)–[191](191.md)). Static gates at audit time: ruff clean, mypy clean (46 files), 531 tests passing; `vith/render.py` at 83% line coverage with the error paths largely untested.
 
 * **Round 12 (2026-11-23, user field report — [192](192.md), `fix_status: fixed`)**: Tab in Insert mode did nothing while editing mid-line text because the indentation binding was gated on leading whitespace; the key press fell through to prompt_toolkit's `menu_complete`. Removed the filter (keeping the command/search buffer exclusions), corrected the default `expand_tab` to Vim's `noexpandtab` so Tab inserts a literal tab, and added regression tests.
+* **Round 13 (2026-11-23, user field report — [193](193.md), `fix_status: fixed`)**: Thai/Lao upper/lower vowels, tone marks, symbols (`ฯ`, `ๆ`, `฿`), and digits were dropped on Windows ConPTY input because `conhost.exe` delivers non-`C3_ALPHA` characters via synthesized Alt+Numpad `VK_MENU` (`0x12`) key-up records, which `prompt_toolkit.input.win32` ignored. Patched `Vt100ConsoleInputReader._get_keys` and `ConsoleInputReader._get_keys` in `_install_win32_input_patch` with signature checks, rollback tracking, and regression tests.
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
@@ -455,6 +456,14 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | ID | Finding | Area | Priority | Status |
 | :-- | :--- | :--- | :--- | :--- |
 | [192](192.md) | Tab cannot be pressed while editing text in Insert mode — whitespace-only filter falls through to completion | key-bindings/insert | medium | fixed |
+
+## Round 13 Findings (2026-11-23 user field report)
+
+### Defects (`type: bug`)
+
+| ID | Finding | Area | Priority | Status |
+| :-- | :--- | :--- | :--- | :--- |
+| [193](193.md) | Thai/Lao upper/lower vowels, tone marks, symbols, and digits dropped on Windows ConPTY input (`VK_MENU` key-up ignored by `prompt_toolkit.input.win32`) | thai/win32-input | **high** | fixed |
 
 ## Meta
 
