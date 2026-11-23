@@ -598,6 +598,36 @@ def _install_get_cwidth_patch() -> None:
             continue
 
 
+def _install_copy_body_vs16_merge_fix() -> None:
+    """Advance the write cursor when a zero-width merge widens a cell (VS16)."""
+    try:
+        import inspect
+        import textwrap
+
+        import prompt_toolkit.layout.containers as _ptk_containers
+
+        orig = _ptk_containers.Window._copy_body
+        if getattr(orig, "_vith_vs16_merge_patched", False):
+            return
+        src = textwrap.dedent(inspect.getsource(orig))
+        old_snip = "                                new_buffer_row[x + xpos - pw] = char2\n"
+        new_snip = (
+            "                                new_buffer_row[x + xpos - pw] = char2\n"
+            "                                x += char2.width - pw\n"
+        )
+        if old_snip not in src:
+            logger.warning("VS16 merge fix: target snippet not found; skipping.")
+            return
+        src = src.replace(old_snip, new_snip, 1)
+        namespace = dict(orig.__globals__)
+        exec(compile(src, "<vith-copy-body-vs16>", "exec"), namespace)
+        patched = namespace["_copy_body"]
+        patched._vith_vs16_merge_patched = True
+        _ptk_containers.Window._copy_body = patched  # type: ignore[method-assign]
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("VS16 merge fix failed: %s", exc)
+
+
 def _install_window_copy_body_patch(applied: list[tuple[Any, str, object]] | None = None) -> bool:
     """
     Wrap `prompt_toolkit.layout.containers.Window._copy_body` so zero-width
@@ -1532,6 +1562,7 @@ def install_prompt_toolkit_thai_patches() -> bool:
         # They fail soft (warn + skip) on genuine signature drift; an unexpected
         # raise inside them still reaches the rollback below because each install
         # appends its own (target, attribute, original) triple on success.
+        _install_copy_body_vs16_merge_fix()
         _install_window_copy_body_patch(applied)
         _install_renderer_patch(applied)
         _install_tabs_processor_patch(applied)
