@@ -8,8 +8,8 @@ sources:
 verified: machine-confirmed
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-23T10:52:00+07:00"
-timestamp: "2026-11-23T10:52:00+07:00"
+  at: "2026-11-23T11:24:00+07:00"
+timestamp: "2026-11-23T11:24:00+07:00"
 ---
 
 # vith Documentation Bundle
@@ -26,7 +26,8 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Audit & Findings
 
-* [Findings Bundle](bugs/index.md) — **193 machine-verified findings across 13 audit rounds and 4 addenda (192 fixed, 1 withdrawn)**:
+* [Findings Bundle](bugs/index.md) — **194 machine-verified findings across 14 audit rounds and 4 addenda (193 fixed, 1 withdrawn)**:
+  * **Round 14 (2026-11-23, user field report — [194](bugs/194.md), `fix_status: fixed`)**: Environment variables (`%VAR%` on Windows, `$VAR`/`${VAR}` cross-platform) were not expanded in CLI arguments (`vith %APPDATA%\...`), Ex commands, config/hook paths, or path completion, and Ex commands collided `%VAR%` with Vim's `%` filename token; fixed with URL-safe `expand_env_vars` / `expand_location`, `_match_windows_env_var`, `_EnvPathCompleter`, and regression tests.
   * **Round 13 (2026-11-23, user field report — [193](bugs/193.md), `fix_status: fixed`)**: Thai/Lao upper/lower vowels, tone marks, symbols (`ฯ`, `ๆ`, `฿`), and digits were dropped on Windows ConPTY input because `conhost.exe` delivers non-`C3_ALPHA` characters via synthesized Alt+Numpad `VK_MENU` (`0x12`) key-up records ignored by `prompt_toolkit.input.win32`; fixed with `_install_win32_input_patch` (`Vt100ConsoleInputReader` + `ConsoleInputReader`) and regression tests.
   * **Round 12 (2026-11-23, user field report — [192](bugs/192.md), `fix_status: fixed`)**: Tab in Insert mode did nothing mid-line because the indent binding was gated on leading whitespace; fixed by removing the filter (keeping the `:`/`/` exclusions) and correcting the default `expand_tab` to Vim's `noexpandtab`, so a plain Tab now inserts a literal tab.
   * **Round 11 (2026-11-23, post-`v0.16.0` deep correctness audit — [167](bugs/167.md)–[191](bugs/191.md), `fix_status: fixed`)**: 25 newly discovered defects from a four-auditor read-only review (rev 410), with live reproduction probes and a 7 000-command / 250-case render fuzz; all fixed finding-by-finding with regression tests. Critical/high: bare `:!{cmd}` is a silent no-op ([167](bugs/167.md)), `*` / `#` crash on real `KeyPressEvent.arg` ([168](bugs/168.md)), CSV cells interpreted as Rich markup corrupt content or raise `MarkupError` ([169](bugs/169.md)), `:j x` raises `ValueError` ([170](bugs/170.md)). Medium/low: render error-state leaks ([171](bugs/171.md)–[173](bugs/173.md)), `:set`/`:s`/`:sort`/undo-reload semantics ([174](bugs/174.md)–[177](bugs/177.md)), config validation/no-ops ([178](bugs/178.md), [179](bugs/179.md)), tab/visual-block/register invariants ([180](bugs/180.md)–[187](bugs/187.md)), and five robustness/Unicode lows ([188](bugs/188.md)–[191](bugs/191.md)). All fixed; static gates clean (ruff, mypy, 558 tests).

@@ -1,6 +1,28 @@
 CHANGELOG
 =========
 
+0.16.3: 2026-11-23
+-------------------
+
+Environment-variable expansion in file paths (finding 194):
+
+- I/O & paths: added URL-safe ``expand_env_vars`` and ``expand_location`` in
+  ``vith/io/backends.py`` (re-exported in ``vith.io``) wrapping
+  ``os.path.expandvars`` and ``os.path.expanduser``, fixing Windows
+  PowerShell/CLI paths like ``vith %APPDATA%\alacritty\alacritty.toml`` as well
+  as ``$VAR`` / ``${VAR}`` across platforms while leaving ``scheme://...`` URLs
+  untouched (194).
+- Buffers, Ex commands & completion: expanded env vars during buffer creation,
+  buffer deduplication, writes/overwrite guards, ``:e`` / ``:w`` / ``:w >>`` /
+  ``:r`` / ``:cd`` / ``:so`` / ``:sp`` / ``:vsp`` / ``:tabe`` / ``:sav`` /
+  ``:f``, ``-u`` / config / hook discovery, and command-line path completion
+  (``_EnvPathCompleter``). On Windows, ``_match_windows_env_var`` in
+  ``vith/commands/handler.py`` recognizes defined ``%VAR%`` tokens in Ex
+  commands without breaking Vim's ``%`` / ``%:p`` filename tokens or ``:!``
+  shell commands.
+- Tests: added URL-preservation, CLI/Ex/completion/config env-var expansion
+  tests in ``tests/test_io_backends.py``.
+
 0.16.2: 2026-11-23
 -------------------
 

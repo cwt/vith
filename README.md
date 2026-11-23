@@ -25,7 +25,7 @@ This fork runs on **Python 3.10+** (`prompt_toolkit` 3.0) and adds four major, m
 - **Ex command completeness & `:set` parity**: full Vim Ex command set across files (`:r`/`:read` incl. `:r !cmd`, `:sav`, `:up`, `:x`, `:wa`, `:xa`, `:so`, `:f`, `:enew`), buffers/windows/tabs (`:ls`, `:b #`, `:bf`/`:bl`, `:sb`, `:bd <target>`, `:clo`, `:on`, `:tabo`/`:tabm`/`:tabs`), generalized range editing (`:$`/`±N`, `:d`, `:y`, `:pu`, `:m`, `:t`/`:co`, `:j`, `:sort`, `:retab`, `:g`/`:v`, `:[range]!cmd`, `:[range]w` partial/append/pipe, `:[range]norm[!]`), `%`/`#` filename expansion with `:p`/`:h`/`:t`/`:r`/`:e`, in-editor read-only info splits (`:ver`, `:mes`, `:reg`, `:marks`, `:set`), and ergonomic `:set` syntax (`?`, `!`, `inv`, multi-arg, `smartcase`, `shiftwidth`, `readonly`, `autoindent`, `fileencoding`, `fileformat`). See [`docs/command_completeness_plan.md`](docs/command_completeness_plan.md).
 - **Live async `:render` split preview**: real-time non-blocking split preview (`:render`, `:render-split-v`, `:render-split-h`) powered by optional `vith[render]` (`rich` + `rich-rst`), with direct `Segment` → `StyleAndTextTuples` bridging, debounced executor rendering, stale-edit fallback, heading/landmark-anchored scroll sync, and pluggable `[render.commands]` CLI renderers. See [`docs/live_render.md`](docs/live_render.md).
 
-All changes are audited in [`docs/bugs/`](docs/bugs/) (193 machine-verified findings across 13 audit rounds and 4 addenda — 192 fixed, 1 archived/withdrawn); quality is enforced with pytest (560 tests), mypy and ruff.
+All changes are audited in [`docs/bugs/`](docs/bugs/) (194 machine-verified findings across 14 audit rounds and 4 addenda — 193 fixed, 1 archived/withdrawn); quality is enforced with pytest (562 tests), mypy and ruff.
 
 Issues, questions, wishes, comments, feedback, remarks? Please create a GitHub issue, I appreciate it.
 
@@ -140,7 +140,7 @@ To run all tests, install the optional and development dependencies (pytest, pyt
 pip install -e ".[jedi,lzo,render,dev]"
 ```
 
-Run unit tests via the test runner script (executes all 560 tests in parallel and enforces ≥85% test coverage):
+Run unit tests via the test runner script (executes all 562 tests in parallel and enforces ≥85% test coverage):
 
 ```sh
 bash scripts/runtest.sh
@@ -154,7 +154,7 @@ python -m pytest tests
 
 Developer helper scripts are provided in `scripts/`:
 
-- `scripts/runtest.sh`: run the full test suite in parallel with coverage enforcement (560 tests)
+- `scripts/runtest.sh`: run the full test suite in parallel with coverage enforcement (562 tests)
 - `scripts/type-check.sh`: run `mypy .` (typing, 88 source files checked against the 3.10 floor)
 - `scripts/lint-check-and-fix.sh`: run `ruff check --fix .` (linting)
 - `scripts/code-format.sh`: run `ruff format` (formatting)
