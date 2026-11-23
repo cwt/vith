@@ -691,3 +691,18 @@ def test_normal_command_range_undo_bang_thai_global_and_guards(editor):
     eb.buffer.read_only = to_filter(True)
     handle_command(editor, ':1norm x')
     assert editor.message == "E21: Cannot make changes, 'modifiable' is off"
+
+
+def test_global_whitespace_args_do_not_crash_197(editor):
+    # 197: whitespace-only `:g` args must not raise IndexError.
+    from vith.commands.global_cmd import _parse_global_args
+
+    assert _parse_global_args('   ') == ('', '')
+    assert _parse_global_args(' ') == ('', '')
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'a\nb'
+    editor.sync_with_prompt_toolkit()
+    handle_command(editor, ':g   ')
+    assert eb.buffer.text == 'a\nb'

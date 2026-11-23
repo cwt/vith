@@ -500,7 +500,7 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 
 | ID | Finding | Area | Priority | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| [197](197.md) | `:g` with whitespace-only args crashes with `IndexError` in `_parse_global_args` | commands/global | medium | open |
+| [197](197.md) | `:g` with whitespace-only args crashes with `IndexError` in `_parse_global_args` | commands/global | medium | fixed |
 | [198](198.md) | CSV preview row cap off-by-one keeps 5001 rows while the message says 5000 | render/csv | low | open |
 | [199](199.md) | CSV/TSV scroll-sync landmarks split on raw delimiter and ignore quoting | render/scroll-sync | low | open |
 | [200](200.md) | `:norm` uses identity (`is not`) instead of equality (`!=`) for buffer-text change detection | commands/normal | low | open |

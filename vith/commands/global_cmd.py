@@ -43,6 +43,8 @@ def _parse_global_args(global_args: str) -> tuple[str, str]:
     delimiters with `\\<delim>` unescaping) into `(pattern_text, sub_cmd)`.
     """
     stripped = global_args.lstrip()
+    if not stripped:
+        return '', ''
     delim = stripped[0]
     fields = split_delimited_fields(stripped[1:], delim, max_splits=1)
     sub_cmd = fields[1].strip() if len(fields) > 1 else ''
