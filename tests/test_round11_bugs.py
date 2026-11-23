@@ -415,3 +415,25 @@ def test_191_unassigned_u0ec7_is_not_a_combining_mark() -> None:
     assert get_cwidth(char) == 1
     assert is_thai_combining(0x0EC7) is False
     assert is_combining_char(char) is False
+
+
+def test_198_csv_row_cap_keeps_exactly_max_rows() -> None:
+    from vith.render import _CSV_MAX_ROWS, _render_csv_table
+
+    big = '\n'.join(f'a{i},b{i}' for i in range(_CSV_MAX_ROWS + 10)) + '\n'
+    table = _render_csv_table(big, ',')
+    # Table rows exclude header: kept data rows == MAX - 1 (header) + truncation note.
+    from rich.console import Group
+
+    assert isinstance(table, Group), 'over-cap table must carry truncation note'
+    rendered_table = table.renderables[0]
+    assert rendered_table.row_count == _CSV_MAX_ROWS - 1
+
+
+def test_199_csv_landmark_respects_quoting() -> None:
+    from vith.render import _extract_source_landmarks
+
+    src = '"a,b",c\nplain,d\n'
+    marks = _extract_source_landmarks(src, 'csv')
+    assert marks, 'expected landmarks'
+    assert marks[0][1] == 'a,b', marks[0]

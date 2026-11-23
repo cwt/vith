@@ -384,7 +384,7 @@ def _render_csv_table(text: str, delimiter: str) -> Any:
     rows: list[list[str]] = []
     truncated = False
     for idx, row in enumerate(reader):
-        if idx > _CSV_MAX_ROWS:
+        if idx >= _CSV_MAX_ROWS:
             truncated = True
             break
         rows.append(row)
@@ -508,7 +508,11 @@ def _extract_source_landmarks(source_text: str, fmt: str) -> list[tuple[int, str
             raw = src_lines[i].strip()
             if not raw:
                 continue
-            first_cell = raw.split(delim, 1)[0].strip().strip('"').strip("'")
+            try:
+                parsed = next(csv.reader([raw], delimiter=delim))
+                first_cell = (parsed[0] if parsed else '').strip()
+            except csv.Error:
+                first_cell = raw.split(delim, 1)[0].strip().strip('"').strip("'")
             norm = _normalize_landmark(first_cell)
             if len(norm) >= 2:
                 landmarks.append((i, norm, False))
