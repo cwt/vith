@@ -1,6 +1,7 @@
 import gzip
 import io
 import os
+import urllib.error
 import urllib.request
 
 from .base import EditorIO
@@ -202,9 +203,14 @@ class HttpIO(EditorIO):
         return True
 
     def read(self, location):
-        # Do Http request.
-        with urllib.request.urlopen(location) as response:
-            data = response.read()
+        # Bounded fetch so a slow host cannot hang the TUI; failures surface
+        # as IOError and are reported by EditorBuffer._read (docs/bugs/202.md).
+        request = urllib.request.Request(location, headers={'User-Agent': 'vith'})
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                data = response.read()
+        except urllib.error.URLError as exc:
+            raise IOError('Cannot fetch %r: %s' % (location, exc)) from exc
 
         # Return decoded.
         return _auto_decode(data)

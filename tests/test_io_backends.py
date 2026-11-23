@@ -270,3 +270,43 @@ def test_load_initial_files_and_ex_commands_expand_env_vars(editor, tmp_path, mo
         assert cmd_str is not None
         assert cmd_str.startswith('echo %VITH_TEST_APPDATA% ')
         assert 'alacritty.toml' in cmd_str
+
+
+def test_httpio_read_uses_timeout_and_maps_errors(monkeypatch):
+    # 202: bounded fetch with User-Agent; URLError becomes IOError.
+    import urllib.error
+
+    from vith.io.backends import HttpIO
+
+    seen = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return b'hello'
+
+    def fake_urlopen(req, timeout=None):
+        seen['url'] = req.full_url if hasattr(req, 'full_url') else req
+        seen['timeout'] = timeout
+        seen['ua'] = req.get_header('User-agent')
+        return FakeResponse()
+
+    monkeypatch.setattr('urllib.request.urlopen', fake_urlopen)
+    text, _enc = HttpIO().read('http://example.com/x')
+    assert text == 'hello'
+    assert seen['timeout'] == 10
+    assert seen['ua'] == 'vith'
+
+    def boom(req, timeout=None):
+        raise urllib.error.URLError('dns fail')
+
+    monkeypatch.setattr('urllib.request.urlopen', boom)
+    import pytest
+
+    with pytest.raises(IOError, match='Cannot fetch'):
+        HttpIO().read('http://example.com/x')
