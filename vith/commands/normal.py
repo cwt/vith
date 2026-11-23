@@ -260,7 +260,7 @@ def execute_normal_on_rows(
         if has_suppress_changed:
             eb._suppress_text_changed = max(0, eb._suppress_text_changed - 1)
             if eb._suppress_text_changed == 0 and (
-                getattr(buff, '_text_version', None) != start_version or buff.text is not start_text
+                getattr(buff, '_text_version', None) != start_version or buff.text != start_text
             ):
                 eb._on_text_changed()
         note_document_text(buff.text)

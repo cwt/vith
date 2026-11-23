@@ -706,3 +706,21 @@ def test_global_whitespace_args_do_not_crash_197(editor):
     editor.sync_with_prompt_toolkit()
     handle_command(editor, ':g   ')
     assert eb.buffer.text == 'a\nb'
+
+
+def test_norm_noop_does_not_fire_text_changed_200(editor):
+    # 200: equal text must not trigger _on_text_changed (value, not identity).
+    calls = []
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = 'a\nb\nc'
+    editor.sync_with_prompt_toolkit()
+    orig = eb._on_text_changed
+    eb._on_text_changed = lambda: calls.append(1)
+    try:
+        handle_command(editor, ':1norm l')
+    finally:
+        eb._on_text_changed = orig
+    assert calls == []
+    assert 'is not start_text' not in open('vith/commands/normal.py').read()
+    assert 'buff.text != start_text' in open('vith/commands/normal.py').read()

@@ -503,7 +503,7 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [197](197.md) | `:g` with whitespace-only args crashes with `IndexError` in `_parse_global_args` | commands/global | medium | fixed |
 | [198](198.md) | CSV preview row cap off-by-one keeps 5001 rows while the message says 5000 | render/csv | low | fixed |
 | [199](199.md) | CSV/TSV scroll-sync landmarks split on raw delimiter and ignore quoting | render/scroll-sync | low | fixed |
-| [200](200.md) | `:norm` uses identity (`is not`) instead of equality (`!=`) for buffer-text change detection | commands/normal | low | open |
+| [200](200.md) | `:norm` uses identity (`is not`) instead of equality (`!=`) for buffer-text change detection | commands/normal | low | fixed |
 | [201](201.md) | `FiletypeTabstops` alias contract breaks on delete/pop and accepts unvalidated values | editor/filetype | low | open |
 | [202](202.md) | `HttpIO.read` has no timeout, headers, or error mapping and can hang the TUI | io/http | medium | open |
 | [203](203.md) | Cell-cluster `x`/`X`/`~` (and `i`/`a`) miss the read-only guard that `s`/`>>`/`<<`/`o`/`O` have | key-bindings/read-only | medium | open |
