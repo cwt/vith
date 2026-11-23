@@ -418,6 +418,8 @@ def test_191_unassigned_u0ec7_is_not_a_combining_mark() -> None:
 
 
 def test_198_csv_row_cap_keeps_exactly_max_rows() -> None:
+    from rich.table import Table
+
     from vith.render import _CSV_MAX_ROWS, _render_csv_table
 
     big = '\n'.join(f'a{i},b{i}' for i in range(_CSV_MAX_ROWS + 10)) + '\n'
@@ -427,6 +429,7 @@ def test_198_csv_row_cap_keeps_exactly_max_rows() -> None:
 
     assert isinstance(table, Group), 'over-cap table must carry truncation note'
     rendered_table = table.renderables[0]
+    assert isinstance(rendered_table, Table)
     assert rendered_table.row_count == _CSV_MAX_ROWS - 1
 
 

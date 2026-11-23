@@ -754,9 +754,7 @@ def test_203_cell_edits_require_writable_buffer():
     for key in ("@kb.add('x'", "@kb.add('X'", "@kb.add('i'", "@kb.add('a'"):
         line = next(ln for ln in src.splitlines() if ln.strip().startswith(key))
         assert '~is_read_only' in line, line
-    tilde_line = next(
-        ln for ln in src.splitlines() if ln.strip().startswith("@kb.add('~'")
-    )
+    tilde_line = next(ln for ln in src.splitlines() if ln.strip().startswith("@kb.add('~'"))
     assert '~is_read_only' in tilde_line, tilde_line
     replace_line = next(
         ln for ln in src.splitlines() if 'vi_replace_single_mode' in ln and 'Keys.Any' in ln
