@@ -488,3 +488,19 @@ def test_lf_and_no_eol_preserved_and_set_fileformat(editor, tmp_path):
     handle_command(editor, ':set ff=weird')
     assert eb.fileformat == 'dos'
     assert editor.message is not None
+
+
+def test_crlf_multi_save_reload_cycle_does_not_double_newlines(editor, tmp_path):
+    # Saving and reopening a DOS/CRLF file repeatedly must never write `\r\r\n`
+    # or double newlines (regression for missing `newline=''` in `FileIO.write`
+    # on Windows).
+    target = tmp_path / 'config.toml'
+    original = b'[editor]\r\nvariation_selector_always_wide = true\r\n\r\n[hooks]\r\n'
+    target.write_bytes(original)
+
+    for _ in range(3):
+        eb = EditorBuffer(editor, str(target))
+        assert eb.fileformat == 'dos'
+        assert eb.buffer.text == '[editor]\nvariation_selector_always_wide = true\n\n[hooks]'
+        assert eb.write() is True
+        assert target.read_bytes() == original

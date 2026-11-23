@@ -74,11 +74,17 @@ class FileIO(EditorIO):
 
     def write(self, location, text, encoding='utf-8'):
         """
-        Write file to disk.
+        Write file to disk without OS newline translation (docs/bugs/196.md).
+
+        `EditorBuffer` already serializes line endings according to the
+        buffer's `fileformat` (`\\n`, `\\r\\n`, or `\\r`). Leaving Python's
+        default `newline=None` translates `\\n` to `\\r\\n` on Windows,
+        converting LF files to CRLF and turning DOS `\\r\\n` into `\\r\\r\\n`
+        (which then doubles newlines on every reload/save cycle).
         """
         location = _expand_location(location)
 
-        with io.open(location, 'w', encoding=encoding) as f:
+        with io.open(location, 'w', encoding=encoding, newline='') as f:
             f.write(text)
 
     def append(self, location, text, encoding='utf-8'):

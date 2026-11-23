@@ -69,6 +69,22 @@ def test_fileio_uses_io_open(tmp_path, monkeypatch):
 
     assert [args[1] for args, _kw in calls] == ['w']
     assert [kw.get('encoding') for _args, kw in calls] == ['utf-8']
+    assert [kw.get('newline') for _args, kw in calls] == ['']
+
+
+def test_fileio_write_preserves_exact_line_endings(tmp_path):
+    # `FileIO.write` must not apply OS newline translation (e.g. `\n` -> `\r\n`
+    # on Windows), which would corrupt LF files to CRLF and turn CRLF into
+    # `\r\r\n` (doubling newlines on subsequent reloads/saves).
+    f = FileIO()
+    for name, text, expected in (
+        ('dos.txt', 'a\r\nb\r\n', b'a\r\nb\r\n'),
+        ('unix.txt', 'a\nb\n', b'a\nb\n'),
+        ('mac.txt', 'a\rb\r', b'a\rb\r'),
+    ):
+        p = tmp_path / name
+        f.write(str(p), text, 'utf-8')
+        assert p.read_bytes() == expected, name
 
 
 def test_gzip_roundtrip(tmp_path):
