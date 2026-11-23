@@ -18,6 +18,7 @@ from .commands import (
     press_enter_to_continue,
 )
 from .editor import Editor
+from .io.backends import expand_location
 
 if TYPE_CHECKING:
     pass
@@ -204,15 +205,15 @@ def find_config_file() -> str | None:
     """
     xdg_home = os.environ.get('XDG_CONFIG_HOME')
     if xdg_home:
-        xdg_config = os.path.join(os.path.expanduser(xdg_home), 'vith', 'config.toml')
+        xdg_config = os.path.join(expand_location(xdg_home), 'vith', 'config.toml')
     else:
-        xdg_config = os.path.expanduser('~/.config/vith/config.toml')
+        xdg_config = expand_location('~/.config/vith/config.toml')
 
     candidates = [
         xdg_config,
-        os.path.expanduser('~/.vith/config.toml'),
-        os.path.expanduser('~/.vithrc'),
-        os.path.expanduser('~/.pyvimrc'),
+        expand_location('~/.vith/config.toml'),
+        expand_location('~/.vithrc'),
+        expand_location('~/.pyvimrc'),
     ]
     for path in candidates:
         if os.path.exists(path):
@@ -233,7 +234,7 @@ def _resolve_hook_path(
     4. ~/.config/vith/hooks/<name>
     5. ~/.vith/hooks/<name>
     """
-    expanded = os.path.expanduser(hook_name)
+    expanded = expand_location(hook_name)
     if os.path.isabs(expanded) and os.path.exists(expanded):
         return os.path.abspath(expanded)
     if os.path.exists(expanded):
@@ -241,17 +242,17 @@ def _resolve_hook_path(
 
     search_dirs: list[str] = []
     if config_path:
-        config_dir = os.path.dirname(os.path.abspath(os.path.expanduser(config_path)))
+        config_dir = os.path.dirname(os.path.abspath(expand_location(config_path)))
         if custom_dir:
-            search_dirs.append(os.path.join(config_dir, custom_dir))
+            search_dirs.append(os.path.join(config_dir, expand_location(custom_dir)))
         search_dirs.append(os.path.join(config_dir, 'hooks'))
         search_dirs.append(config_dir)
 
     xdg_home = os.environ.get('XDG_CONFIG_HOME')
     if xdg_home:
-        search_dirs.append(os.path.join(os.path.expanduser(xdg_home), 'vith', 'hooks'))
-    search_dirs.append(os.path.expanduser('~/.config/vith/hooks'))
-    search_dirs.append(os.path.expanduser('~/.vith/hooks'))
+        search_dirs.append(os.path.join(expand_location(xdg_home), 'vith', 'hooks'))
+    search_dirs.append(expand_location('~/.config/vith/hooks'))
+    search_dirs.append(expand_location('~/.vith/hooks'))
 
     for directory in search_dirs:
         candidate = os.path.join(directory, hook_name)
@@ -297,7 +298,7 @@ def run_hook_file(
     The hook file is executed in an isolated namespace containing `editor`.
     If a `configure` function is defined, it is called with `editor`.
     """
-    resolved = os.path.expanduser(os.fspath(hook_path))
+    resolved = expand_location(os.fspath(hook_path))
     if not os.path.exists(resolved):
         _report_rc_error('Hook file not found: %r' % resolved, error_handler)
         return False
@@ -505,7 +506,7 @@ def run_rc_file(
     assert isinstance(editor, Editor)
     assert isinstance(rc_file, (str, os.PathLike))
 
-    rc_file_str = os.path.expanduser(os.fspath(rc_file))
+    rc_file_str = expand_location(os.fspath(rc_file))
 
     if not os.path.exists(rc_file_str):
         _report_rc_error('Impossible to read %r' % rc_file_str, error_handler)

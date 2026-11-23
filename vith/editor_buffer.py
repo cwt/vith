@@ -9,6 +9,7 @@ from prompt_toolkit.filters import to_filter
 
 from vith.cold_text import ColdTextBuffer, make_cold_text_compressor
 from vith.completion import DocumentCompleter
+from vith.io.backends import expand_env_vars, expand_location
 from vith.io.base import find_backend
 from vith.lexer import sniff_filetype_from_text
 from vith.reporting import checks_python_file, report
@@ -20,12 +21,12 @@ UNTITLED_LABEL = '[New file]'
 
 
 def normalize_write_target(location: str | None) -> str | None:
-    """Normalize a write path for same-file comparison (tilde/symlink safe; docs/bugs/152.md)."""
+    """Normalize a write path for same-file comparison (tilde/env/symlink safe; docs/bugs/152.md)."""
     if not location:
         return None
     if '://' in location:
         return location
-    return os.path.realpath(os.path.abspath(os.path.expanduser(location)))
+    return os.path.realpath(os.path.abspath(expand_location(location)))
 
 
 def is_same_write_target(current_location: str | None, target_location: str | None) -> bool:
@@ -51,7 +52,7 @@ class EditorBuffer:
         assert not (location and text)
 
         self._editor_ref = weakref.ref(editor)
-        self.location = location
+        self.location = expand_env_vars(location) if location is not None else None
         self.encoding = 'utf-8'
         # Pygments lexer alias overriding filename-based detection
         # (`:set filetype=python`). `None` means auto-detect.
@@ -87,8 +88,8 @@ class EditorBuffer:
 
         # Read text.
         unreadable = False
-        if location:
-            text = self._read(location)
+        if self.location:
+            text = self._read(self.location)
             if text is None:
                 # Not a new file: an unknown backend or a read failure.
                 # Show a fallback-empty buffer, but keep it read-only so the
@@ -466,7 +467,7 @@ class EditorBuffer:
         Writing an untitled buffer names it and marks it clean.
         """
         # Resolve the target location without mutating state up front.
-        target_location = location if location is not None else self.location
+        target_location = expand_env_vars(location) if location is not None else self.location
         if not target_location:
             self.editor.show_message('Unknown location: %r' % location)
             return False

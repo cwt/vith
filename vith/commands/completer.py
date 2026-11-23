@@ -7,6 +7,8 @@ from prompt_toolkit.contrib.completers.system import SystemCompleter
 from prompt_toolkit.contrib.regular_languages.completion import GrammarCompleter
 from prompt_toolkit.document import Document
 
+from vith.io.backends import expand_env_vars
+
 from .grammar import COMMAND_GRAMMAR
 from .options import SET_EXTRA_TOGGLE_ON_NAMES, SET_TOGGLE_GROUPS
 from .registry import SET_COMMANDS, get_commands
@@ -178,6 +180,17 @@ class CommandCompleter(Completer):
         yield from self.inner.get_completions(document, complete_event)
 
 
+class _EnvPathCompleter(PathCompleter):
+    """`PathCompleter` that also expands environment variables (`$VAR`, `%VAR%`)."""
+
+    def get_completions(self, document, complete_event):
+        raw = document.text_before_cursor
+        expanded = expand_env_vars(raw)
+        if expanded != raw:
+            document = Document(expanded, len(expanded))
+        yield from super().get_completions(document, complete_event)
+
+
 def create_command_completer(editor):
     commands = [c + ' ' for c in get_commands()]
 
@@ -185,8 +198,8 @@ def create_command_completer(editor):
         COMMAND_GRAMMAR,
         {
             'command': WordCompleter(commands),
-            'location': PathCompleter(expanduser=True),
-            'write_append': PathCompleter(expanduser=True),
+            'location': _EnvPathCompleter(expanduser=True),
+            'write_append': _EnvPathCompleter(expanduser=True),
             'set_option': WordCompleter(sorted(SET_COMMANDS)),
             'buffer_name': BufferNameCompleter(editor),
             'colorscheme': ColorSchemeCompleter(editor),

@@ -32,7 +32,7 @@ from .commands.options import snapshot_default_options
 from .commands.preview import CommandPreviewer
 from .commands.substitution import resolve_ignore_case
 from .help import HELP_TEXT
-from .io import DirectoryIO, FileIO, GZipFileIO, HttpIO
+from .io import DirectoryIO, FileIO, GZipFileIO, HttpIO, expand_location
 from .key_bindings import create_key_bindings
 from .layout import EditorLayout
 from .process import set_process_name
@@ -248,11 +248,11 @@ class Editor:
         self._default_options = snapshot_default_options(self)
 
         # Ensure config directory exists (with legacy fallback).
-        target_dir = os.path.abspath(os.path.expanduser(config_directory))
-        if os.path.expanduser(config_directory) == os.path.expanduser(
-            '~/.vith'
-        ) and not os.path.exists(target_dir):
-            legacy_dir = os.path.abspath(os.path.expanduser('~/.pyvim'))
+        target_dir = os.path.abspath(expand_location(config_directory))
+        if expand_location(config_directory) == expand_location('~/.vith') and not os.path.exists(
+            target_dir
+        ):
+            legacy_dir = os.path.abspath(expand_location('~/.pyvim'))
             if os.path.exists(legacy_dir):
                 target_dir = legacy_dir
         self.config_directory = target_dir

@@ -1,4 +1,4 @@
-from .backends import DirectoryIO, FileIO, GZipFileIO, HttpIO
+from .backends import DirectoryIO, FileIO, GZipFileIO, HttpIO, expand_env_vars, expand_location
 from .base import EditorIO
 
 __all__ = (
@@ -7,4 +7,6 @@ __all__ = (
     'GZipFileIO',
     'DirectoryIO',
     'HttpIO',
+    'expand_env_vars',
+    'expand_location',
 )

@@ -10,6 +10,7 @@ import os
 from typing import Any
 
 from vith.editor_buffer import is_same_write_target
+from vith.io.backends import expand_location
 from vith.io.base import find_backend
 from vith.thai import note_document_text
 
@@ -163,7 +164,7 @@ def file_info(editor: Any, location: str | None) -> None:
     if location is not None:
         # `:f {name}` renames the buffer; normalize metadata the same way
         # writes do (docs/bugs/147.md).
-        normalized = os.path.abspath(os.path.expanduser(location))
+        normalized = os.path.abspath(expand_location(location))
         eb.location = normalized
         eb.is_new = not os.path.exists(normalized)
         eb.isdir = os.path.isdir(normalized)
@@ -188,7 +189,7 @@ def _reject_existing_write_target(editor: Any, eb: Any, location: str | None, fo
         return False
     if is_same_write_target(eb.location, location):
         return False
-    if os.path.exists(os.path.expanduser(location)):
+    if os.path.exists(expand_location(location)):
         editor.show_message('File exists (add ! to override)')
         return True
     return False
@@ -519,7 +520,7 @@ def source_file(editor: Any, location: str | None) -> None:
 @location_cmd('cd', accepts_force=False)
 def cd(editor: Any, location: str | None) -> None:
     """Change working directory."""
-    target = os.path.expanduser(location or '~')
+    target = expand_location(location or '~')
     try:
         os.chdir(target)
     except OSError as exc:

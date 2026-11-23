@@ -134,3 +134,123 @@ def test_directory_io_unreadable_raises_oserror(editor, tmp_path, monkeypatch):
     eb = EditorBuffer(editor, str(target_dir))
     assert eb.in_file_explorer_mode is True
     assert editor.message is not None and 'Permission denied' in editor.message
+
+
+def test_expand_env_vars_and_location_preserve_urls(monkeypatch, tmp_path):
+    import os
+
+    from vith.io.backends import expand_env_vars, expand_location
+
+    monkeypatch.setenv('VITH_TEST_ROOT', str(tmp_path))
+
+    # `$VAR` and `${VAR}` expand on every platform.
+    expected = os.path.join(str(tmp_path), 'alacritty.toml')
+    assert expand_env_vars(os.path.join('$VITH_TEST_ROOT', 'alacritty.toml')) == expected
+    assert expand_env_vars(os.path.join('${VITH_TEST_ROOT}', 'alacritty.toml')) == expected
+    assert expand_location(os.path.join('$VITH_TEST_ROOT', 'alacritty.toml')) == expected
+
+    # URLs must never undergo env-var or tilde expansion.
+    assert expand_env_vars('https://example.com/$VITH_TEST_ROOT') == (
+        'https://example.com/$VITH_TEST_ROOT'
+    )
+    assert expand_location('http://example.com/%VITH_TEST_ROOT%/a') == (
+        'http://example.com/%VITH_TEST_ROOT%/a'
+    )
+
+    # On Windows, `%VAR%` (case-insensitive) expands too.
+    if os.name == 'nt':
+        assert expand_env_vars(r'%VITH_TEST_ROOT%\alacritty.toml') == expected
+        assert expand_env_vars(r'%vith_test_root%\alacritty.toml') == expected
+        assert expand_location(r'%VITH_TEST_ROOT%\alacritty.toml') == expected
+
+
+def test_load_initial_files_and_ex_commands_expand_env_vars(editor, tmp_path, monkeypatch):
+    import os
+
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+
+    from vith.commands.completer import create_command_completer
+    from vith.commands.handler import expand_command_filenames, handle_command
+    from vith.rc_file import run_rc_file
+
+    sub = tmp_path / 'alacritty'
+    sub.mkdir()
+    cfg = sub / 'alacritty.toml'
+    cfg.write_bytes(b'size = 14.0\n')
+
+    rc = tmp_path / 'vith.toml'
+    rc.write_bytes(b'tabstop = 4\n')
+
+    monkeypatch.setenv('VITH_TEST_APPDATA', str(tmp_path))
+
+    path_expr = (
+        r'%VITH_TEST_APPDATA%\alacritty\alacritty.toml'
+        if os.name == 'nt'
+        else '$VITH_TEST_APPDATA/alacritty/alacritty.toml'
+    )
+    rc_expr = (
+        r'%VITH_TEST_APPDATA%\vith.toml' if os.name == 'nt' else '$VITH_TEST_APPDATA/vith.toml'
+    )
+
+    # 1. CLI `load_initial_files` opens the real file and stores the expanded path.
+    editor.load_initial_files([path_expr])
+    eb = editor.window_arrangement.active_editor_buffer
+    assert eb is not None
+    assert eb.is_new is False
+    assert eb.location == str(cfg)
+    assert eb.buffer.text == 'size = 14.0'
+
+    # Opening the expanded path again reuses the existing buffer (no duplicate).
+    editor.window_arrangement.open_buffer(str(cfg), show_in_current_window=True)
+    assert len(editor.window_arrangement.editor_buffers) == 1
+
+    # 2. Ex `:e` expands env vars without triggering `%` E499 or corrupting `%VAR%`.
+    editor.window_arrangement.open_buffer(None, show_in_current_window=True)
+    handle_command(editor, f'e {path_expr}')
+    active = editor.window_arrangement.active_editor_buffer
+    assert active is not None
+    assert active.location == str(cfg)
+    assert active.buffer.text == 'size = 14.0'
+
+    # 3. `:w` overwrite guard and `:cd` honor env-var paths.
+    out_expr = r'%VITH_TEST_APPDATA%\out.txt' if os.name == 'nt' else '$VITH_TEST_APPDATA/out.txt'
+    handle_command(editor, f'w {out_expr}')
+    assert (tmp_path / 'out.txt').read_text(encoding='utf-8') == 'size = 14.0\n'
+    editor.message = None
+    handle_command(editor, f'w {out_expr}')
+    assert editor.message == 'File exists (add ! to override)'
+
+    orig_cwd = os.getcwd()
+    try:
+        dir_expr = (
+            r'%VITH_TEST_APPDATA%\alacritty' if os.name == 'nt' else '$VITH_TEST_APPDATA/alacritty'
+        )
+        handle_command(editor, f'cd {dir_expr}')
+        assert os.path.realpath(os.getcwd()) == os.path.realpath(str(sub))
+    finally:
+        os.chdir(orig_cwd)
+
+    # 4. `run_rc_file` (`vith -u` / `:so`) expands env vars.
+    assert run_rc_file(editor, rc_expr) is True
+    assert editor.tabstop == 4
+
+    # 5. Path completion completes files inside env-var directories.
+    completer = create_command_completer(editor)
+    prefix = (
+        r'e %VITH_TEST_APPDATA%\alacritty\al'
+        if os.name == 'nt'
+        else 'e $VITH_TEST_APPDATA/alacritty/al'
+    )
+    comps = list(completer.get_completions(Document(prefix, len(prefix)), CompleteEvent()))
+    assert any(c.display_text == 'alacritty.toml' for c in comps)
+
+    # 6. On Windows, shell commands preserve `%VAR%` while still expanding trailing `%`.
+    if os.name == 'nt':
+        cmd_str, err = expand_command_filenames(
+            r'echo %VITH_TEST_APPDATA% %', editor, shell_escape=True
+        )
+        assert err is None
+        assert cmd_str is not None
+        assert cmd_str.startswith('echo %VITH_TEST_APPDATA% ')
+        assert 'alacritty.toml' in cmd_str

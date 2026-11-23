@@ -9,6 +9,7 @@ represents the rendering, while this is more specific for the editor itself.
 import weakref
 
 from .editor_buffer import EditorBuffer
+from .io.backends import expand_env_vars
 
 __all__ = ('WindowArrangement',)
 
@@ -635,6 +636,9 @@ class WindowArrangement:
 
             return eb
         else:
+            # Expand environment variables before buffer deduplication so
+            # `%APPDATA%\...` and its expanded path resolve to the same buffer.
+            location = expand_env_vars(location)
             # When a location is given, first look whether the file was already
             # opened.
             eb = self.get_editor_buffer_for_location(location)

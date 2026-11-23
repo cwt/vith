@@ -3,6 +3,8 @@ import os
 import shlex
 from typing import Any
 
+from vith.io.backends import expand_env_vars, expand_location
+
 from .files import filter_range_command
 from .grammar import COMMAND_GRAMMAR
 from .ranges import NO_SUCH_LINE_TEXT, resolve_line_address
@@ -37,7 +39,7 @@ class _ExpandedVariables:
 def _apply_filename_modifier(path: str, modifier: str) -> str:
     """Apply a single Vim filename modifier (`:p`, `:h`, `:t`, `:r`, `:e`)."""
     if modifier == 'p':
-        return os.path.abspath(os.path.expanduser(path))
+        return os.path.abspath(expand_location(path))
     if modifier == 'h':
         head = os.path.dirname(path)
         return head if head else '.'
@@ -48,6 +50,22 @@ def _apply_filename_modifier(path: str, modifier: str) -> str:
     if modifier == 'e':
         return os.path.splitext(path)[1].lstrip('.')
     return path
+
+
+def _match_windows_env_var(text: str, start: int) -> tuple[str, int] | None:
+    """
+    If `text[start:]` begins with `%VAR%` for a defined Windows environment
+    variable, return `(var_name, end_index)` (index after the closing `%`).
+    """
+    if os.name != 'nt' or text[start] != '%':
+        return None
+    end = text.find('%', start + 1)
+    if end <= start + 1:
+        return None
+    var_name = text[start + 1 : end]
+    if any(c in var_name for c in '/\\:') or var_name not in os.environ:
+        return None
+    return var_name, end + 1
 
 
 def expand_command_filenames(
@@ -73,6 +91,15 @@ def expand_command_filenames(
         if ch == '\\' and i + 1 < length and text[i + 1] in ('%', '#'):
             out.append(text[i + 1])
             i += 2
+            continue
+
+        # On Windows, treat `%VAR%` as an environment variable when `VAR`
+        # exists in `os.environ` (e.g. `:e %APPDATA%\alacritty\alacritty.toml`)
+        # instead of expanding both `%` delimiters as the current buffer name.
+        if (win_env := _match_windows_env_var(text, i)) is not None:
+            var_name, next_i = win_env
+            out.append(text[i:next_i] if shell_escape else os.environ[var_name])
+            i = next_i
             continue
 
         if ch in ('%', '#'):
@@ -118,6 +145,7 @@ def _expand_variables(variables: Any, editor: Any) -> tuple[Any, str | None]:
             expanded, err = expand_command_filenames(raw, editor, shell_escape=False)
             if err is not None or expanded is None:
                 return None, err
+            expanded = expand_env_vars(expanded)
             if expanded != raw:
                 overrides[key] = expanded
 

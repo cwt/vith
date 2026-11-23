@@ -1,18 +1,18 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 193 machine-verified findings across 13 audit rounds and 4 addenda (001–193; 192 closed, 1 withdrawn)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 194 machine-verified findings across 14 audit rounds and 4 addenda (001–194; 193 closed, 1 withdrawn)."
 status: stable
 sources:
   - docs/bugs/
   - docs/
 verified: machine-confirmed
 stale_after: 2027-05-23T00:00:00Z
-tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11, round-12, round-13]
+tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11, round-12, round-13, round-14]
 generated:
   by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-23T10:52:00+07:00"
-timestamp: "2026-11-23T10:52:00+07:00"
+  at: "2026-11-23T11:24:00+07:00"
+timestamp: "2026-11-23T11:24:00+07:00"
 ---
 
 # vith Findings Bundle
@@ -39,6 +39,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 
 * **Round 12 (2026-11-23, user field report — [192](192.md), `fix_status: fixed`)**: Tab in Insert mode did nothing while editing mid-line text because the indentation binding was gated on leading whitespace; the key press fell through to prompt_toolkit's `menu_complete`. Removed the filter (keeping the command/search buffer exclusions), corrected the default `expand_tab` to Vim's `noexpandtab` so Tab inserts a literal tab, and added regression tests.
 * **Round 13 (2026-11-23, user field report — [193](193.md), `fix_status: fixed`)**: Thai/Lao upper/lower vowels, tone marks, symbols (`ฯ`, `ๆ`, `฿`), and digits were dropped on Windows ConPTY input because `conhost.exe` delivers non-`C3_ALPHA` characters via synthesized Alt+Numpad `VK_MENU` (`0x12`) key-up records, which `prompt_toolkit.input.win32` ignored. Patched `Vt100ConsoleInputReader._get_keys` and `ConsoleInputReader._get_keys` in `_install_win32_input_patch` with signature checks, rollback tracking, and regression tests.
+* **Round 14 (2026-11-23, user field report — [194](194.md), `fix_status: fixed`)**: Environment variables (`%VAR%` on Windows, `$VAR`/`${VAR}` cross-platform) were not expanded in CLI arguments (`vith %APPDATA%\...`), Ex commands (`:e`, `:w`, `:cd`, `:so`, etc.), config/hook paths, or path completion, and Ex commands collided `%VAR%` with Vim's `%` filename token. Added URL-safe `expand_env_vars` / `expand_location` helpers, `_match_windows_env_var` in `vith/commands/handler.py`, `_EnvPathCompleter`, and regression tests.
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
@@ -464,6 +465,14 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | ID | Finding | Area | Priority | Status |
 | :-- | :--- | :--- | :--- | :--- |
 | [193](193.md) | Thai/Lao upper/lower vowels, tone marks, symbols, and digits dropped on Windows ConPTY input (`VK_MENU` key-up ignored by `prompt_toolkit.input.win32`) | thai/win32-input | **high** | fixed |
+
+## Round 14 Findings (2026-11-23 user field report)
+
+### Defects (`type: bug`)
+
+| ID | Finding | Area | Priority | Status |
+| :-- | :--- | :--- | :--- | :--- |
+| [194](194.md) | Environment variables (`%VAR%` on Windows, `$VAR`/`${VAR}`) not expanded in CLI, Ex command, config, or completion paths | io/commands/paths | medium | fixed |
 
 ## Meta
 

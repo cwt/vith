@@ -10,6 +10,8 @@ __all__ = (
     'GZipFileIO',
     'DirectoryIO',
     'HttpIO',
+    'expand_env_vars',
+    'expand_location',
 )
 
 
@@ -22,9 +24,29 @@ FALLBACK_ENCODING = 'latin-1'
 ENCODINGS = (PRIMARY_ENCODING, FALLBACK_ENCODING)
 
 
-def _expand_location(location: str) -> str:
-    """Expand leading `~` user-home prefixes for local filesystem locations."""
-    return os.path.expanduser(location)
+def expand_env_vars(location: str) -> str:
+    """
+    Expand environment variables (`$VAR`, `${VAR}`, and `%VAR%` on Windows)
+    for local filesystem paths, leaving URLs (`scheme://...`) untouched.
+    """
+    if '://' in location:
+        return location
+    return os.path.expandvars(location)
+
+
+def expand_location(location: str) -> str:
+    """
+    Expand environment variables (`$VAR`, `${VAR}`, and `%VAR%` on Windows)
+    and leading `~` user-home prefixes for local filesystem locations.
+    URLs (`scheme://...`) are returned untouched.
+    """
+    if '://' in location:
+        return location
+    return os.path.expanduser(os.path.expandvars(location))
+
+
+# Backward-compatible internal alias.
+_expand_location = expand_location
 
 
 class FileIO(EditorIO):
