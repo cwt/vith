@@ -1,14 +1,14 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 196 machine-verified findings across 16 audit rounds and 4 addenda (001–196; 195 closed, 1 withdrawn)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 203 machine-verified findings across 17 audit rounds and 4 addenda (001–203; 195 fixed, 1 withdrawn, 7 open)."
 status: stable
 sources:
   - docs/bugs/
   - docs/
 verified: machine-confirmed
 stale_after: 2027-05-23T00:00:00Z
-tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11, round-12, round-13, round-14, round-15, round-16]
+tags: [bugs, findings, audit, round-6, round-7, round-8, round-9, round-10, round-11, round-12, round-13, round-14, round-15, round-16, round-17]
 generated:
   by: "Antigravity (Gemini 4 Neon)"
   at: "2026-11-23T15:18:00+07:00"
@@ -491,6 +491,22 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | ID | Finding | Area | Priority | Status |
 | :-- | :--- | :--- | :--- | :--- |
 | [196](196.md) | `FileIO.write` omits `newline=''` on Windows, writing `\r\r\n` for CRLF files (doubling newlines on every save) and converting LF files to CRLF | io/fileformat/windows | **high** | fixed |
+
+## Round 17 Findings (2026-11-23 read-only re-audit, `v0.16.4` → `fix_status: open`)
+
+**Scope and method:** read-only follow-up to the 2026-11-23 full-project audit (shards: core editor, commands, Thai/render/IO, support). Every candidate from that audit was re-probed against the shipped code; false positives were dropped (e.g. `save_before` callable signature, Lao `libthai` Tier-2-by-design, `:join` count/range Vim semantics, shared-list `cell_starts` with no mutator). The 7 items below are machine-confirmed with direct probes and are filed `fix_status: open`; no source files were changed.
+
+### Defects (`type: bug`)
+
+| ID | Finding | Area | Priority | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| [197](197.md) | `:g` with whitespace-only args crashes with `IndexError` in `_parse_global_args` | commands/global | medium | open |
+| [198](198.md) | CSV preview row cap off-by-one keeps 5001 rows while the message says 5000 | render/csv | low | open |
+| [199](199.md) | CSV/TSV scroll-sync landmarks split on raw delimiter and ignore quoting | render/scroll-sync | low | open |
+| [200](200.md) | `:norm` uses identity (`is not`) instead of equality (`!=`) for buffer-text change detection | commands/normal | low | open |
+| [201](201.md) | `FiletypeTabstops` alias contract breaks on delete/pop and accepts unvalidated values | editor/filetype | low | open |
+| [202](202.md) | `HttpIO.read` has no timeout, headers, or error mapping and can hang the TUI | io/http | medium | open |
+| [203](203.md) | Cell-cluster `x`/`X`/`~` (and `i`/`a`) miss the read-only guard that `s`/`>>`/`<<`/`o`/`O` have | key-bindings/read-only | medium | open |
 
 ## Meta
 
