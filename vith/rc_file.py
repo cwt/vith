@@ -339,13 +339,26 @@ def apply_toml_config(
     if isinstance(toml_data.get('editor'), dict):
         editor_table.update(toml_data['editor'])
 
+    # `[editor]` wins over top-level fallbacks, even when the two spell the
+    # same option differently (`ts` vs `tabstop`, `colo` vs `colorscheme`),
+    # so remember which targets it already claimed (docs/bugs/210.md).
+    claimed_attrs = {_CONFIG_OPTION_MAP[key] for key in editor_table if key in _CONFIG_OPTION_MAP}
+    claimed_colorscheme = any(key in ('colorscheme', 'colo') for key in editor_table)
+
     # Merge top-level options for flexibility (skip `[tabstop]` table dicts,
     # which configure per-filetype tabstops below):
     for key, value in toml_data.items():
         if key == 'tabstop' and isinstance(value, dict):
             continue
-        if key in _CONFIG_OPTION_MAP or key in ('colorscheme', 'colo'):
-            editor_table.setdefault(key, value)
+        if key in _CONFIG_OPTION_MAP:
+            if _CONFIG_OPTION_MAP[key] in claimed_attrs:
+                continue
+        elif key in ('colorscheme', 'colo'):
+            if claimed_colorscheme:
+                continue
+        else:
+            continue
+        editor_table.setdefault(key, value)
 
     all_ok = True
 
@@ -368,14 +381,26 @@ def apply_toml_config(
             _report_rc_error('E185: Cannot find color scheme %s' % scheme, error_handler)
             all_ok = False
 
-    # Apply per-filetype tabstops:
-    tabstop_table = toml_data.get('tabstop') or toml_data.get('filetype_tabstops')
+    # Apply per-filetype tabstops. A scalar top-level `tabstop` must not
+    # short-circuit the dedicated tables through a truthy `or` (210.md).
+    tabstop_table = toml_data.get('filetype_tabstops')
+    if not isinstance(tabstop_table, dict):
+        tabstop_table = toml_data.get('tabstop')
     if isinstance(tabstop_table, dict):
         for ft, width in tabstop_table.items():
-            try:
-                editor.filetype_tabstops[str(ft)] = int(width)
-            except (ValueError, TypeError):
-                pass
+            if (
+                isinstance(width, bool)
+                or not isinstance(width, int)
+                or not 1 <= width <= _MAX_OPTION_INT
+            ):
+                _report_rc_error(
+                    'Invalid value for tabstop.%s: expected an integer in 1..%d'
+                    % (ft, _MAX_OPTION_INT),
+                    error_handler,
+                )
+                all_ok = False
+                continue
+            editor.filetype_tabstops[str(ft)] = width
 
     # Apply live `:render` preview configuration:
     render_section = toml_data.get('render')

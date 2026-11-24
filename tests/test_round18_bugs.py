@@ -146,6 +146,45 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_210_scalar_tabstop_does_not_shadow_filetype_table(editor):
+    from vith.rc_file import apply_toml_config
+
+    errors = []
+    ok = apply_toml_config(
+        editor,
+        {"tabstop": 4, "filetype_tabstops": {"python": 2}},
+        error_handler=errors.append,
+    )
+
+    assert ok is True
+    assert editor.tabstop == 4
+    assert editor.filetype_tabstops["python"] == 2
+    assert errors == []
+
+
+def test_210_invalid_filetype_tabstop_widths_reported(editor):
+    from vith.rc_file import apply_toml_config
+
+    errors = []
+    ok = apply_toml_config(
+        editor,
+        {"tabstop": {"python": True, "rust": -5, "go": "bad"}},
+        error_handler=errors.append,
+    )
+
+    assert ok is False
+    assert len(errors) == 3
+    assert editor.filetype_tabstops["python"] == 4  # default preserved
+
+
+def test_210_editor_alias_beats_top_level_option(editor):
+    from vith.rc_file import apply_toml_config
+
+    apply_toml_config(editor, {"tabstop": 8, "editor": {"ts": 2}})
+
+    assert editor.tabstop == 2
+
+
 def test_209_bench_thai_plan_smoke():
     import importlib.util
     from pathlib import Path
