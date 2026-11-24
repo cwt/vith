@@ -576,12 +576,20 @@ def _vith_get_cwidth(string: str) -> int:
     return total
 
 
-def _install_get_cwidth_patch() -> None:
+def _install_get_cwidth_patch(
+    applied: list[tuple[Any, str, object]] | None = None,
+) -> None:
     """Point prompt_toolkit (and vith) get_cwidth at the VS16-aware wrapper."""
     try:
         import prompt_toolkit.utils as _ptk_utils
 
-        _ptk_utils.get_cwidth = _vith_get_cwidth
+        if getattr(_ptk_utils, "get_cwidth", None) is _vith_get_cwidth:
+            return
+        original = getattr(_ptk_utils, "get_cwidth", None)
+        if original is not None:
+            if applied is not None:
+                applied.append((_ptk_utils, "get_cwidth", original))
+            _ptk_utils.get_cwidth = _vith_get_cwidth
     except Exception:
         pass
     # Patch every module that imported get_cwidth by name so the override
@@ -593,12 +601,16 @@ def _install_get_cwidth_patch() -> None:
             continue
         try:
             if getattr(_mod, "get_cwidth", None) is _ORIGINAL_PTK_GET_CWIDTH:
+                if applied is not None:
+                    applied.append((_mod, "get_cwidth", _ORIGINAL_PTK_GET_CWIDTH))
                 setattr(_mod, "get_cwidth", _vith_get_cwidth)
         except Exception:
             continue
 
 
-def _install_copy_body_vs16_merge_fix() -> None:
+def _install_copy_body_vs16_merge_fix(
+    applied: list[tuple[Any, str, object]] | None = None,
+) -> None:
     """Advance the write cursor when a zero-width merge widens a cell (VS16)."""
     try:
         import inspect
@@ -607,7 +619,12 @@ def _install_copy_body_vs16_merge_fix() -> None:
         import prompt_toolkit.layout.containers as _ptk_containers
 
         orig = _ptk_containers.Window._copy_body
-        if getattr(orig, "_vith_vs16_merge_patched", False):
+        # The later `_patched_copy_body` wrapper hides the VS16 marker but
+        # still contains the fix; do not re-patch from source on every Editor
+        # creation (docs/bugs/222.md).
+        if getattr(orig, "_vith_vs16_merge_patched", False) or getattr(
+            orig, "_vith_thai_patched", False
+        ):
             return
         src = textwrap.dedent(inspect.getsource(orig))
         old_snip = "                                new_buffer_row[x + xpos - pw] = char2\n"
@@ -623,6 +640,8 @@ def _install_copy_body_vs16_merge_fix() -> None:
         exec(compile(src, "<vith-copy-body-vs16>", "exec"), namespace)
         patched = namespace["_copy_body"]
         patched._vith_vs16_merge_patched = True
+        if applied is not None:
+            applied.append((_ptk_containers.Window, "_copy_body", orig))
         _ptk_containers.Window._copy_body = patched  # type: ignore[method-assign]
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("VS16 merge fix failed: %s", exc)
@@ -1562,12 +1581,12 @@ def install_prompt_toolkit_thai_patches() -> bool:
         # They fail soft (warn + skip) on genuine signature drift; an unexpected
         # raise inside them still reaches the rollback below because each install
         # appends its own (target, attribute, original) triple on success.
-        _install_copy_body_vs16_merge_fix()
+        _install_copy_body_vs16_merge_fix(applied)
         _install_window_copy_body_patch(applied)
         _install_renderer_patch(applied)
         _install_tabs_processor_patch(applied)
         _install_win32_input_patch(applied)
-        _install_get_cwidth_patch()
+        _install_get_cwidth_patch(applied)
 
         # Startup self-test required by Section 4.1:
         _thai_install_selftest()

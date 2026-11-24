@@ -147,6 +147,19 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_222_repeated_patch_install_is_quiet(caplog):
+    import logging
+
+    from vith.thai import install_prompt_toolkit_thai_patches
+
+    with caplog.at_level(logging.WARNING, logger="vith.thai.patches"):
+        caplog.clear()
+        assert install_prompt_toolkit_thai_patches() is True
+        assert install_prompt_toolkit_thai_patches() is True
+
+    assert "VS16 merge fix: target snippet not found" not in caplog.text
+
+
 def test_221_hook_lookup_skips_directory_collision(tmp_path, monkeypatch):
     from vith.rc_file import _resolve_hook_path
 
