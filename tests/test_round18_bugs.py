@@ -147,6 +147,36 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_221_hook_lookup_skips_directory_collision(tmp_path, monkeypatch):
+    from vith.rc_file import _resolve_hook_path
+
+    (tmp_path / "myhook").mkdir()  # colliding directory in CWD
+    hooks = tmp_path / "custom_hooks"
+    hooks.mkdir()
+    expected = hooks / "myhook.py"
+    expected.write_text("def configure(e): pass\n", encoding="utf-8")
+    config = tmp_path / "config.toml"
+    config.write_text("[hooks]\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert _resolve_hook_path("myhook", str(config), str(hooks)) == str(expected)
+
+
+def test_221_custom_hooks_dir_without_config_path(editor, tmp_path):
+    from vith.rc_file import apply_toml_config
+
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "other.py").write_text("def configure(e):\n    e.hook_ran = True\n", encoding="utf-8")
+
+    assert apply_toml_config(
+        editor,
+        {"hooks": {"directory": str(hooks), "enabled": ["other.py"]}},
+        config_path=None,
+    )
+    assert getattr(editor, "hook_ran", False) is True
+
+
 def test_220_ex_delete_clamps_col_on_whitespace_line(editor):
     eb = _editor_with_lines(editor, "hello\n    \nworld")
 

@@ -218,7 +218,7 @@ def find_config_file() -> str | None:
         expand_location('~/.pyvimrc'),
     ]
     for path in candidates:
-        if os.path.exists(path):
+        if os.path.exists(path) and not os.path.isdir(path):
             return path
     return None
 
@@ -237,16 +237,21 @@ def _resolve_hook_path(
     5. ~/.vith/hooks/<name>
     """
     expanded = expand_location(hook_name)
-    if os.path.isabs(expanded) and os.path.exists(expanded):
-        return os.path.abspath(expanded)
-    if os.path.exists(expanded):
+    if os.path.exists(expanded) and not os.path.isdir(expanded):
         return os.path.abspath(expanded)
 
+    config_dir = (
+        os.path.dirname(os.path.abspath(expand_location(config_path)))
+        if config_path
+        else os.getcwd()
+    )
     search_dirs: list[str] = []
+    if custom_dir:
+        custom = expand_location(custom_dir)
+        if not os.path.isabs(custom):
+            custom = os.path.join(config_dir, custom)
+        search_dirs.append(custom)
     if config_path:
-        config_dir = os.path.dirname(os.path.abspath(expand_location(config_path)))
-        if custom_dir:
-            search_dirs.append(os.path.join(config_dir, expand_location(custom_dir)))
         search_dirs.append(os.path.join(config_dir, 'hooks'))
         search_dirs.append(config_dir)
 
@@ -258,11 +263,11 @@ def _resolve_hook_path(
 
     for directory in search_dirs:
         candidate = os.path.join(directory, hook_name)
-        if os.path.exists(candidate):
+        if os.path.exists(candidate) and not os.path.isdir(candidate):
             return os.path.abspath(candidate)
         if not hook_name.endswith('.py'):
             candidate_py = candidate + '.py'
-            if os.path.exists(candidate_py):
+            if os.path.exists(candidate_py) and not os.path.isdir(candidate_py):
                 return os.path.abspath(candidate_py)
 
     return None
@@ -301,7 +306,7 @@ def run_hook_file(
     If a `configure` function is defined, it is called with `editor`.
     """
     resolved = expand_location(os.fspath(hook_path))
-    if not os.path.exists(resolved):
+    if not os.path.exists(resolved) or os.path.isdir(resolved):
         _report_rc_error('Hook file not found: %r' % resolved, error_handler)
         return False
 
