@@ -61,7 +61,9 @@ SET_LIST_OPTIONS = (('colorcolumn', 'colorcolumn', ('colorcolumn', 'cc')),)
 SET_EXTRA_TOGGLE_ON_NAMES = ('tildeop', 'top', 'readonly', 'ro')
 _EXTRA_TOGGLE_OFF_NAMES = ('notildeop', 'notop', 'noreadonly', 'noro')
 _EXTRA_TOGGLE_ALL_NAMES = frozenset(SET_EXTRA_TOGGLE_ON_NAMES + _EXTRA_TOGGLE_OFF_NAMES)
-_EXTRA_VALUE_OPTION_NAMES = frozenset(('filetype', 'ft', 'fileencoding', 'fenc'))
+_EXTRA_VALUE_OPTION_NAMES = frozenset(
+    ('filetype', 'ft', 'fileencoding', 'fenc', 'fileformat', 'ff')
+)
 
 _TOGGLE_ON_MAP: dict[str, tuple[str, str]] = {}
 _TOGGLE_OFF_MAP: dict[str, tuple[str, str]] = {}
@@ -506,6 +508,11 @@ def _apply_set_token(
             return _append_set_query(editor, opt, queries)
         return bool(set_fileencoding(editor, value))
 
+    if opt in ('fileformat', 'ff'):
+        if value is None:
+            return _append_set_query(editor, opt, queries)
+        return bool(set_fileformat(editor, value, is_local=is_local))
+
     if opt in SET_COMMANDS:
         if opt in SET_COMMANDS_TAKING_VALUE:
             SET_COMMANDS[opt](editor, value)
@@ -599,7 +606,7 @@ def set_fileencoding(editor: Any, value: str | None) -> bool:
 
 @set_cmd('fileformat', accepts_value=True)
 @set_cmd('ff', accepts_value=True)
-def set_fileformat(editor: Any, value: str | None) -> bool:
+def set_fileformat(editor: Any, value: str | None, *, is_local: bool = False) -> bool:
     """Get or set the active buffer's line-ending style (`:set ff=dos`)."""
     eb = editor.window_arrangement.active_editor_buffer
     if value is None:
@@ -610,7 +617,11 @@ def set_fileformat(editor: Any, value: str | None) -> bool:
     if fmt not in ('dos', 'unix', 'mac'):
         editor.show_message('E518: Invalid fileformat: %s' % value)
         return False
-    editor.fileformat = fmt
+    if is_local and eb is None:
+        editor.show_message('No buffer')
+        return False
+    if not is_local:
+        editor.fileformat = fmt
     if eb is not None:
         eb.fileformat = fmt
     return True

@@ -146,6 +146,34 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_213_setlocal_fileformat_leaves_global_unchanged(editor):
+    eb = _editor_with_lines(editor, "a\nb")
+    editor.fileformat = "unix"
+
+    handle_command(editor, ":setlocal ff=dos")
+
+    assert eb.fileformat == "dos"
+    assert editor.fileformat == "unix"
+
+
+def test_213_set_ff_bang_reports_invalid_argument(editor):
+    _editor_with_lines(editor, "a\nb")
+
+    handle_command(editor, ":set ff!")
+
+    assert editor.message is not None
+    assert "E474" in editor.message
+
+
+def test_213_multi_query_includes_fileformat(editor):
+    _editor_with_lines(editor, "a\nb")
+
+    handle_command(editor, ":set ts ff")
+
+    assert "tabstop=" in (editor.message or "")
+    assert "fileformat=" in (editor.message or "")
+
+
 def test_212_chained_tilde_replacement_uses_expanded_text(editor):
     eb = _editor_with_lines(editor, "a b c")
 
