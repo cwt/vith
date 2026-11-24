@@ -146,6 +146,26 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_209_bench_thai_plan_smoke():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "tools" / "bench_plans.py"
+    spec = importlib.util.spec_from_file_location("bench_plans", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    module.bench_thai_plan()
+
+
+def test_209_word_regex_excludes_unassigned_U0EC7():
+    from vith.completion import DocumentWordsCompleter
+
+    pattern = DocumentWordsCompleter._WORD_RE
+    assert pattern.search("\u0ec8") is not None
+    assert pattern.search("\u0ec7") is None
+
+
 def test_208_redos_guard_catches_nested_and_counted_repeats(editor):
     _editor_with_lines(editor, "aaa\nbbb")
     for pattern in ("((a)+)+$", "(?:(a+))+$", "(a+){5,}$"):

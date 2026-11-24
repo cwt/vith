@@ -44,8 +44,9 @@ class _DummyEditorBuffer:
 def bench_thai_plan() -> None:
     thai = vith_thai
     print("=== 1. Thai & Lao Cell-Cluster / Syllable Verification & Benchmarks ===")
-    assert len(thai._THAI_COMBINING_CPS) == 34, "Expected 16 Thai + 18 Lao combining marks"
-    for cp in (0x0EBA, 0x0EC7, 0x0ECE):
+    assert len(thai._THAI_COMBINING_CPS) == 33, "Expected 16 Thai + 17 Lao combining marks"
+    assert not thai.is_thai_combining(0x0EC7), "U+0EC7 is unassigned (docs/bugs/191.md)"
+    for cp in (0x0EBA, 0x0EC8, 0x0ECE):
         assert thai.is_thai_combining(cp), f"Missing Lao combining mark U+{cp:04X}"
         assert thai.is_combining_char(chr(cp)), f"is_combining_char failed for U+{cp:04X}"
     assert thai.is_combining_char("\u0301"), "Expected Latin combining U+0301 to be combining"

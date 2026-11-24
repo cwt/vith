@@ -13,7 +13,7 @@ from prompt_toolkit.utils import get_cwidth
 # 1. Thai & Lao Character Classification Predicates
 # ---------------------------------------------------------------------------
 
-# Complete 34-codepoint set of Thai (16) and Lao (18) GC=Mn combining marks,
+# Complete 33-codepoint set of Thai (16) and Lao (17) GC=Mn combining marks,
 # matching `szn/src/thai.zig:28-70` (`isThaiCombining`) 1-for-1.
 # Note: SARA AM (U+0E33 / U+0EB3) is GC=Lo (spacing following vowel, width 1), NOT Mn.
 _THAI_COMBINING_CPS: frozenset[int] = frozenset(
@@ -35,7 +35,7 @@ _THAI_COMBINING_CPS: frozenset[int] = frozenset(
         0x0E4C,
         0x0E4D,
         0x0E4E,  # THANTHAKHAT, NIKHAHIT, YAMAKKAN
-        # Lao combining marks (18 marks: U+0EB1, U+0EB4..U+0EBC, U+0EC7..U+0ECE)
+        # Lao combining marks (17 marks: U+0EB1, U+0EB4..U+0EBC, U+0EC8..U+0ECE)
         0x0EB1,  # MAI KAN
         0x0EB4,
         0x0EB5,
@@ -103,7 +103,7 @@ def is_thai_or_lao(cp: int) -> bool:
 
 
 def is_thai_combining(cp: int) -> bool:
-    """True if `cp` is one of the 34 Thai/Lao zero-width combining marks (`GC=Mn`)."""
+    """True if `cp` is one of the 33 Thai/Lao zero-width combining marks (`GC=Mn`)."""
     return cp in _THAI_COMBINING_CPS
 
 
