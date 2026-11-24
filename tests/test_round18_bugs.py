@@ -147,6 +147,28 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_225_buffer_list_aligns_by_display_width(editor, tmp_path):
+    from prompt_toolkit.utils import get_cwidth
+
+    from vith.layout import BufferListOverlay
+
+    paths = []
+    for name in ("ก้้้.txt", "abcd.txt", "中文.txt"):
+        path = tmp_path / name
+        path.write_text("x", encoding="utf-8")
+        paths.append(str(path))
+    editor.load_initial_files(paths)
+
+    overlay = BufferListOverlay(editor)
+    tokens = overlay.content.content.text()
+    text = "".join(fragment for _style, fragment in tokens)
+    rows = [line for line in text.splitlines() if "line " in line]
+
+    assert len(rows) == 3
+    line_columns = {get_cwidth(row[: row.index("line ")]) for row in rows}
+    assert len(line_columns) == 1
+
+
 def test_224_substitute_is_completed(editor):
     from prompt_toolkit.completion import CompleteEvent
     from prompt_toolkit.document import Document

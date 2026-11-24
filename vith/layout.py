@@ -37,6 +37,7 @@ from prompt_toolkit.layout.processors import (
 from prompt_toolkit.layout.utils import explode_text_fragments
 from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.selection import SelectionType
+from prompt_toolkit.utils import get_cwidth
 from prompt_toolkit.widgets.toolbars import (
     CompletionsToolbar,
     FormattedTextToolbar,
@@ -350,13 +351,15 @@ class BufferListOverlay(ConditionalContainer):
                 result.append(('', '  '))
                 result.append(('class:title', 'Open buffers\n'))
 
-                # Get length of longest location
-                max_location_len = max(
-                    len(info.editor_buffer.get_display_name()) for info in buffer_infos
-                )
+                # Align on terminal display width, not codepoint count, and
+                # fetch each display name once (docs/bugs/225.md).
+                named_infos = [
+                    (info, info.editor_buffer.get_display_name()) for info in buffer_infos
+                ]
+                max_location_len = max(get_cwidth(name) for _info, name in named_infos)
 
                 # Show info for each buffer.
-                for info in buffer_infos:
+                for info, display_name in named_infos:
                     eb = info.editor_buffer
                     char = '%' if info.is_active else ' '
                     char2 = 'a' if info.is_visible else ' '
@@ -373,11 +376,11 @@ class BufferListOverlay(ConditionalContainer):
                         ]
                     )
                     result.extend(
-                        highlight_location(eb.get_display_name(), search_pattern, search_string, t)
+                        highlight_location(display_name, search_pattern, search_string, t)
                     )
                     result.extend(
                         [
-                            (t, ' ' * (max_location_len - len(eb.get_display_name()))),
+                            (t, ' ' * (max_location_len - get_cwidth(display_name))),
                             (
                                 t + ' class:lineno',
                                 '  line %i' % (eb.buffer.document.cursor_position_row + 1),
