@@ -1,7 +1,7 @@
 ---
 type: index
 title: "vith Findings Bundle"
-description: "OKF v0.2 findings bundle for the vith bug audit: 229 machine-verified findings across 18 audit rounds and 4 addenda (001–229; 202 fixed, 1 withdrawn, 26 open)."
+description: "OKF v0.2 findings bundle for the vith bug audit: 229 machine-verified findings across 18 audit rounds and 4 addenda (001–229; 228 fixed, 1 withdrawn, 0 open)."
 status: stable
 sources:
   - docs/bugs/
@@ -43,7 +43,7 @@ This bundle tracks machine-verified audit findings for `vith` (`vith/`,
 * **Round 15 (2026-11-23, user field report — [195](195.md), `fix_status: fixed`)**: VS16-promoted narrow emoji counted as 1 cell instead of 2 (wide emoji drift). Added opt-in `variation_selector_always_wide` option exposed through `Editor`, `:set`, and TOML config, plus `_copy_body` VS16 x-advance merge fix.
 * **Round 16 (2026-11-23, user field report — [196](196.md), `fix_status: fixed`)**: `FileIO.write` omitted `newline=''`, so Python's Windows default `newline=None` translated `\n` to `\r\n` on top of `EditorBuffer`'s explicit `fileformat` serialization — turning DOS `\r\n` into `\r\r\n` (doubling newlines on every reload/save cycle) and silently converting LF files to CRLF. Passed `newline=''` to `io.open` and added cross-platform regression tests.
 * **Round 17 (2026-11-23, read-only re-audit — [197](197.md)–[203](203.md), `fix_status: fixed`)**: 7 machine-confirmed defects (`:g` whitespace-only `IndexError`, CSV 5001-row cap off-by-one, CSV landmark quoting mismatch, `:norm` `is not` vs `!=`, `FiletypeTabstops` alias-delete/validation gap, `HttpIO.read` unbounded network call, and cell-cluster read-only guard gap), all fixed with regression tests (**569 passed / 2 skipped**, `mypy` 88 files clean, `ruff` clean).
-* **Round 18 (2026-11-24, full-project deep audit at `v0.16.5` / hg rev `458:d2d313328875` — [204](204.md)–[229](229.md), `fix_status: open`)**: 26 machine-confirmed findings (23 defects `type: bug` + 3 inventories `type: improvement`) verified via live `Editor`/`KeyProcessor`/`DocumentLexer`/config/benchmark probes with false positives dropped (global-local `:set tabstop` and `:set filetype` tabstop reset match Vim/ftplugin semantics and existing test pins). High-priority items: counted-insert state leak & slice corruption ([204](204.md)), split-brain Normal vs Ex registers ([205](205.md)), `:w!` failure on `~/...` paths ([206](206.md)), `<F1>` from Command/Search mode leaking previewer state ([207](207.md)), ReDoS guard bypass on nested groups/`{m,n}` ([208](208.md)), `tools/bench_plans.py` crash on `U+0EC7` ([209](209.md)), and per-keystroke $O(N)$ `text.splitlines()` in extensionless modeline sniffing ([227](227.md)).
+* **Round 18 (2026-11-24, full-project deep audit at `v0.16.5` / hg rev `458:d2d313328875` — [204](204.md)–[229](229.md), `fix_status: fixed (hg rev 460–485)`)**: 26 machine-confirmed findings (23 defects `type: bug` + 3 inventories `type: improvement`) verified via live `Editor`/`KeyProcessor`/`DocumentLexer`/config/benchmark probes with false positives dropped (global-local `:set tabstop` and `:set filetype` tabstop reset match Vim/ftplugin semantics and existing test pins). High-priority items: counted-insert state leak & slice corruption ([204](204.md)), split-brain Normal vs Ex registers ([205](205.md)), `:w!` failure on `~/...` paths ([206](206.md)), `<F1>` from Command/Search mode leaking previewer state ([207](207.md)), ReDoS guard bypass on nested groups/`{m,n}` ([208](208.md)), `tools/bench_plans.py` crash on `U+0EC7` ([209](209.md)), and per-keystroke $O(N)$ `text.splitlines()` in extensionless modeline sniffing ([227](227.md)).
 
 ## Round 5 Findings (2026-11-09 full re-audit, hg rev 256 → `fix_status: fixed`)
 
@@ -510,7 +510,9 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 | [202](202.md) | `HttpIO.read` has no timeout, headers, or error mapping and can hang the TUI | io/http | medium | fixed |
 | [203](203.md) | Cell-cluster `x`/`X`/`~` (and `i`/`a`) miss the read-only guard that `s`/`>>`/`<<`/`o`/`O` have | key-bindings/read-only | medium | fixed |
 
-## Round 18 Findings (2026-11-24 full-project deep audit, `v0.16.5` / hg rev `458:d2d313328875` → `fix_status: open`)
+## Round 18 Findings (2026-11-24 full-project deep audit, `v0.16.5` / hg rev `458:d2d313328875` → `fix_status: fixed (hg rev 460–485)`)
+
+**Resolution note (2026-11-24):** all 26 Round 18 findings were fixed finding-by-finding in hg rev 460–485, each with regression tests and the `scripts/` quality gates (`code-format.sh`, `lint-check-and-fix.sh`, `type-check.sh`, `runtest.sh`) run before every commit. The full suite ends at **624 passed / 2 skipped**, `mypy .` clean (90 files, with `check_untyped_defs` enabled for shipped modules), ruff clean, coverage 89%.
 
 **Scope and method:** full-codebase static and dynamic audit across all 38 `vith/` modules, `tools/`, `scripts/`, and `mypy.ini` on Python 3.15.2 / `prompt_toolkit 3.0.53`. Every candidate was re-verified with live runtime probes before filing; false positives were dropped (global `:set tabstop` setting the active buffer's local override and `:set filetype` resetting `eb.tabstop = None` match Vim global-local / `ftplugin` semantics and are pinned by `tests/test_filetype_tabstops.py`; untracked `.trash` directory ignored). No source files were changed.
 
@@ -518,37 +520,37 @@ with a focused probe (Python-level command dispatch, key-processor feeds, or a
 
 | ID | Finding | Area | Priority | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| [204](204.md) | Counted Insert (`{N}i` / `{N}a`) corrupts buffer text when Insert mode exits without `<Esc>` or edits left of `start` | key-bindings/insert | **high** | open |
-| [205](205.md) | Split-brain registers between Normal mode (`vi_state.named_registers` / `clipboard`) and Ex commands (`editor.registers`) | commands/registers | **high** | open |
-| [206](206.md) | `:w!` (`_write_forced`) fails with `FileNotFoundError` on `~/...` paths, and tilde paths bypass buffer deduplication | io/editor-buffer | **high** | open |
-| [207](207.md) | Pressing `<F1>` during Command mode (`:`) or Search mode (`/`) leaks `CommandPreviewer` state and leaves `[Help]` in Insert mode | key-bindings/preview | **high** | open |
-| [208](208.md) | ReDoS guard `is_unsafe_regex` is bypassed by nested groups (`((a)+)+$`) and outer `{m,n}` quantifiers (`(a+){5,}$`) | commands/substitute | **high** | open |
-| [209](209.md) | `tools/bench_plans.py` crashes on startup with `AssertionError` after `U+0EC7` removal | tools/benchmark/thai | **high** | open |
-| [210](210.md) | `apply_toml_config` shadows `[filetype_tabstops]`, coerces booleans/ignores bad `[tabstop]` entries, and lets top-level options overwrite `[editor]` aliases | config/toml | medium | open |
-| [211](211.md) | `CommandPreviewer._preview_int_value` and `WindowArrangement.move_tab` raise uncaught `ValueError` on Unicode superscript digits | preview/tabs | medium | open |
-| [212](212.md) | `:substitute` `~` stores unexpanded `'~'` in `last_substitute_text`, and `_parse_substitute_flags` strips `'/'` regardless of delimiter | commands/substitute | medium | open |
-| [213](213.md) | `:setlocal fileformat=...` mutates global `editor.fileformat`, `:set ff!` reports `Unknown option`, and `:set ts ff` clobbers the `fileformat` query | commands/set | medium | open |
-| [214](214.md) | `:set colorcolumn` accepts non-positive columns (`0`, `-5`) and `:set` integer options lack upper-bound validation | commands/options | medium | open |
-| [215](215.md) | `FiletypeTabstops.setdefault(key)` with default `None` inserts `None` into `dict[str, int]`, breaking `eb.tabstop` | editor/filetype | medium | open |
-| [216](216.md) | `EditorBuffer.reload()` leaves `buffer.read_only` permanently `True` after a previously unreadable file becomes readable | editor-buffer/reload | medium | open |
-| [217](217.md) | `COMMAND_GRAMMAR` rejects spaces in file/buffer arguments (breaking Tab completion) and misreports punctuation `:d`/`:y`/`:j`/`:pu` args | commands/grammar | medium | open |
-| [218](218.md) | Trailing-slash directory paths produce empty short display names (`''`) in `TabsControl` and `:render` titles | editor-buffer/ui | low | open |
-| [219](219.md) | Untitled buffers and initially empty extensionless files have inconsistent filetype detection vs `DocumentLexer`, `pyflakes`, and Jedi | filetype/lexer/reporting | low | open |
-| [220](220.md) | Ex line-mutation helpers (`_commit_buffer_text`, `_go_to_line`) leave Normal-mode cursor at `len(line)` on whitespace-only lines | commands/cursor | low | open |
-| [221](221.md) | `_resolve_hook_path` matches directories (`os.path.exists` vs `os.path.isfile`) and ignores `custom_dir` when `config_path` is `None` | config/hooks | low | open |
-| [222](222.md) | `_install_copy_body_vs16_merge_fix` logs a warning on every subsequent `Editor()` creation and omits rollback tracking | thai/patches | low | open |
-| [223](223.md) | `variation_selector_always_wide` mutates process-wide module globals across `Editor` instances and omits `vsaw` from `:help` | editor/thai/options | low | open |
-| [224](224.md) | `:substitute` is absent from command-line Tab completion | commands/completer | low | open |
-| [225](225.md) | `BufferListOverlay` aligns columns by codepoint `len()` instead of display cell width (`get_cwidth`) | layout/display-width | low | open |
-| [226](226.md) | `find_thai_cluster_end` misclassifies marked `ร` + `ร` (`กรี่รุก`, `บรี้รำ`) as Thai Ro Han (`รร`) | thai/words | low | open |
+| [204](204.md) | Counted Insert (`{N}i` / `{N}a`) corrupts buffer text when Insert mode exits without `<Esc>` or edits left of `start` | key-bindings/insert | **high** | fixed |
+| [205](205.md) | Split-brain registers between Normal mode (`vi_state.named_registers` / `clipboard`) and Ex commands (`editor.registers`) | commands/registers | **high** | fixed |
+| [206](206.md) | `:w!` (`_write_forced`) fails with `FileNotFoundError` on `~/...` paths, and tilde paths bypass buffer deduplication | io/editor-buffer | **high** | fixed |
+| [207](207.md) | Pressing `<F1>` during Command mode (`:`) or Search mode (`/`) leaks `CommandPreviewer` state and leaves `[Help]` in Insert mode | key-bindings/preview | **high** | fixed |
+| [208](208.md) | ReDoS guard `is_unsafe_regex` is bypassed by nested groups (`((a)+)+$`) and outer `{m,n}` quantifiers (`(a+){5,}$`) | commands/substitute | **high** | fixed |
+| [209](209.md) | `tools/bench_plans.py` crashes on startup with `AssertionError` after `U+0EC7` removal | tools/benchmark/thai | **high** | fixed |
+| [210](210.md) | `apply_toml_config` shadows `[filetype_tabstops]`, coerces booleans/ignores bad `[tabstop]` entries, and lets top-level options overwrite `[editor]` aliases | config/toml | medium | fixed |
+| [211](211.md) | `CommandPreviewer._preview_int_value` and `WindowArrangement.move_tab` raise uncaught `ValueError` on Unicode superscript digits | preview/tabs | medium | fixed |
+| [212](212.md) | `:substitute` `~` stores unexpanded `'~'` in `last_substitute_text`, and `_parse_substitute_flags` strips `'/'` regardless of delimiter | commands/substitute | medium | fixed |
+| [213](213.md) | `:setlocal fileformat=...` mutates global `editor.fileformat`, `:set ff!` reports `Unknown option`, and `:set ts ff` clobbers the `fileformat` query | commands/set | medium | fixed |
+| [214](214.md) | `:set colorcolumn` accepts non-positive columns (`0`, `-5`) and `:set` integer options lack upper-bound validation | commands/options | medium | fixed |
+| [215](215.md) | `FiletypeTabstops.setdefault(key)` with default `None` inserts `None` into `dict[str, int]`, breaking `eb.tabstop` | editor/filetype | medium | fixed |
+| [216](216.md) | `EditorBuffer.reload()` leaves `buffer.read_only` permanently `True` after a previously unreadable file becomes readable | editor-buffer/reload | medium | fixed |
+| [217](217.md) | `COMMAND_GRAMMAR` rejects spaces in file/buffer arguments (breaking Tab completion) and misreports punctuation `:d`/`:y`/`:j`/`:pu` args | commands/grammar | medium | fixed |
+| [218](218.md) | Trailing-slash directory paths produce empty short display names (`''`) in `TabsControl` and `:render` titles | editor-buffer/ui | low | fixed |
+| [219](219.md) | Untitled buffers and initially empty extensionless files have inconsistent filetype detection vs `DocumentLexer`, `pyflakes`, and Jedi | filetype/lexer/reporting | low | fixed |
+| [220](220.md) | Ex line-mutation helpers (`_commit_buffer_text`, `_go_to_line`) leave Normal-mode cursor at `len(line)` on whitespace-only lines | commands/cursor | low | fixed |
+| [221](221.md) | `_resolve_hook_path` matches directories (`os.path.exists` vs `os.path.isfile`) and ignores `custom_dir` when `config_path` is `None` | config/hooks | low | fixed |
+| [222](222.md) | `_install_copy_body_vs16_merge_fix` logs a warning on every subsequent `Editor()` creation and omits rollback tracking | thai/patches | low | fixed |
+| [223](223.md) | `variation_selector_always_wide` mutates process-wide module globals across `Editor` instances and omits `vsaw` from `:help` | editor/thai/options | low | fixed |
+| [224](224.md) | `:substitute` is absent from command-line Tab completion | commands/completer | low | fixed |
+| [225](225.md) | `BufferListOverlay` aligns columns by codepoint `len()` instead of display cell width (`get_cwidth`) | layout/display-width | low | fixed |
+| [226](226.md) | `find_thai_cluster_end` misclassifies marked `ร` + `ร` (`กรี่รุก`, `บรี้รำ`) as Thai Ro Han (`รร`) | thai/words | low | fixed |
 
 ### Improvements (`type: improvement`)
 
 | ID | Finding | Category | Priority | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| [227](227.md) | Unoptimized algorithms & hot-path bottlenecks: per-keystroke $O(N)$ `text.splitlines()` in modeline sniffer (5.38 ms/keystroke on 4 MB), uncached `use_colorscheme` (~1,780×), double JSON parse & sniff in `:render`, double `Document` in `_commit_buffer_text`, unguarded `sys.modules` scan | performance/latency | **high** | open |
-| [228](228.md) | Dead-code and duplicate-logic inventory (dead completer/Thai/render helpers, unreachable `set_option` completer, misplaced docstring, unused `_version`, stale comments, 4× filetype canonicalizers, duplicated rc/`ColdTextBuffer`/filter logic) | dead code/duplication | low | open |
-| [229](229.md) | Readability, coding-style (`lambda`), and `mypy --check-untyped-defs` type-safety inventory (`lambda: None` in `layout.py`, 9 unchecked-body mypy errors incl. `TabPage.active_window = None`, `==` vs `is` on split lists) | readability/typing | low | open |
+| [227](227.md) | Unoptimized algorithms & hot-path bottlenecks: per-keystroke $O(N)$ `text.splitlines()` in modeline sniffer (5.38 ms/keystroke on 4 MB), uncached `use_colorscheme` (~1,780×), double JSON parse & sniff in `:render`, double `Document` in `_commit_buffer_text`, unguarded `sys.modules` scan | performance/latency | **high** | fixed |
+| [228](228.md) | Dead-code and duplicate-logic inventory (dead completer/Thai/render helpers, unreachable `set_option` completer, misplaced docstring, unused `_version`, stale comments, 4× filetype canonicalizers, duplicated rc/`ColdTextBuffer`/filter logic) | dead code/duplication | low | fixed |
+| [229](229.md) | Readability, coding-style (`lambda`), and `mypy --check-untyped-defs` type-safety inventory (`lambda: None` in `layout.py`, 9 unchecked-body mypy errors incl. `TabPage.active_window = None`, `==` vs `is` on split lists) | readability/typing | low | fixed |
 
 ## Meta
 
