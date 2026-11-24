@@ -147,6 +147,40 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_217_spaced_path_arguments_parse():
+    from vith.commands.grammar import COMMAND_GRAMMAR
+
+    path = "/tmp/my file.py"
+    for line in (":e " + path, ":w " + path, ":cd My Documents", ":b " + path):
+        match = COMMAND_GRAMMAR.match(line)
+        assert match is not None, line
+        variables = match.variables()
+        assert any(
+            variables.get(key) in (path, "My Documents") for key in ("location", "buffer_name")
+        ), (line, variables)
+
+
+def test_217_spaced_buffer_name_reuses_buffer(editor, tmp_path):
+    path = tmp_path / "my file.py"
+    path.write_text("content", encoding="utf-8")
+    editor.load_initial_files([str(path)])
+    first = editor.window_arrangement.active_editor_buffer
+
+    handle_command(editor, ":b " + str(path))
+
+    assert editor.window_arrangement.active_editor_buffer is first
+
+
+def test_217_punctuation_args_report_E488(editor):
+    _editor_with_lines(editor, "a\nb")
+
+    for command in (":d @", ":j -1"):
+        editor.message = None
+        handle_command(editor, command)
+        assert editor.message is not None
+        assert "E488" in editor.message
+
+
 def test_216_reload_clears_automatic_read_only(editor, tmp_path):
     path = tmp_path / "secret.txt"
     path.write_text("top secret\n", encoding="utf-8")

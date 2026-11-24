@@ -25,10 +25,10 @@ COMMAND_GRAMMAR = compile(
         (?P<sub_range>%(range)s?) \s* (?P<command>s|substitute) (?P<sub_args>\s*[^a-zA-Z0-9_\\\s"].*)?   |
 
         # Read command (file or shell output insertion with optional line address).
-        (?P<read_addr>%(addr)s)? \s* (?P<command>read|r) (\s* ! (?P<read_shell>.*) | \s+ (?P<location>[^\s]+))?   |
+        (?P<read_addr>%(addr)s)? \s* (?P<command>read|r) (\s* ! (?P<read_shell>.*) | \s+ (?P<location>\S.*))?   |
 
         # Range line-editing commands (:d, :y, :pu, :j with optional count).
-        (?P<cmd_range>%(range)s)? \s* (?P<command>delete|yank|join|put|pu|d|y|j)(?P<force>!?) (\s+ (?P<cmd_arg>[0-9a-zA-Z"]+))?   |
+        (?P<cmd_range>%(range)s)? \s* (?P<command>delete|yank|join|put|pu|d|y|j)(?P<force>!?) (\s+ (?P<cmd_arg>\S.*))?   |
 
         # Range move/copy commands (:m, :t, :co with destination address).
         (?P<cmd_range>%(range)s)? \s* (?P<command>move|copy|co|m|t) (\s* (?P<dest_addr>%(addr)s) | \s+ (?P<dest_addr>[^\s]+))?   |
@@ -46,13 +46,13 @@ COMMAND_GRAMMAR = compile(
         (?P<filter_range>%(range)s) \s* ! (?P<filter_shell>.*)   |
 
         # Range/append/pipe write command (:[range]w[!] [file | >> file | !cmd]).
-        (?P<cmd_range>%(range)s)? \s* (?P<command>write|w)(?P<force>!?) (\s* >> \s* (?P<write_append>[^\s]+) | \s+ ! (?P<write_shell>.*) | \s+ (?P<location>[^\s]+))?   |
+        (?P<cmd_range>%(range)s)? \s* (?P<command>write|w)(?P<force>!?) (\s* >> \s* (?P<write_append>\S.*) | \s+ ! (?P<write_shell>.*) | \s+ (?P<location>\S.*))?   |
 
         # Commands accepting a location.
-        (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>[^\s]+)   |
+        (?P<command>%(commands_taking_locations)s)(?P<force>!?)  \s+   (?P<location>\S.*)   |
 
         # Commands accepting a buffer.
-        (?P<command>bwipeout|bdelete|sbuffer|buffer|bd|bw|sb|b)(?P<force>!?)  \s+   (?P<buffer_name>[^\s]+)    |
+        (?P<command>bwipeout|bdelete|sbuffer|buffer|bd|bw|sb|b)(?P<force>!?)  \s+   (?P<buffer_name>\S.*)    |
 
         # Tab move command with position argument.
         (?P<command>tabmove|tabm) \s+ (?P<tab_arg>[^\s]+)    |
