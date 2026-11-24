@@ -7,9 +7,9 @@ sources:
   - docs/
 verified: machine-confirmed
 generated:
-  by: "Antigravity (Gemini 4 Neon)"
-  at: "2026-11-23T11:24:00+07:00"
-timestamp: "2026-11-23T11:24:00+07:00"
+  by: "Gemini 4 Carbon (opencode)"
+  at: "2026-11-24T10:15:00+07:00"
+timestamp: "2026-11-24T10:15:00+07:00"
 ---
 
 # vith Documentation Bundle
@@ -26,7 +26,11 @@ This directory contains the [Open Knowledge Format (OKF v0.2)](https://github.co
 
 ## Audit & Findings
 
-* [Findings Bundle](bugs/index.md) — **194 machine-verified findings across 14 audit rounds and 4 addenda (193 fixed, 1 withdrawn)**:
+* [Findings Bundle](bugs/index.md) — **229 machine-verified findings across 18 audit rounds and 4 addenda (202 fixed, 1 withdrawn, 26 open)**:
+  * **Round 18 (2026-11-24, full-project deep audit at `v0.16.5` / hg rev `458:d2d313328875` — [204](bugs/204.md)–[229](bugs/229.md), `fix_status: open`)**: 23 machine-confirmed defects (`type: bug`) and 3 inventories (`type: improvement`) verified via live runtime probes across all 38 `vith/` modules, `tools/`, and `mypy.ini` (false positives dropped). High-priority items: counted-insert state leak & slice corruption ([204](bugs/204.md)), split-brain Normal vs Ex registers ([205](bugs/205.md)), `:w!` failure on `~/...` paths & tilde buffer dedup ([206](bugs/206.md)), `<F1>` from Command/Search mode leaking previewer state ([207](bugs/207.md)), ReDoS guard bypass on nested groups/`{m,n}` ([208](bugs/208.md)), `tools/bench_plans.py` startup `AssertionError` on `U+0EC7` ([209](bugs/209.md)), and per-keystroke $O(N)$ `text.splitlines()` in extensionless modeline sniffing ([227](bugs/227.md)); plus medium/low config, `:set`, `:substitute`, `FiletypeTabstops`, `reload()`, grammar, filetype, Thai, dead/duplicate code ([228](bugs/228.md)), and `lambda` / `mypy --check-untyped-defs` inventories ([229](bugs/229.md)).
+  * **Round 17 (2026-11-23, read-only re-audit — [197](bugs/197.md)–[203](bugs/203.md), `fix_status: fixed`)**: 7 machine-confirmed defects (`:g` whitespace-only `IndexError`, CSV 5001-row cap off-by-one, CSV landmark quoting mismatch, `:norm` `is not` vs `!=`, `FiletypeTabstops` alias-delete/validation gap, `HttpIO.read` unbounded network call, and cell-cluster read-only guard gap), all fixed with regression tests (**569 passed / 2 skipped**, `mypy` 88 files clean, `ruff` clean).
+  * **Round 16 (2026-11-23, user field report — [196](bugs/196.md), `fix_status: fixed`)**: `FileIO.write` omitted `newline=''` on Windows, doubling CRLF line endings (`\r\r\n`) and converting LF files to CRLF; fixed with `newline=''` and cross-platform regression tests.
+  * **Round 15 (2026-11-23, user field report — [195](bugs/195.md), `fix_status: fixed`)**: VS16-promoted narrow emoji counted as 1 cell instead of 2; fixed with opt-in `variation_selector_always_wide` (`vsaw`) and `_copy_body` VS16 merge fix.
   * **Round 14 (2026-11-23, user field report — [194](bugs/194.md), `fix_status: fixed`)**: Environment variables (`%VAR%` on Windows, `$VAR`/`${VAR}` cross-platform) were not expanded in CLI arguments (`vith %APPDATA%\...`), Ex commands, config/hook paths, or path completion, and Ex commands collided `%VAR%` with Vim's `%` filename token; fixed with URL-safe `expand_env_vars` / `expand_location`, `_match_windows_env_var`, `_EnvPathCompleter`, and regression tests.
   * **Round 13 (2026-11-23, user field report — [193](bugs/193.md), `fix_status: fixed`)**: Thai/Lao upper/lower vowels, tone marks, symbols (`ฯ`, `ๆ`, `฿`), and digits were dropped on Windows ConPTY input because `conhost.exe` delivers non-`C3_ALPHA` characters via synthesized Alt+Numpad `VK_MENU` (`0x12`) key-up records ignored by `prompt_toolkit.input.win32`; fixed with `_install_win32_input_patch` (`Vt100ConsoleInputReader` + `ConsoleInputReader`) and regression tests.
   * **Round 12 (2026-11-23, user field report — [192](bugs/192.md), `fix_status: fixed`)**: Tab in Insert mode did nothing mid-line because the indent binding was gated on leading whitespace; fixed by removing the filter (keeping the `:`/`/` exclusions) and correcting the default `expand_tab` to Vim's `noexpandtab`, so a plain Tab now inserts a literal tab.
