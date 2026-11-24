@@ -194,7 +194,7 @@ class CommandPreviewer:
     @staticmethod
     def _preview_int_value(e, attribute, minimum, variables, is_local=False):
         raw_value = variables.get('set_value')
-        if raw_value and raw_value.isdigit() and int(raw_value) >= minimum:
+        if raw_value and raw_value.isascii() and raw_value.isdigit() and int(raw_value) >= minimum:
             apply_int_option_value(
                 e, attribute, int(raw_value), is_local=is_local, require_buffer=False
             )

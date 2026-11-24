@@ -513,13 +513,13 @@ class WindowArrangement:
             rest = arg[1:]
             if rest == '':
                 delta = 1
-            elif rest.isdigit():
+            elif rest.isascii() and rest.isdigit():
                 delta = int(rest)
             else:
                 self.editor.show_message('E474: Invalid argument: %s' % arg)
                 return
             target_index = max(0, min(total - 1, cur + sign * delta))
-        elif arg.isdigit():
+        elif arg.isascii() and arg.isdigit():
             n = int(arg)
             if n == 0:
                 target_index = 0
@@ -558,7 +558,7 @@ class WindowArrangement:
 
         # 1-based buffer number (Vim ':ls' numbering): checked before substring
         # so `:b 2` resolves buffer #2 even when paths contain digits.
-        if not matches and buffer_name.isdigit():
+        if not matches and buffer_name.isascii() and buffer_name.isdigit():
             number = int(buffer_name)
             if 1 <= number <= len(ebs):
                 matches = [ebs[number - 1]]

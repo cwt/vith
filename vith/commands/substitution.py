@@ -306,7 +306,7 @@ def _vim_replacement_function(replace: str, previous: str, group_count: int) -> 
                 literal_buf.append('\x00')
             elif nxt == '\\':
                 literal_buf.append('\\')
-            elif nxt.isdigit():
+            elif nxt.isascii() and nxt.isdigit():
                 group = int(nxt)
                 if group > group_count:
                     raise ValueError('invalid backreference \\%d' % group)

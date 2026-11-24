@@ -269,7 +269,7 @@ def _go_to_line(editor, address):
         return
 
     addr_text = str(address).strip()
-    if addr_text.isdigit():
+    if addr_text.isascii() and addr_text.isdigit():
         # Bare numeric line jump (`:999`, `:0`) clamps to [0, line_count - 1] like Vim.
         target_row = max(0, min(row, line_count - 1))
     elif 0 <= row < line_count:

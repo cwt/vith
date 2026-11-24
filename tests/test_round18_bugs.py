@@ -146,6 +146,25 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_211_unicode_superscript_digit_preview_does_not_crash(editor):
+    editor.load_initial_files([None])
+    original = editor.tabstop
+
+    editor.previewer.preview("set ts=\u00b2")
+
+    assert editor.tabstop == original
+
+
+def test_211_unicode_superscript_digit_tabmove_reports_error(editor):
+    editor.load_initial_files([None])
+
+    for command in (":tabm \u00b2", ":tabm +\u00b2"):
+        editor.message = None
+        handle_command(editor, command)
+        assert editor.message is not None
+        assert "E474" in editor.message
+
+
 def test_210_scalar_tabstop_does_not_shadow_filetype_table(editor):
     from vith.rc_file import apply_toml_config
 
