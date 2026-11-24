@@ -7,7 +7,7 @@ from vith.io.backends import expand_env_vars, expand_location
 
 from .files import filter_range_command
 from .grammar import COMMAND_GRAMMAR
-from .ranges import NO_SUCH_LINE_TEXT, resolve_line_address
+from .ranges import NO_SUCH_LINE_TEXT, normal_mode_col, resolve_line_address
 from .registry import call_command_handler, has_command_handler
 from .substitution import parse_substitute_args, parse_substitute_range, substitute
 
@@ -280,4 +280,5 @@ def _go_to_line(editor, address):
 
     line_text = doc.lines[target_row]
     first_non_blank = len(line_text) - len(line_text.lstrip())
-    buff.cursor_position = doc.translate_row_col_to_index(target_row, first_non_blank)
+    target_col = normal_mode_col(line_text, first_non_blank)
+    buff.cursor_position = doc.translate_row_col_to_index(target_row, target_col)

@@ -147,6 +147,33 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_220_ex_delete_clamps_col_on_whitespace_line(editor):
+    eb = _editor_with_lines(editor, "hello\n    \nworld")
+
+    handle_command(editor, ":1d")
+
+    assert eb.buffer.document.cursor_position_row == 0
+    assert eb.buffer.document.cursor_position_col == 3
+
+
+def test_220_line_jump_clamps_col_on_whitespace_line(editor):
+    eb = _editor_with_lines(editor, "hello\n    \nworld")
+
+    handle_command(editor, ":2")
+
+    assert eb.buffer.document.cursor_position_row == 1
+    assert eb.buffer.document.cursor_position_col == 3
+
+
+def test_220_ex_cursor_snaps_off_combining_mark(editor):
+    eb = _editor_with_lines(editor, "x\nก้\nz")
+
+    handle_command(editor, ":1d")
+
+    assert eb.buffer.document.cursor_position_row == 0
+    assert eb.buffer.document.cursor_position_col == 0
+
+
 def test_219_untitled_sniffed_python_is_highlighted(editor):
     from prompt_toolkit.document import Document
 

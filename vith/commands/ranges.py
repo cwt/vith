@@ -12,7 +12,7 @@ from typing import Any
 
 from prompt_toolkit.document import Document
 
-from vith.thai import note_document_text
+from vith.thai import note_document_text, prev_cell_offset, snap_to_cell_start
 
 __all__ = (
     'ADDR_GRAMMAR',
@@ -21,6 +21,7 @@ __all__ = (
     'NO_SUCH_LINE_TEXT',
     'RANGE_GRAMMAR',
     'is_buffer_read_only',
+    'normal_mode_col',
     'parse_range',
     'replace_buffer_lines',
     'resolve_insert_address',
@@ -228,6 +229,15 @@ def is_buffer_read_only(buff: Any) -> bool:
     return bool(read_only)
 
 
+def normal_mode_col(line_text: str, preferred_col: int = 0) -> int:
+    """Vim Normal-mode column: clamp off EOL and snap off combining marks."""
+    if not line_text:
+        return 0
+    if preferred_col >= len(line_text):
+        return prev_cell_offset(line_text, len(line_text), 1)
+    return snap_to_cell_start(line_text, max(0, preferred_col))
+
+
 def _commit_buffer_text(
     editor: Any,
     eb: Any,
@@ -256,9 +266,10 @@ def _commit_buffer_text(
     target_row = max(0, min(cursor_row, len(doc.lines) - 1))
     line_text = doc.lines[target_row]
     if first_non_blank:
-        target_col = len(line_text) - len(line_text.lstrip())
+        preferred_col = len(line_text) - len(line_text.lstrip())
     else:
-        target_col = max(0, min(col, len(line_text)))
+        preferred_col = col
+    target_col = normal_mode_col(line_text, preferred_col)
     eb.buffer.cursor_position = doc.translate_row_col_to_index(target_row, target_col)
     return True
 
