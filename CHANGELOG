@@ -1,6 +1,49 @@
 CHANGELOG
 =========
 
+Unreleased
+----------
+
+- Lexer: added Vim modeline (``# vim: set ft=bash:`` / ``# vim: ft=bash``)
+  filetype detection for extensionless files such as ``~/.bashrc``, scanning
+  the first and last 5 lines of the buffer (``vith/lexer.py``).
+
+0.16.5: 2026-11-23
+-------------------
+
+Correctness fixes from Round 16/17 audits and a user field report (findings 196–203):
+
+- Windows I/O: ``FileIO.write`` now passes ``newline=''`` so
+  ``fileformat``-serialized line endings are written verbatim, preventing
+  ``\r\r\n`` doubling on Windows (196).
+- Round 17 correctness: ``:g`` with whitespace-only args no longer raises
+  ``IndexError`` (197); CSV/TSV row cap uses ``>=`` to keep exactly
+  ``_CSV_MAX_ROWS`` rows (198); CSV landmark quoting uses ``csv.reader`` (199);
+  ``:norm`` text-change check uses value equality instead of identity (200);
+  ``FiletypeTabstops`` canonicalizes alias delete/pop and validates values
+  (201); ``HttpIO.read`` is bounded with a timeout and maps ``URLError`` (202);
+  cell-cluster ``x`` / ``X`` / ``i`` / ``a`` / ``~`` / replace now respect the
+  read-only guard (203).
+- Verification: 569 passed / 2 skipped, mypy clean (88 files), ruff clean.
+
+0.16.4: 2026-11-23
+-------------------
+
+Variation-selector (VS16) wide-emoji support and render background fix
+(finding 195):
+
+- Added an opt-in ``variation_selector_always_wide`` option (default off)
+  exposed via ``Editor``, ``:set variation_selector_always_wide`` /
+  ``novariation_selector_always_wide``, and TOML config
+  (``variation_selector_always_wide`` / ``variation-selector-always-wide``).
+  When enabled, ``_compute_cell_columns`` counts a narrow base followed by
+  U+FE0F as 2 cells so cursor motion, wrapping, and visual-block selection
+  stay aligned on terminals that widen emoji presentation (Kitty, Alacritty,
+  szn) (195).
+- Fixed the VS16 merge x-advance in prompt_toolkit's ``_copy_body``,
+  eliminating a render background glitch when variation selectors are present.
+- Verification: 560 passed, mypy clean (88 files), ruff clean.
+
 0.16.3: 2026-11-23
 -------------------
 
