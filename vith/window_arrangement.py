@@ -8,7 +8,7 @@ represents the rendering, while this is more specific for the editor itself.
 
 import weakref
 
-from .editor_buffer import EditorBuffer
+from .editor_buffer import EditorBuffer, is_same_write_target
 from .io.backends import expand_env_vars
 
 __all__ = ('WindowArrangement',)
@@ -285,7 +285,9 @@ class WindowArrangement:
         When this file was not yet loaded, return None
         """
         for eb in self.editor_buffers:
-            if eb.location == location:
+            if eb.location == location or (
+                eb.location is not None and is_same_write_target(eb.location, location)
+            ):
                 return eb
         return None
 

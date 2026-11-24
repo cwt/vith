@@ -430,13 +430,16 @@ class EditorBuffer:
         then restore the original mode. Returns whether the write succeeded
         (a message has been shown otherwise).
         """
+        # The backend expands `~` itself, but os.stat/os.chmod do not: use the
+        # same expansion for direct filesystem calls (docs/bugs/206.md).
+        path = expand_location(target_location)
         try:
-            st_mode = os.stat(target_location).st_mode
+            st_mode = os.stat(path).st_mode
         except OSError as e:
             self.editor.show_message('%s' % e)
             return False
         try:
-            os.chmod(target_location, st_mode | 0o200)
+            os.chmod(path, st_mode | 0o200)
         except OSError as e:
             self.editor.show_message('%s' % e)
             return False
@@ -447,7 +450,7 @@ class EditorBuffer:
             return False
         finally:
             try:
-                os.chmod(target_location, st_mode)
+                os.chmod(path, st_mode)
             except OSError:
                 pass
         return True

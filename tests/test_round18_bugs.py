@@ -135,6 +135,37 @@ def test_205_explicit_unnamed_register_put(editor):
     assert eb.buffer.document.lines[2] == "line one"
 
 
+def test_206_force_write_tilde_path(editor, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = tmp_path / "ro.txt"
+    path.write_text("original", encoding="utf-8")
+    path.chmod(0o444)
+
+    editor.load_initial_files(["~/ro.txt"])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "updated"
+
+    assert eb.write(force=True) is True
+    assert path.read_text(encoding="utf-8") == "updated"
+    assert path.stat().st_mode & 0o222 == 0  # original read-only mode restored
+    assert editor.message is None
+
+
+def test_206_tilde_path_reuses_absolute_buffer(editor, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = tmp_path / "foo.py"
+    path.write_text("content", encoding="utf-8")
+
+    editor.load_initial_files([str(path)])
+    first = editor.window_arrangement.active_editor_buffer
+
+    handle_command(editor, ":e ~/foo.py")
+
+    buffers = editor.window_arrangement.editor_buffers
+    assert len(buffers) == 1
+    assert editor.window_arrangement.active_editor_buffer is first
+
+
 def test_205_uppercase_register_appends_to_lowercase(editor):
     _editor_with_lines(editor, "one\ntwo")
 
