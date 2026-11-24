@@ -14,6 +14,9 @@ from .common import invalidate_app
 from .ranges import is_buffer_read_only
 from .registry import SET_COMMANDS, SET_COMMANDS_TAKING_VALUE, _cmd, cmd, set_cmd
 
+#: Shared upper bound for integer-valued options (`:set`, preview and TOML).
+MAX_OPTION_INT = 9999
+
 #: Canonical `:set` option catalog — the single source of truth for option
 #: names, editor attributes and validation bounds. Both the generated
 #: `:set` handlers below and the command-line previewer
@@ -192,6 +195,9 @@ def _set_int_option(
     if number < minimum:
         editor.show_message('Argument must be positive')
         return False
+    if number > MAX_OPTION_INT:
+        editor.show_message('Argument must be %i or less' % MAX_OPTION_INT)
+        return False
     if not apply_int_option_value(editor, attribute, number, is_local=is_local):
         return False
     invalidate_app()
@@ -212,6 +218,9 @@ def _set_list_option(editor: Any, value: str | None, attribute: str, display_nam
             numbers = []
     except ValueError:
         editor.show_message('Invalid value. Expecting comma separated list of integers')
+        return False
+    if any(number <= 0 or number > MAX_OPTION_INT for number in numbers):
+        editor.show_message('Colorcolumn values must be in 1..%i' % MAX_OPTION_INT)
         return False
     setattr(editor, attribute, numbers)
     return True

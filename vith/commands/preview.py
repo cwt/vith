@@ -1,5 +1,6 @@
 from .grammar import COMMAND_GRAMMAR
 from .options import (
+    MAX_OPTION_INT,
     SET_INT_OPTIONS,
     SET_LIST_OPTIONS,
     SET_TOGGLE_GROUPS,
@@ -194,7 +195,12 @@ class CommandPreviewer:
     @staticmethod
     def _preview_int_value(e, attribute, minimum, variables, is_local=False):
         raw_value = variables.get('set_value')
-        if raw_value and raw_value.isascii() and raw_value.isdigit() and int(raw_value) >= minimum:
+        if (
+            raw_value
+            and raw_value.isascii()
+            and raw_value.isdigit()
+            and minimum <= int(raw_value) <= MAX_OPTION_INT
+        ):
             apply_int_option_value(
                 e, attribute, int(raw_value), is_local=is_local, require_buffer=False
             )
@@ -210,6 +216,8 @@ class CommandPreviewer:
         try:
             numbers = [int(v) for v in value.split(',')]
         except ValueError:
+            return
+        if any(number <= 0 or number > MAX_OPTION_INT for number in numbers):
             return
         setattr(e, attribute, numbers)
 

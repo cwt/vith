@@ -17,6 +17,7 @@ from .commands import (
     SET_TOGGLE_GROUPS,
     press_enter_to_continue,
 )
+from .commands.options import MAX_OPTION_INT
 from .editor import Editor
 from .io.backends import expand_location
 
@@ -87,7 +88,7 @@ _CONFIG_OPTION_MAP: dict[str, str] = _build_config_option_map()
 # cannot drift (docs/bugs/138.md).
 _TOGGLE_ATTRIBUTES = frozenset(attr for _display, attr, _on, _off in SET_TOGGLE_GROUPS)
 _INT_ATTRIBUTE_MINIMUMS = {attr: minimum for _display, attr, _names, minimum in SET_INT_OPTIONS}
-_MAX_OPTION_INT = 9999
+_MAX_OPTION_INT = MAX_OPTION_INT
 
 # Exclude 2-character aliases (e.g. `ts`, `so`, `nu`, `ai`, `cc`) from bare
 # `.vithrc` TOML auto-detection so legacy Python rc files with short top-level

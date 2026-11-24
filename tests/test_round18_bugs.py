@@ -146,6 +146,39 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_214_reject_nonpositive_colorcolumn(editor):
+    _editor_with_lines(editor, "a")
+    original = list(editor.colorcolumn)
+
+    for command in (":set cc=0", ":set cc=-5"):
+        editor.message = None
+        handle_command(editor, command)
+        assert editor.message is not None
+        assert editor.colorcolumn == original
+
+
+def test_214_reject_huge_integer_option(editor):
+    editor.load_initial_files([None])
+    original = editor.tabstop
+
+    handle_command(editor, ":set ts=100000")
+
+    assert editor.message is not None
+    assert editor.tabstop == original
+
+
+def test_214_preview_ignores_out_of_range_values(editor):
+    editor.load_initial_files([None])
+    original_cc = list(editor.colorcolumn)
+    original_ts = editor.tabstop
+
+    editor.previewer.preview("set cc=0")
+    editor.previewer.preview("set ts=100000")
+
+    assert editor.colorcolumn == original_cc
+    assert editor.tabstop == original_ts
+
+
 def test_213_setlocal_fileformat_leaves_global_unchanged(editor):
     eb = _editor_with_lines(editor, "a\nb")
     editor.fileformat = "unix"
