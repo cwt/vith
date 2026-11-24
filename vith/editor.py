@@ -184,8 +184,8 @@ class FiletypeTabstops(dict[str, int]):
 
     def setdefault(self, key: str, default: Any = None) -> Any:  # type: ignore[override]
         canonical = _canonical_filetype(str(key).lower())
-        if default is None:
-            return super().setdefault(canonical, None)  # type: ignore[arg-type]
+        if super().__contains__(canonical):
+            return super().__getitem__(canonical)
         if isinstance(default, bool) or not isinstance(default, int) or default < 1:
             raise ValueError('tabstop must be an integer >= 1')
         return super().setdefault(canonical, default)

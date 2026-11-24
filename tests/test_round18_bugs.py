@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.clipboard import ClipboardData
@@ -144,6 +145,18 @@ def _feed(editor, *keys):
         for key in keys:
             key_processor.feed(KeyPress(key))
         key_processor.process_keys()
+
+
+def test_215_setdefault_never_inserts_none():
+    from vith.editor import FiletypeTabstops
+
+    ft = FiletypeTabstops({"python": 4})
+    assert ft.setdefault("py") == 4
+    assert len(ft) == 1
+
+    with pytest.raises(ValueError):
+        ft.setdefault("missing")
+    assert "missing" not in ft
 
 
 def test_214_reject_nonpositive_colorcolumn(editor):
