@@ -147,6 +147,38 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_223_vsaw_is_instance_local(editor, tmp_path):
+    from prompt_toolkit.input import DummyInput
+    from prompt_toolkit.output import DummyOutput
+
+    from vith.editor import Editor
+
+    second = Editor(config_directory=str(tmp_path), input=DummyInput(), output=DummyOutput())
+    editor.variation_selector_always_wide = True
+
+    assert editor.variation_selector_always_wide is True
+    assert second.variation_selector_always_wide is False
+    third = Editor(config_directory=str(tmp_path), input=DummyInput(), output=DummyOutput())
+    assert third._default_options["variation_selector_always_wide"] is False
+
+
+def test_223_vsaw_enabled_uses_active_application(editor, tmp_path):
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.input import DummyInput
+    from prompt_toolkit.output import DummyOutput
+
+    from vith.editor import Editor
+    from vith.thai.clusters import _vsaw_enabled
+
+    second = Editor(config_directory=str(tmp_path), input=DummyInput(), output=DummyOutput())
+    editor.variation_selector_always_wide = True
+
+    with set_app(editor.application):
+        assert _vsaw_enabled() is True
+    with set_app(second.application):
+        assert _vsaw_enabled() is False
+
+
 def test_222_repeated_patch_install_is_quiet(caplog):
     import logging
 

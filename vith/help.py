@@ -64,7 +64,7 @@ Options (`:set` / `:setlocal` / `:setl`):
              ignorecase (ic), smartcase (scs), expandtab (et), autoindent (ai),
              wrap, breakindent (bri), list, paste, ruler (ru), wildmenu (wmnu),
              cursorline (cul), cursorcolumn (cuc), mouse, jedi, tildeop (top),
-             readonly (ro)
+             readonly (ro), variation-selector-always-wide (vsaw)
     Values:  tabstop (ts), shiftwidth (sw), scrolloff (so), colorcolumn (cc),
              filetype (ft), fileencoding (fenc), fileformat (ff)
 

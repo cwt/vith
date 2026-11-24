@@ -33,6 +33,17 @@ VARIATION_SELECTOR_ALWAYS_WIDE = False
 
 def _vsaw_enabled() -> bool:
     """Return True when the VS16-always-wide policy is active."""
+    # Prefer the active Application's Editor so two Editor instances can hold
+    # independent policies (docs/bugs/223.md).
+    try:
+        from prompt_toolkit.application.current import get_app_or_none
+
+        app = get_app_or_none()
+        editor = getattr(app, '_vith_editor', None) if app is not None else None
+        if editor is not None:
+            return bool(getattr(editor, '_variation_selector_always_wide', False))
+    except Exception:
+        pass
     if globals().get('variation_selector_always_wide') or globals().get(
         'VARIATION_SELECTOR_ALWAYS_WIDE'
     ):

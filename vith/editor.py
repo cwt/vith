@@ -222,43 +222,12 @@ class Editor:
 
     @property
     def variation_selector_always_wide(self) -> bool:
-        try:
-            import vith.thai.clusters as _clusters_mod
-
-            if getattr(_clusters_mod, 'variation_selector_always_wide', False) or getattr(
-                _clusters_mod, 'VARIATION_SELECTOR_ALWAYS_WIDE', False
-            ):
-                return True
-        except Exception:
-            pass
-        try:
-            import vith.thai as _thai_mod
-
-            if getattr(_thai_mod, 'variation_selector_always_wide', False) or getattr(
-                _thai_mod, 'VARIATION_SELECTOR_ALWAYS_WIDE', False
-            ):
-                return True
-        except Exception:
-            pass
+        """Instance-local VS16 policy; module flags are only a standalone fallback."""
         return bool(getattr(self, '_variation_selector_always_wide', False))
 
     @variation_selector_always_wide.setter
     def variation_selector_always_wide(self, value: bool) -> None:
         self._variation_selector_always_wide = bool(value)
-        try:
-            import vith.thai.clusters as _clusters_mod
-
-            _clusters_mod.variation_selector_always_wide = bool(value)
-            _clusters_mod.VARIATION_SELECTOR_ALWAYS_WIDE = bool(value)
-        except Exception:
-            pass
-        try:
-            import vith.thai as _thai_mod
-
-            _thai_mod.variation_selector_always_wide = bool(value)
-            _thai_mod.VARIATION_SELECTOR_ALWAYS_WIDE = bool(value)
-        except Exception:
-            pass
 
     def __init__(self, config_directory='~/.vith', input=None, output=None):
         set_process_name('vith')
@@ -390,6 +359,9 @@ class Editor:
         # Create layout and CommandLineInterface instance.
         self.editor_layout = EditorLayout(self, self.window_arrangement)
         self.application = self._create_application()
+        # Thai cell-width helpers read the active Application's owning Editor
+        # so the VS16 policy stays per-instance (docs/bugs/223.md).
+        self.application._vith_editor = self
 
         # Hide message when a key is pressed.
         def key_pressed(_):
