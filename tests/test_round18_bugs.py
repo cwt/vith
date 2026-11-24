@@ -147,6 +147,33 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_216_reload_clears_automatic_read_only(editor, tmp_path):
+    path = tmp_path / "secret.txt"
+    path.write_text("top secret\n", encoding="utf-8")
+    path.chmod(0o000)
+    editor.load_initial_files([str(path)])
+    eb = editor.window_arrangement.active_editor_buffer
+    assert eb.buffer.read_only()
+
+    path.chmod(0o644)
+    eb.reload()
+
+    assert eb.buffer.text == "top secret"
+    assert not eb.buffer.read_only()
+
+
+def test_216_reload_keeps_explicit_read_only(editor, tmp_path):
+    path = tmp_path / "note.txt"
+    path.write_text("note\n", encoding="utf-8")
+    editor.load_initial_files([str(path)])
+    eb = editor.window_arrangement.active_editor_buffer
+    handle_command(editor, ":set ro")
+
+    eb.reload()
+
+    assert eb.buffer.read_only()
+
+
 def test_215_setdefault_never_inserts_none():
     from vith.editor import FiletypeTabstops
 

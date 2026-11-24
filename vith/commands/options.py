@@ -572,6 +572,7 @@ def _set_readonly(editor: Any, enabled: bool) -> bool:
         editor.show_message('No buffer')
         return False
     eb.buffer.read_only = to_filter(enabled)
+    eb.buffer._vith_explicit_read_only = True  # type: ignore[attr-defined]
     return True
 
 

@@ -127,17 +127,21 @@ class EditorBuffer:
             editor.cold_text_compression,
             editor.cold_text_compression_level,
         )
+        # Read-only from a directory or a failed initial read is automatic:
+        # a successful reload may safely clear it (docs/bugs/216.md).
+        self._auto_read_only = self.isdir or unreadable
         self.buffer = ColdTextBuffer(
             multiline=True,
             completer=DocumentCompleter(editor, self),
             document=Document(text, 0),
             on_text_changed=self._on_text_changed,
-            read_only=self.isdir or unreadable,
+            read_only=self._auto_read_only,
             cold_compressor=compressor,
             cold_compression_name=compression_name,
             cold_compression_level=compression_level,
         )
         self.buffer._vith_editor_buffer_ref = weakref.ref(self)  # type: ignore[attr-defined]
+        self.buffer._vith_explicit_read_only = False  # type: ignore[attr-defined]
 
     @property
     def editor(self):
@@ -382,10 +386,15 @@ class EditorBuffer:
         # pre-reload content (docs/bugs/177.md). It also bypasses the
         # read-only filter that a document assignment trips (docs/bugs/133.md).
         self.buffer.reset(document=Document(text, cursor_position))
-        if self.isdir:
-            # `:e` may replace a file with a directory: keep the explorer
-            # read-only, even if the old filter allowed editing.
-            self.buffer.read_only = to_filter(True)
+        if not getattr(self.buffer, '_vith_explicit_read_only', False) and (
+            self._auto_read_only or self.isdir
+        ):
+            # An automatically read-only buffer (directory or failed initial
+            # read) follows its new on-disk state; `:e` may replace a file
+            # with a directory and vice versa (docs/bugs/216.md). An explicit
+            # `:set ro`/`:set noro` is never overridden by reload.
+            self.buffer.read_only = to_filter(self.isdir)
+            self._auto_read_only = self.isdir
 
         self._file_content = text
         self._has_unsaved_changes = False
