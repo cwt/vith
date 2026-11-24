@@ -12,12 +12,11 @@ from typing import Any
 from .ranges import parse_range as parse_substitute_range
 from .ranges import resolve_range, splice_buffer_lines
 
-# Heuristic guard against catastrophic backtracking (docs/bugs/123.md): a
-# group that contains a quantifier and is itself quantified, e.g. `(a+)+`,
-# `([a-z]+)*$` or `(\w+\s?)+`. Escaped characters and `[...]` classes are
-# stripped first, so `[a+]+` and `\(a+\)+` stay allowed.
-_UNSAFE_NESTED_QUANTIFIER = re.compile(r'\([^()]*[+*?][^()]*\)[+*]')
-_UNSAFE_QUANTIFIED_GROUP = re.compile(r'\(([^()]*)\)([+*])')
+# Heuristic guard against catastrophic backtracking (docs/bugs/123.md, 142.md,
+# 208.md): a group that contains a quantifier and is itself quantified, e.g.
+# `(a+)+`, `((a)+)+`, `(a+){5,}$`, `([a-z]+)*$` or `(\w+\s?)+`. Escaped
+# characters and `[...]` classes are stripped first, so `[a+]+` and
+# `\(a+\)+` stay allowed.
 _UNSAFE_COUNTED_REPEAT = re.compile(r'\{\d+(?:,\d*)?\}')
 _MAX_SUBSTITUTE_PATTERN_LENGTH = 2000
 
@@ -26,8 +25,36 @@ def _strip_regex_literals(pattern_text: str) -> str:
     """
     Remove escaped characters and `[...]` classes from `pattern_text`, so
     the nested-quantifier guard only sees regex structure.
+
+    A `]` immediately after `[` (or `[^`) is a literal class member in Python
+    regex syntax; consume it so classes like `[]+(a+)+]` are stripped whole
+    instead of exposing a spurious nested quantifier (docs/bugs/208.md).
     """
-    return re.sub(r'\[[^\]]*\]', '', re.sub(r'\\.', '', pattern_text))
+    result: list[str] = []
+    index = 0
+    while index < len(pattern_text):
+        char = pattern_text[index]
+        if char == '\\':
+            index += 2
+            continue
+        if char == '[':
+            index += 1
+            if index < len(pattern_text) and pattern_text[index] == '^':
+                index += 1
+            if index < len(pattern_text) and pattern_text[index] == ']':
+                index += 1
+            while index < len(pattern_text):
+                if pattern_text[index] == '\\':
+                    index += 2
+                    continue
+                if pattern_text[index] == ']':
+                    index += 1
+                    break
+                index += 1
+            continue
+        result.append(char)
+        index += 1
+    return ''.join(result)
 
 
 def _has_overlapping_alternatives(body: str) -> bool:
@@ -39,26 +66,97 @@ def _has_overlapping_alternatives(body: str) -> bool:
     return False
 
 
+def _counted_repeat_at(pattern_text: str, index: int) -> tuple[str, int] | None:
+    """Return the counted-repeat token at `index` and the next index."""
+    match = _UNSAFE_COUNTED_REPEAT.match(pattern_text, index)
+    if match is None:
+        return None
+    return match.group(0), match.end()
+
+
+def _is_variable_quantifier(token: str) -> bool:
+    """Whether a quantifier can repeat an unbounded number of times."""
+    if token in ('+', '*'):
+        return True
+    if token.startswith('{'):
+        bounds = token[1:-1].split(',', 1)
+        if len(bounds) == 1:
+            return False  # a fixed repeat is linear
+        return bounds[1] == '' or bounds[1] != '0'
+    return False
+
+
+def _has_nested_quantifier(pattern_text: str) -> bool:
+    """Parenthesis-stack scan for a quantified group containing a quantifier."""
+    stack: list[dict[str, Any]] = []
+    index = 0
+    while index < len(pattern_text):
+        char = pattern_text[index]
+        if char == '(':
+            stack.append({'body': [], 'quantified': False, 'counted': False})
+            # `(?:`, `(?i:`, `(?P<name>` etc. — skip the `?` marker so it is
+            # not mistaken for an optional quantifier of the group body.
+            index += 2 if index + 1 < len(pattern_text) and pattern_text[index + 1] == '?' else 1
+            continue
+        if char == ')':
+            frame = stack.pop() if stack else None
+            index += 1
+            token: str | None = None
+            if index < len(pattern_text) and pattern_text[index] in '+*?':
+                token = pattern_text[index]
+                index += 1
+            else:
+                counted = _counted_repeat_at(pattern_text, index)
+                if counted is not None:
+                    token, index = counted
+            if frame is not None:
+                body = ''.join(frame['body'])
+                if token is not None and (
+                    _is_variable_quantifier(token)
+                    and (
+                        frame['quantified']
+                        or frame['counted']
+                        or _has_overlapping_alternatives(body)
+                    )
+                ):
+                    return True
+                if stack and (token is not None or frame['quantified'] or frame['counted']):
+                    # A nested quantified group stays dangerous when an
+                    # ancestor is quantified (`(?:(a+))+$`, docs/bugs/208.md).
+                    stack[-1]['quantified'] = True
+            continue
+        if char in '+*?':
+            if stack:
+                stack[-1]['quantified'] = True
+            index += 1
+            continue
+        counted = _counted_repeat_at(pattern_text, index)
+        if counted is not None:
+            token, index = counted
+            if stack and _is_variable_quantifier(token):
+                stack[-1]['quantified'] = True
+                stack[-1]['counted'] = True
+            continue
+        if stack:
+            stack[-1]['body'].append(char)
+        index += 1
+    return False
+
+
 def is_unsafe_regex(editor: Any, pattern_text: str) -> bool:
     """
     Conservative catastrophic-backtracking guard shared by `:s` and `:g`
-    (docs/bugs/123.md, 142.md). Overlapping alternations (`(a|aa)+$`) and
-    counted repeats inside a quantified group (`(a{1,3})+$`) are rejected in
-    addition to the original nested-quantifier rule. Disjoint alternations
-    such as `(a|b)+$` remain allowed.
+    (docs/bugs/123.md, 142.md, 208.md). Uses a parenthesis-stack scan so
+    nested groups and outer counted repeats cannot bypass it, while disjoint
+    alternations such as `(a|b)+$` remain allowed.
     """
     if len(pattern_text) > _MAX_SUBSTITUTE_PATTERN_LENGTH:
         editor.show_message('Unsafe pattern (nested quantifier): too long')
         return True
     stripped = _strip_regex_literals(pattern_text)
-    if _UNSAFE_NESTED_QUANTIFIER.search(stripped):
+    if _has_nested_quantifier(stripped):
         editor.show_message('Unsafe pattern (nested quantifier): %s' % pattern_text)
         return True
-    for match in _UNSAFE_QUANTIFIED_GROUP.finditer(stripped):
-        body = match.group(1)
-        if _has_overlapping_alternatives(body) or _UNSAFE_COUNTED_REPEAT.search(body):
-            editor.show_message('Unsafe pattern (nested quantifier): %s' % pattern_text)
-            return True
     return False
 
 

@@ -146,6 +146,21 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_208_redos_guard_catches_nested_and_counted_repeats(editor):
+    _editor_with_lines(editor, "aaa\nbbb")
+    for pattern in ("((a)+)+$", "(?:(a+))+$", "(a+){5,}$"):
+        editor.message = None
+        handle_command(editor, ":s/%s/X/" % pattern)
+        assert "Unsafe pattern" in editor.message, pattern
+
+
+def test_208_leading_bracket_class_is_not_a_false_positive(editor):
+    from vith.commands.substitution import is_unsafe_regex
+
+    assert is_unsafe_regex(editor, "[]+(a+)+]") is False
+    assert editor.message is None
+
+
 def test_207_f1_from_command_mode_restores_preview(editor):
     editor.load_initial_files([None])
     editor.show_line_numbers = True
