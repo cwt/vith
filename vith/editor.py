@@ -687,11 +687,24 @@ class Editor:
         except Exception:
             pass
 
+    def _leave_command_and_search_modes(self):
+        """Cancel pending preview/search state before focusing a read-only split (207)."""
+        layout = self.application.layout
+        if layout.has_focus(self.command_buffer):
+            self.leave_command_mode(append_to_history=False)
+        elif layout.has_focus(self.search_buffer):
+            self.search_buffer.reset()
+            self._clear_pending_counted_inserts()
+            layout.focus_last()
+        self._clear_pending_counted_inserts()
+        self.application.vi_state.input_mode = InputMode.NAVIGATION
+
     def show_info(self, text: str, title: str | None = None) -> None:
         """
         Display read-only informational text in a new horizontal split inside
         vith (like `:help` and `:compression`, close with `:q`).
         """
+        self._leave_command_and_search_modes()
         if self.window_arrangement.active_tab is None:
             eb = self.window_arrangement._get_or_create_editor_buffer(text=text)
         else:

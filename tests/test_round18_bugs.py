@@ -2,10 +2,13 @@
 
 from unittest.mock import MagicMock
 
+from prompt_toolkit.application.current import set_app
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.clipboard import ClipboardData
 from prompt_toolkit.document import Document
+from prompt_toolkit.key_binding.key_processor import KeyPress
 from prompt_toolkit.key_binding.vi_state import InputMode
+from prompt_toolkit.keys import Keys
 from prompt_toolkit.selection import SelectionType
 
 from vith.commands.handler import handle_command
@@ -133,6 +136,41 @@ def test_205_explicit_unnamed_register_put(editor):
     handle_command(editor, ':2put "')
 
     assert eb.buffer.document.lines[2] == "line one"
+
+
+def _feed(editor, *keys):
+    key_processor = editor.application.key_processor
+    with set_app(editor.application):
+        for key in keys:
+            key_processor.feed(KeyPress(key))
+        key_processor.process_keys()
+
+
+def test_207_f1_from_command_mode_restores_preview(editor):
+    editor.load_initial_files([None])
+    editor.show_line_numbers = True
+
+    editor.enter_command_mode()
+    editor.command_buffer.text = "set nonumber"
+    assert editor.show_line_numbers is False  # preview is live
+
+    _feed(editor, Keys.F1)
+
+    assert editor.show_line_numbers is True  # preview aborted/restored
+    assert editor.command_buffer.text == ""
+    assert editor.application.vi_state.input_mode == InputMode.NAVIGATION
+
+
+def test_207_f1_from_search_mode_leaves_insert(editor):
+    editor.load_initial_files([None])
+    editor.application.layout.focus(editor.search_buffer)
+    editor.application.vi_state.input_mode = InputMode.INSERT
+    editor.search_buffer.text = "needle"
+
+    _feed(editor, Keys.F1)
+
+    assert editor.search_buffer.text == ""
+    assert editor.application.vi_state.input_mode == InputMode.NAVIGATION
 
 
 def test_206_force_write_tilde_path(editor, tmp_path, monkeypatch):
