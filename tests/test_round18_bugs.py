@@ -147,6 +147,21 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_224_substitute_is_completed(editor):
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+
+    from vith.commands.completer import create_command_completer
+
+    completer = create_command_completer(editor)
+    completions = [
+        completion.text.strip()
+        for completion in completer.get_completions(Document("sub", 3), CompleteEvent())
+    ]
+
+    assert "substitute" in completions
+
+
 def test_223_vsaw_is_instance_local(editor, tmp_path):
     from prompt_toolkit.input import DummyInput
     from prompt_toolkit.output import DummyOutput

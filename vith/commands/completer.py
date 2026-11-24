@@ -193,6 +193,9 @@ class _EnvPathCompleter(PathCompleter):
 
 def create_command_completer(editor):
     commands = [c + ' ' for c in get_commands()]
+    # `s`/`substitute` are dispatched by a special branch in handle_command
+    # rather than through the registry, so add them explicitly (docs/bugs/224.md).
+    commands.extend(('s ', 'substitute '))
 
     inner = GrammarCompleter(
         COMMAND_GRAMMAR,
