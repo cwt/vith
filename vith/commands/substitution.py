@@ -239,7 +239,12 @@ def parse_substitute_args(sub_args: str | None) -> tuple[str | None, str | None,
 
     search = fields[0]
     replace = fields[1] if len(fields) >= 2 else None
-    flags = fields[2].replace(delim, '').rstrip() if len(fields) == 3 else ''
+    flags = fields[2].rstrip() if len(fields) == 3 else ''
+    # Allow the conventional extra delimiter in `:s/a/b//g` (empty replace
+    # followed by flags), but do not silently swallow stray delimiters from a
+    # different delimiter style such as `:s#a#b#/` (docs/bugs/212.md).
+    if flags.startswith(delim):
+        flags = flags[len(delim) :]
     return search, replace, flags
 
 
@@ -387,13 +392,12 @@ def _parse_substitute_flags(
     Parse and validate `:substitute` flags (`g`, `i`, `I`, `n`, `p`), returning
     either `(_SubstituteOptions, None)` or `(None, error_message)`.
     """
-    clean_flags = flags.replace('/', '')
     ignore_case = default_ignore_case
     sub_count = 1
     report_only = False
     print_last = False
 
-    for ch in clean_flags:
+    for ch in flags:
         match ch:
             case 'g':
                 sub_count = 0
@@ -460,6 +464,21 @@ def _record_substitute_state(
     editor.clear_hlsearch_suppression()
 
 
+def _expand_replacement_tilde(replace: str, previous: str) -> str:
+    """Expand unescaped `~` to `previous` before recording the last replacement."""
+    result: list[str] = []
+    index = 0
+    while index < len(replace):
+        char = replace[index]
+        if char == '\\' and index + 1 < len(replace):
+            result.append(replace[index : index + 2])
+            index += 2
+            continue
+        result.append(previous if char == '~' else char)
+        index += 1
+    return ''.join(result)
+
+
 def prepare_substitute(
     editor: Any,
     search: str | None,
@@ -507,17 +526,17 @@ def prepare_substitute(
         editor.show_message('Invalid regex: %s' % exc)
         return None
 
+    previous = editor.last_substitute_text or ''
+    expanded_replace = _expand_replacement_tilde(replace or '', previous)
     try:
-        repl = _vim_replacement_function(
-            replace or '', editor.last_substitute_text or '', pattern.groups
-        )
+        repl = _vim_replacement_function(expanded_replace, previous, pattern.groups)
     except ValueError as exc:
         editor.show_message('Invalid regex: %s' % exc)
         return None
 
     return _PreparedSubstitute(
         search=search,
-        replace=replace,
+        replace=expanded_replace,
         options=options,
         pattern=pattern,
         repl=repl,

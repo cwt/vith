@@ -146,6 +146,27 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_212_chained_tilde_replacement_uses_expanded_text(editor):
+    eb = _editor_with_lines(editor, "a b c")
+
+    handle_command(editor, ":s/a/X/")
+    handle_command(editor, ":s/b/~/")
+    handle_command(editor, ":s/c/~/")
+
+    assert eb.buffer.text == "X X X"
+    assert editor.last_substitute_text == "X"
+
+
+def test_212_non_slash_delimiter_rejects_stray_slash(editor):
+    eb = _editor_with_lines(editor, "a b")
+
+    handle_command(editor, ":s#a#b#/")
+
+    assert editor.message is not None
+    assert "E488" in editor.message
+    assert eb.buffer.text == "a b"
+
+
 def test_211_unicode_superscript_digit_preview_does_not_crash(editor):
     editor.load_initial_files([None])
     original = editor.tabstop
