@@ -193,7 +193,8 @@ class EditorBuffer:
             if sniffed:
                 self._detected_filetype = sniffed
                 return self._detected_filetype
-        self._detected_filetype = ''
+        # Do not memoize an empty result: a new extensionless buffer may be
+        # sniffed as Python after the user types a shebang/modeline (219.md).
         return ''
 
     @property
@@ -572,7 +573,7 @@ class EditorBuffer:
         # 1. Fast exit BEFORE touching _reporter_is_running:
         #    Skip unnamed buffers and non-Python files immediately. (report()
         #    in reporting.py only knows how to check .py files.)
-        if not checks_python_file(self.location):
+        if not checks_python_file(self.location, self.filetype):
             if self.report_errors:
                 self.report_errors = []
                 self.report_errors_by_line = {}
@@ -607,6 +608,7 @@ class EditorBuffer:
         text = self.buffer.text
         location = self.location
         document = self.buffer.document
+        filetype = self.filetype
 
         def in_executor():
             # Call reporter with (location, document), as in reporting.report.
@@ -615,7 +617,7 @@ class EditorBuffer:
             # (docs/bugs/190.md).
             reporter_error: Exception | None = None
             try:
-                report_errors = report(location, document)
+                report_errors = report(location, document, filetype)
             except Exception as exc:
                 report_errors = []
                 reporter_error = exc

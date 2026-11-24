@@ -15,15 +15,18 @@ import pyflakes.api
 __all__ = ('report', 'checks_python_file')
 
 
-def checks_python_file(location):
+def checks_python_file(location, filetype=None):
     """
-    Single source of truth for the `.py` gate.
+    Single source of truth for the Python gate.
 
-    `EditorBuffer.run_reporter` probes this to avoid spawning background
-    work for non-Python files; `report` uses the same predicate inside the
-    worker thread, so the two sides can never diverge (see docs/bugs/010.md
-    of the findings bundle).
+    An explicit `filetype` (from `EditorBuffer.filetype`) wins over the
+    filename suffix so that `:set filetype=python`/a Python shebang works on
+    extensionless buffers and `:set filetype=text` disables pyflakes on a
+    `.py` file (docs/bugs/219.md). Callers passing only a location keep the
+    historical `.py` behavior.
     """
+    if filetype is not None:
+        return str(filetype).lower() == 'python'
     return bool(location) and location.endswith('.py')
 
 
@@ -73,16 +76,16 @@ def _byte_offset_to_char_col(line: str, byte_offset: int | None) -> int:
     return min(char_col, len(line))
 
 
-def report(location, document):
+def report(location, document, filetype=None):
     """
     Run reporter on document and return list of ReporterError instances.
-    (Depending on the location it will or won't run anything.)
+    (Depending on the location/filetype it will or won't run anything.)
 
     Returns a list of `ReporterError`.
     """
     assert isinstance(location, str)
 
-    if checks_python_file(location):
+    if checks_python_file(location, filetype):
         return report_pyflakes(document)
     else:
         return []

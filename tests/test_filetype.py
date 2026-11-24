@@ -104,8 +104,8 @@ def test_untitled_buffer_override(editor):
     eb.buffer.text = PYTHON_TEXT
 
     doc = Document(eb.buffer.text, 0)
-    plain = DocumentLexer(eb).lex_document(doc)(0)
-    assert all(style == '' for style, _ in plain)
+    # 219: untitled buffers highlight sniffed content just like named ones.
+    assert _has_keyword(DocumentLexer(eb).lex_document(doc)(0))
 
     handle_command(editor, ':set filetype=python')
     assert eb.filetype_override == 'python'

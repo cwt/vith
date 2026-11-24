@@ -147,6 +147,39 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_219_untitled_sniffed_python_is_highlighted(editor):
+    from prompt_toolkit.document import Document
+
+    from vith.lexer import DocumentLexer
+
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = "#!/usr/bin/env python3\ndef foo():\n    return 42\n"
+    assert eb.filetype == "python"
+
+    get_line = DocumentLexer(eb).lex_document(Document(eb.buffer.text, 0))
+    assert any("keyword" in style.lower() for style, _ in get_line(1))
+
+
+def test_219_empty_extensionless_filetype_is_not_stuck(editor, tmp_path):
+    path = tmp_path / "myscript"
+    path.write_text("", encoding="utf-8")
+    editor.load_initial_files([str(path)])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    assert eb.filetype == ""
+    eb.buffer.text = "#!/usr/bin/env python3\ndef foo():\n    pass\n"
+    assert eb.filetype == "python"
+
+
+def test_219_python_gate_honors_filetype():
+    from vith.reporting import checks_python_file
+
+    assert checks_python_file("foo.py", "text") is False
+    assert checks_python_file("myscript", "python") is True
+    assert checks_python_file("foo.py") is True
+
+
 def test_218_short_display_name_strips_trailing_separators():
     from vith.editor_buffer import short_display_name
 

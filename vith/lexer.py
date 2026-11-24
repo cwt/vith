@@ -397,7 +397,11 @@ class DocumentLexer(Lexer):
         if getattr(self.editor_buffer, 'in_file_explorer_mode', False):
             return self._get_directory_lexer().lex_document(document)
 
-        if location or getattr(self.editor_buffer, 'filetype_override', None):
+        if (
+            location
+            or getattr(self.editor_buffer, 'filetype_override', None)
+            or (getattr(document, 'text', '') or '').strip()
+        ):
             if not self._ensure_lexer(location):
                 # No Pygments lexer found for this location (or Pygments
                 # could not guess one): fall back to no highlighting.

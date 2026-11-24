@@ -665,6 +665,7 @@ def set_filetype(editor: Any, value: str | None) -> bool:
 
     eb.filetype_override = new_override
     eb.tabstop = None
+    eb.run_reporter()
     for ctrl in list(getattr(eb, '_live_render_controllers', ())):
         ctrl.schedule(immediate=True)
     invalidate_app()

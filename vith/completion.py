@@ -132,7 +132,7 @@ class DocumentCompleter(Completer):
         # Select completer. jedi is optional (not in install_requires): when
         # it is missing, fall back to the words completer instead of crashing
         # with an ImportError on the first Tab press (docs/bugs/003.md).
-        if location.endswith('.py') and editor.enable_jedi and _jedi_available():
+        if editor_buffer.filetype == 'python' and editor.enable_jedi and _jedi_available():
             completer = _PythonCompleter(location)
         else:
             completer = self._words_completer
