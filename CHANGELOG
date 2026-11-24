@@ -1,12 +1,51 @@
 CHANGELOG
 =========
 
-Unreleased
-----------
+0.16.6: 2026-11-24
+-------------------
+
+Round 18 correctness audit (findings 204–229, all fixed) and Vim modeline
+filetype detection:
 
 - Lexer: added Vim modeline (``# vim: set ft=bash:`` / ``# vim: ft=bash``)
   filetype detection for extensionless files such as ``~/.bashrc``, scanning
-  the first and last 5 lines of the buffer (``vith/lexer.py``).
+  the first and last 5 lines of the buffer (``vith/lexer.py``). Modeline
+  sniffing is now bounded (``find``/``rfind`` instead of a whole-buffer
+  ``splitlines()``), so it no longer costs O(file size) per keystroke.
+- Critical/high correctness: counted ``i``/``a`` no longer corrupt text when
+  Insert mode exits without ``Esc`` (204); Normal-mode and Ex named registers
+  are unified, including uppercase append and ``:put "`` (205); ``:w!`` works
+  on ``~/...`` paths and tilde paths deduplicate buffers (206); ``F1`` from
+  Command/Search mode aborts preview state (207); the ReDoS guard detects
+  nested groups and ``{m,n}`` repeats without false positives on character
+  classes (208); the Thai/Lao combining tables and completion regex are back
+  in sync after removing unassigned U+0EC7 (209).
+- Commands & options: TOML ``[filetype_tabstops]`` is no longer shadowed by a
+  scalar ``tabstop`` and invalid widths are reported (210); non-ASCII digit
+  characters no longer crash ``int()`` in preview/``:tabmove`` (211);
+  ``:s/.../~/`` chains expand ``~`` before recording substitute state (212);
+  ``fileformat`` honors ``:setlocal``/``!``/multi-query semantics (213);
+  shared integer/colorcolumn bounds (214); ``FiletypeTabstops.setdefault``
+  rejects ``None`` (215); ``reload()`` clears automatic read-only (216);
+  grammar accepts paths with spaces and reports ``E488`` for punctuation args
+  (217).
+- UI, filetype & Thai: trailing-slash paths render correct tab/title names
+  (218); untitled and extensionless buffers agree across lexer, pyflakes and
+  Jedi (219); Ex commands park the cursor on a Normal-mode cell (220); hook
+  paths skip directories and honor ``hooks.directory`` (221); Thai/VS16
+  patches are idempotent and roll back cleanly (222); the VS16-wide policy is
+  per-``Editor`` (223); ``:substitute`` appears in completion (224); buffer
+  list columns align by terminal display width (225); marked ``ร``+``ร`` is
+  no longer mistaken for Ro Han (226).
+- Performance & maintenance: bounded modeline sniffing, cached colorscheme
+  lookup, single-pass JSON/sniff in ``:render``, a single ``Document`` for Ex
+  line commits, and no duplicate startup syscalls (227); dead code and
+  duplicate helpers removed with one shared filetype canonicalizer
+  (``vith/filetypes.py``) (228); last ``lambda`` removed, ``check_untyped_defs``
+  enabled for shipped modules, and split-tree identity comparisons fixed
+  (229).
+- Verification: **624 passed / 2 skipped**, mypy clean (90 files), ruff clean,
+  89% coverage. Findings bundle closed: 229 total (228 fixed, 1 withdrawn).
 
 0.16.5: 2026-11-23
 -------------------
