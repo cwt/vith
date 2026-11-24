@@ -54,16 +54,6 @@ def _filetype_catalog() -> tuple[tuple[str, ...], dict[str, str]]:
     return tuple(sorted(mapping)), mapping
 
 
-def _filetype_aliases() -> list[str]:
-    """Sorted Pygments lexer aliases (`get_lexer_by_name` targets)."""
-    return list(_filetype_catalog()[0])
-
-
-def _filetype_display_names() -> dict[str, str]:
-    """Map Pygments alias -> human-readable lexer name for completion meta."""
-    return _filetype_catalog()[1]
-
-
 class FiletypeCompleter(Completer):
     """
     Complete Pygments lexer aliases for `:set filetype=`.
@@ -203,7 +193,6 @@ def create_command_completer(editor):
             'command': WordCompleter(commands),
             'location': _EnvPathCompleter(expanduser=True),
             'write_append': _EnvPathCompleter(expanduser=True),
-            'set_option': WordCompleter(sorted(SET_COMMANDS)),
             'buffer_name': BufferNameCompleter(editor),
             'colorscheme': ColorSchemeCompleter(editor),
             'shell_command': SystemCompleter(),

@@ -47,7 +47,6 @@ def expand_location(location: str) -> str:
 
 
 # Backward-compatible internal alias.
-_expand_location = expand_location
 
 
 class FileIO(EditorIO):
@@ -57,17 +56,17 @@ class FileIO(EditorIO):
 
     def can_open_location(self, location):
         # We can handle all local files.
-        expanded = _expand_location(location)
+        expanded = expand_location(location)
         return '://' not in expanded and not os.path.isdir(expanded)
 
     def exists(self, location):
-        return os.path.exists(_expand_location(location))
+        return os.path.exists(expand_location(location))
 
     def read(self, location):
         """
         Read file from disk.
         """
-        location = _expand_location(location)
+        location = expand_location(location)
 
         with open(location, 'rb') as f:
             data = f.read()
@@ -83,7 +82,7 @@ class FileIO(EditorIO):
         converting LF files to CRLF and turning DOS `\\r\\n` into `\\r\\r\\n`
         (which then doubles newlines on every reload/save cycle).
         """
-        location = _expand_location(location)
+        location = expand_location(location)
 
         with io.open(location, 'w', encoding=encoding, newline='') as f:
             f.write(text)
@@ -94,7 +93,7 @@ class FileIO(EditorIO):
         (docs/bugs/166.md). Encodes before opening so a `UnicodeEncodeError`
         never leaves a partially appended file on disk.
         """
-        location = _expand_location(location)
+        location = expand_location(location)
         encoded = text.encode(encoding)
         with open(location, 'ab') as f:
             f.write(encoded)
@@ -109,10 +108,10 @@ class GZipFileIO(FileIO):
     """
 
     def can_open_location(self, location):
-        return super().can_open_location(location) and _expand_location(location).endswith('.gz')
+        return super().can_open_location(location) and expand_location(location).endswith('.gz')
 
     def read(self, location):
-        location = _expand_location(location)
+        location = expand_location(location)
 
         with gzip.open(location, 'rb') as f:
             data = f.read()
@@ -122,7 +121,7 @@ class GZipFileIO(FileIO):
         """
         Write file to disk.
         """
-        location = _expand_location(location)
+        location = expand_location(location)
 
         with gzip.open(location, 'wb') as f:
             f.write(text.encode(encoding))
@@ -139,14 +138,14 @@ class DirectoryIO(EditorIO):
 
     def can_open_location(self, location):
         # We can handle all local directories.
-        expanded = _expand_location(location)
+        expanded = expand_location(location)
         return '://' not in expanded and os.path.isdir(expanded)
 
     def exists(self, location):
-        return os.path.isdir(_expand_location(location))
+        return os.path.isdir(expand_location(location))
 
     def read(self, directory):
-        directory = _expand_location(directory)
+        directory = expand_location(directory)
         # Read content via `os.scandir` to reuse dirent `d_type` without
         # per-entry `stat()` syscalls (docs/bugs/166.md).
         directories = []

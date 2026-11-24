@@ -195,8 +195,6 @@ DEFAULT_TABSTOP = 8
 def _compute_cell_columns(
     line: str, tabstop: int = DEFAULT_TABSTOP, _vsaw: bool | None = None
 ) -> tuple[tuple[int, ...], tuple[int, ...], int]:
-    if _vsaw is None:
-        _vsaw = _vsaw_enabled()
     """
     Build `(cluster starts, visual columns, total width)` for `line`.
 
@@ -208,6 +206,8 @@ def _compute_cell_columns(
     Computed in a single pass with an ASCII+tabs fast path and no per-cluster
     string slices or generator `sum()` allocations (docs/bugs/165.md).
     """
+    if _vsaw is None:
+        _vsaw = _vsaw_enabled()
     ts = max(1, int(tabstop))
     n = len(line)
     if n == 0:
@@ -324,24 +324,6 @@ def _start_of_cell_ordinal(line: str, ordinal: int, tabstop: int = DEFAULT_TABST
         return n
     index = bisect_right(columns, ordinal) - 1
     return starts[max(0, index)]
-
-
-def _end_of_visual_col(line: str, visual_col: int, tabstop: int = DEFAULT_TABSTOP) -> int:
-    """
-    Exclusive line-relative codepoint end of the cell cluster covering
-    inclusive display column `visual_col` (handling multi-codepoint combining
-    clusters, width-2 CJK/emoji cells, and multi-column tabs cleanly).
-    """
-    n = len(line)
-    if not line or visual_col < 0:
-        return 0
-    if line.isascii() and "\t" not in line:
-        return min(visual_col + 1, n)
-    starts, columns, total_width = _cell_columns(line, tabstop)
-    if not starts or visual_col >= total_width:
-        return n
-    index = max(0, bisect_right(columns, visual_col) - 1)
-    return starts[index + 1] if index + 1 < len(starts) else n
 
 
 def _map_column_across_lines(

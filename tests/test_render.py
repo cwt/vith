@@ -279,11 +279,11 @@ def test_live_render_async_debounce_coalescing_stale_fallback_and_resize(editor,
         assert '"final"' in preview_eb.buffer.text
         assert preview_eb.scratch_title is not None and 'stale' not in preview_eb.scratch_title
 
-        # Width change via `check_width()` triggers re-render at the new width.
+        # Width change via `on_after_render()` triggers re-render at the new width.
         preview_win = ctrl.preview_window
         assert preview_win is not None and preview_win.pt_window is not None
         preview_win.pt_window.render_info = SimpleNamespace(window_width=32, window_height=20)
-        ctrl.check_width()
+        ctrl.on_after_render()
         assert ctrl._last_width == 32
         await asyncio.sleep(0.10)
 

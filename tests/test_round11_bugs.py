@@ -101,7 +101,7 @@ def test_171_generic_render_failure_shows_diagnostic(
     import vith.render as render_module
 
     controller, preview = _open_render_controller(editor, tmp_path)
-    controller._apply_result(1, render_module.RenderResult('good', [[('', 'good')]], 'markdown'))
+    controller._apply_result(render_module.RenderResult('good', [[('', 'good')]], 'markdown'))
 
     def boom(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError('kaboom')
@@ -117,17 +117,17 @@ def test_172_dependency_error_clears_good_render_flag(editor: Any, tmp_path: Any
     import vith.render as render_module
 
     controller, preview = _open_render_controller(editor, tmp_path)
-    controller._apply_result(1, render_module.RenderResult('good', [[('', 'good')]], 'markdown'))
-    controller._apply_error(2, "Optional package 'rich-rst' is required", incomplete=False)
+    controller._apply_result(render_module.RenderResult('good', [[('', 'good')]], 'markdown'))
+    controller._apply_error("Optional package 'rich-rst' is required", incomplete=False)
     assert controller._has_good_render is False
-    controller._apply_error(3, 'still broken', incomplete=True)
+    controller._apply_error('still broken', incomplete=True)
     assert 'stale' not in (preview.scratch_title or '')
 
 
 def test_173_multi_line_error_message_stays_line_aligned(editor: Any, tmp_path: Any) -> None:
     """A multi-line diagnostic must produce one styled line per plain-text line."""
     controller, preview = _open_render_controller(editor, tmp_path)
-    controller._apply_error(1, 'ERR line1\nERR line2\nERR line3', incomplete=False)
+    controller._apply_error('ERR line1\nERR line2\nERR line3', incomplete=False)
     assert len(preview.buffer.text.split('\n')) == len(preview._rendered_lines)
     assert controller._preview_line_starts == [0, 10, 20]
 

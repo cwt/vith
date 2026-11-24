@@ -40,7 +40,6 @@ __all__ = (
 )
 
 # Alias preserved for callers/tests referencing the module-private name.
-_press_enter_to_continue = press_enter_to_continue
 
 
 def _build_config_option_map() -> dict[str, str]:
@@ -290,7 +289,28 @@ def _report_rc_error(
         traceback.print_exc()
     else:
         print(message)
-    _press_enter_to_continue()
+    press_enter_to_continue()
+
+
+def _exec_editor_script(
+    editor: Editor,
+    path: str,
+    content: str,
+    label: str,
+    error_handler: Callable[[str], None] | None,
+) -> bool:
+    """Execute a Python hook/rc script in an isolated editor namespace (228.md)."""
+    try:
+        namespace: dict[str, Any] = {'editor': editor}
+        code = compile(content, path, 'exec')
+        exec(code, namespace, namespace)
+        configure = namespace.get('configure')
+        if callable(configure):
+            configure(editor)
+        return True
+    except Exception as exc:
+        _report_rc_error('Error in %s %r: %s' % (label, path, exc), error_handler, exc_info=True)
+        return False
 
 
 def run_hook_file(
@@ -311,19 +331,14 @@ def run_hook_file(
         return False
 
     try:
-        namespace: dict[str, Any] = {'editor': editor}
         with open(resolved, 'r', encoding='utf-8') as f:
-            code = compile(f.read(), resolved, 'exec')
-            exec(code, namespace, namespace)
-
-        if 'configure' in namespace and callable(namespace['configure']):
-            namespace['configure'](editor)
-        return True
+            content = f.read()
     except Exception as exc:
         _report_rc_error(
             'Error in hook file %r: %s' % (resolved, exc), error_handler, exc_info=True
         )
         return False
+    return _exec_editor_script(editor, resolved, content, 'hook file', error_handler)
 
 
 def apply_toml_config(
@@ -502,21 +517,7 @@ def _run_python_rc_file(
     error_handler: Callable[[str], None] | None = None,
 ) -> bool:
     """Execute a legacy Python configuration file defining `configure(editor)`."""
-    try:
-        namespace: dict[str, Any] = {'editor': editor}
-        code = compile(content, rc_file, 'exec')
-        exec(code, namespace, namespace)
-
-        if 'configure' in namespace and callable(namespace['configure']):
-            namespace['configure'](editor)
-        return True
-    except Exception as exc:
-        _report_rc_error(
-            'Error in configuration file %r: %s' % (rc_file, exc),
-            error_handler,
-            exc_info=True,
-        )
-        return False
+    return _exec_editor_script(editor, rc_file, content, 'configuration file', error_handler)
 
 
 def run_rc_file(

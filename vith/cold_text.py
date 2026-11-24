@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from contextlib import contextmanager
 from typing import Any, cast
 
 from prompt_toolkit.buffer import Buffer
@@ -199,23 +200,36 @@ class ColdTextBuffer(Buffer):
         self._known_edit_mutations = 0
         super().__init__(*args, **kwargs)
 
+    def _invalidate_edit_tracking(self) -> None:
+        """Bump cache versions and clear edit bounds after a full text change."""
+        self._non_cursor_version += 1
+        self._single_line_edit_start = None
+        if self._track_edit_bounds:
+            self._edit_min_pos = 0
+            self._edit_newline_delta = None
+
+    @contextmanager
+    def _known_edit_scope(self):
+        """Temporarily mark nested Buffer mutations as one logical edit."""
+        prev_known = self._in_known_edit
+        prev_mutations = self._known_edit_mutations
+        self._in_known_edit = True
+        self._known_edit_mutations = 0
+        try:
+            yield
+        finally:
+            self._in_known_edit = prev_known
+            self._known_edit_mutations = prev_mutations
+
     def _set_text(self, value: str) -> bool:
         changed = super()._set_text(value)
         if changed:
             if self._in_known_edit:
                 self._known_edit_mutations += 1
                 if self._known_edit_mutations > 1:
-                    self._non_cursor_version += 1
-                    self._single_line_edit_start = None
-                    if self._track_edit_bounds:
-                        self._edit_min_pos = 0
-                        self._edit_newline_delta = None
+                    self._invalidate_edit_tracking()
             else:
-                self._non_cursor_version += 1
-                self._single_line_edit_start = None
-                if self._track_edit_bounds:
-                    self._edit_min_pos = 0
-                    self._edit_newline_delta = None
+                self._invalidate_edit_tracking()
         return changed
 
     def insert_text(
@@ -228,20 +242,13 @@ class ColdTextBuffer(Buffer):
         otext = self.text
         ocpos = self.cursor_position
         line_start = otext.rfind('\n', 0, ocpos) + 1 if data else -1
-        prev_known = self._in_known_edit
-        prev_mutations = self._known_edit_mutations
-        self._in_known_edit = True
-        self._known_edit_mutations = 0
-        try:
+        with self._known_edit_scope():
             super().insert_text(
                 data,
                 overwrite=overwrite,
                 move_cursor=move_cursor,
                 fire_event=fire_event,
             )
-        finally:
-            self._in_known_edit = prev_known
-            self._known_edit_mutations = prev_mutations
         if data:
             has_nl = '\n' in data
             if has_nl or line_start != self._single_line_edit_start:
@@ -257,15 +264,8 @@ class ColdTextBuffer(Buffer):
         otext = self.text
         ocpos = self.cursor_position
         line_start = otext.rfind('\n', 0, ocpos) + 1
-        prev_known = self._in_known_edit
-        prev_mutations = self._known_edit_mutations
-        self._in_known_edit = True
-        self._known_edit_mutations = 0
-        try:
+        with self._known_edit_scope():
             deleted = super().delete(count=count)
-        finally:
-            self._in_known_edit = prev_known
-            self._known_edit_mutations = prev_mutations
         if deleted:
             has_nl = '\n' in deleted
             if has_nl or line_start != self._single_line_edit_start:
@@ -283,15 +283,8 @@ class ColdTextBuffer(Buffer):
         ocpos = self.cursor_position
         start_guess = 0 if count > ocpos else ocpos - count
         line_start = otext.rfind('\n', 0, start_guess) + 1
-        prev_known = self._in_known_edit
-        prev_mutations = self._known_edit_mutations
-        self._in_known_edit = True
-        self._known_edit_mutations = 0
-        try:
+        with self._known_edit_scope():
             deleted = super().delete_before_cursor(count=count)
-        finally:
-            self._in_known_edit = prev_known
-            self._known_edit_mutations = prev_mutations
         if deleted:
             has_nl = '\n' in deleted
             if has_nl or line_start != self._single_line_edit_start:

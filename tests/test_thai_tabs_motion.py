@@ -24,12 +24,29 @@ from prompt_toolkit.utils import get_cwidth
 
 from vith.editor import Editor
 from vith.thai.clusters import (
+    _cell_columns,
     _cell_ordinal,
-    _end_of_visual_col,
     _line_visual_width,
     _start_of_cell_ordinal,
     next_cell_offset,
 )
+
+
+def _end_of_visual_col(line, visual_col, tabstop=8):
+    """Test-local equivalent of the retired visual-column helper (bug 228)."""
+    from bisect import bisect_right
+
+    n = len(line)
+    if not line or visual_col < 0:
+        return 0
+    if line.isascii() and "\t" not in line:
+        return min(visual_col + 1, n)
+    starts, columns, total_width = _cell_columns(line, tabstop)
+    if not starts or visual_col >= total_width:
+        return n
+    index = max(0, bisect_right(columns, visual_col) - 1)
+    return starts[index + 1] if index + 1 < len(starts) else n
+
 
 PENTAX_LINES = (
     "  เพนแทกซ์คือแป้นแตก\tแม้ดูแปลกมีที่มา",

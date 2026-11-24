@@ -16,9 +16,9 @@ from vith.commands.handler import handle_command
 from vith.commands.ranges import splice_buffer_lines
 from vith.editor_buffer import EditorBuffer
 from vith.layout import BufferListOverlay
+from vith.thai.classify import is_sara_am
 from vith.thai.patches import (
     _SARA_AM_POISON,
-    _cell_has_sara_am,
     _sanitize_and_invalidate_sara_am,
 )
 
@@ -247,8 +247,8 @@ def test_thai_gate_decays_on_ascii_tab_and_relatches_on_switch_back(editor):
 
 
 def test_sara_am_single_pass_clears_stray_mark_and_poisons_neighbor():
-    assert _cell_has_sara_am(Char('a')) is False
-    assert _cell_has_sara_am(Char('\u0e33')) is True
+    assert is_sara_am(ord('a')) is False
+    assert is_sara_am(ord('\u0e33')) is True
 
     prev_screen = Screen(default_char=Char(' '))
     new_screen = Screen(default_char=Char(' '))

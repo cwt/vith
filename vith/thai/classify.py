@@ -137,7 +137,7 @@ def is_combining_char(ch: str) -> bool:
 def is_sara_am(cp: int) -> bool:
     """True if `cp` is Thai SARA AM (`U+0E33`) or Lao SARA AM (`U+0EB3`).
 
-    Used by the renderer's `_cell_has_sara_am` scan (docs/bugs/148.md) as
+    Used by the renderer's SARA-AM sanitizer scan (docs/bugs/148.md) as
     well as by tests and the `vith.thai` re-export contract."""
     return cp == 0x0E33 or cp == 0x0EB3
 

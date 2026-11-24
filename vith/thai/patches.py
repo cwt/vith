@@ -60,16 +60,12 @@ try:
 except ImportError:  # pragma: no cover - token may be renamed upstream
     _PtkZeroWidthEscape = "[ZeroWidthEscape]"  # type: ignore[assignment,misc]
 
-from .classify import (
-    is_combining_char,
-    is_sara_am,
-)
+from .classify import is_combining_char
 from .clusters import (  # noqa: F401
     _VS16_NARROW_BASES,
     DEFAULT_TABSTOP,
     _cell_columns,
     _cell_ordinal,
-    _end_of_visual_col,
     _line_visual_width,
     _map_column_across_lines,
     _start_of_cell_ordinal,
@@ -395,15 +391,6 @@ def reset_thai_text_gate_if_all_buffers_ascii(window_arrangement) -> None:
             return
 
     _THAI_GATE.reset()
-
-
-def _cell_has_sara_am(cell: Char) -> bool:
-    ch = cell.char
-    if not ch or ch.isascii():
-        return False
-    if is_sara_am(ord(ch[0])):
-        return True
-    return "\u0e33" in ch or "\u0eb3" in ch
 
 
 def _sanitize_and_invalidate_sara_am(
@@ -1149,25 +1136,6 @@ def _install_win32_input_patch(applied: list[tuple[Any, str, object]] | None = N
 # The patch-original registries live in `thai_words` (leaf) so both the
 # word walkers and the wrappers here share one storage; imported at the
 # top of this module (docs/bugs/075.md).
-
-
-def _visual_block_ordinal_bounds(
-    doc: Document, pos_a: int, pos_b: int, tabstop: int | None = None
-) -> tuple[int, int]:
-    """
-    Return `(v_low, v_high)` visual display-column bounds for a visual-block
-    selection between document indices `pos_a` and `pos_b`, expanding tabs to
-    `tabstop` (docs/bugs/077.md, 113.md, 141.md).
-    """
-    ts = _document_tabstop(doc) if tabstop is None else tabstop
-    from_pos, to_pos = sorted((pos_a, pos_b))
-    row_from, col_from = doc.translate_index_to_position(from_pos)
-    row_to, col_to = doc.translate_index_to_position(to_pos)
-    line_from = doc.lines[min(row_from, len(doc.lines) - 1)]
-    line_to = doc.lines[min(row_to, len(doc.lines) - 1)]
-    ord_from = _cell_ordinal(line_from, col_from, tabstop=ts)
-    ord_to = _cell_ordinal(line_to, col_to, tabstop=ts)
-    return min(ord_from, ord_to), max(ord_from, ord_to)
 
 
 def _get_visual_block_bounds(

@@ -370,7 +370,6 @@ def _render_rich_object(renderable: Any, width: int, format_name: str) -> Render
             line_frags.append((_rich_style_to_ptk(seg.style), seg_text))
         styled_lines.append(_coalesce_line_fragments(line_frags))
 
-    # Drop a single trailing blank line only when Rich pads an extra empty footer.
     return _build_render_result(styled_lines, format_name)
 
 
@@ -862,10 +861,6 @@ class LiveRenderController:
         elif self.sync_scroll():
             self._invalidate()
 
-    def check_width(self) -> None:
-        """Schedule a re-render if the preview split's width changed after a resize."""
-        self.on_after_render()
-
     def schedule(self, *, immediate: bool = False) -> None:
         """
         Schedule a debounced background render (with max-wait ceiling).
@@ -943,17 +938,17 @@ class LiveRenderController:
                 custom_commands=custom_commands,
             )
         except ParseIncompleteError as exc:
-            self._apply_error(version, str(exc), incomplete=True)
+            self._apply_error(str(exc), incomplete=True)
             return
         except RenderDependencyError as exc:
-            self._apply_error(version, str(exc), incomplete=False)
+            self._apply_error(str(exc), incomplete=False)
             return
         except Exception as exc:
             # Only ParseIncompleteError means "mid-edit": a renderer-internal
             # failure is permanent and must show a diagnostic (docs/bugs/171.md).
-            self._apply_error(version, f'Render error: {exc}', incomplete=False)
+            self._apply_error(f'Render error: {exc}', incomplete=False)
             return
-        self._apply_result(version, result)
+        self._apply_result(result)
 
     def _dispatch(self) -> None:
         """Launch one background render job in the default executor."""
@@ -1006,9 +1001,9 @@ class LiveRenderController:
                     self.close()
                     return
                 if result is not None:
-                    self._apply_result(version, result)
+                    self._apply_result(result)
                 elif err_msg is not None:
-                    self._apply_error(version, err_msg, incomplete=incomplete)
+                    self._apply_error(err_msg, incomplete=incomplete)
 
                 # Coalesce any edits that arrived while this render was in flight.
                 source_eb = self._source_ref()
@@ -1198,7 +1193,7 @@ class LiveRenderController:
             except Exception:
                 pass
 
-    def _apply_result(self, _version: int, result: RenderResult) -> None:
+    def _apply_result(self, result: RenderResult) -> None:
         preview_eb = self._preview_ref()
         if preview_eb is None:
             return
@@ -1208,7 +1203,7 @@ class LiveRenderController:
         title = self._format_title(result.format_name, stale=result.is_stale)
         self._update_preview_document(preview_eb, result.plain_text, result.styled_lines, title)
 
-    def _apply_error(self, _version: int, message: str, *, incomplete: bool) -> None:
+    def _apply_error(self, message: str, *, incomplete: bool) -> None:
         preview_eb = self._preview_ref()
         if preview_eb is None:
             return

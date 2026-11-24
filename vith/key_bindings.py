@@ -231,7 +231,8 @@ def _record_word_search(editor, event, direction):
     Jump to the next/previous occurrence of the word under the cursor and
     record it in the search state and history (`*`/`#`, docs/bugs/122.md).
     Movement matches the `prompt_toolkit` default; the addition is the
-    history entry, so `/<Up>` and bare `:s` can reuse the pattern.
+    history entry for `/<Up>`. Bare `:s` uses its own last-substitute pattern
+    (docs/bugs/175.md), not this search register.
     """
     buff = event.current_buffer
     word = buff.document.get_word_under_cursor()
@@ -397,7 +398,7 @@ def create_key_bindings(editor):
 
     @kb.add(
         'tab',
-        filter=vi_insert_mode
+        filter=in_insert_mode
         & ~has_focus(editor.command_buffer)
         & ~has_focus(editor.search_buffer),
     )

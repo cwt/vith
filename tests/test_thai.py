@@ -1197,12 +1197,22 @@ def test_visual_block_bounds_use_display_columns_for_cjk():
     # ordinals, so a wide CJK cluster spans two columns.
     from prompt_toolkit.document import Document
 
-    from vith.thai.patches import _visual_block_ordinal_bounds
+    from vith.thai.clusters import _cell_ordinal
 
     doc = Document('你好\nabcdef')
     corner_a = doc.translate_row_col_to_index(0, 1)  # 好 -> visual column 2
     corner_b = doc.translate_row_col_to_index(1, 1)  # 'b' -> visual column 1
-    assert _visual_block_ordinal_bounds(doc, corner_a, corner_b) == (1, 2)
+    row_a, col_a = doc.translate_index_to_position(corner_a)
+    row_b, col_b = doc.translate_index_to_position(corner_b)
+    ordinals = tuple(
+        sorted(
+            (
+                _cell_ordinal(doc.lines[row_a], col_a),
+                _cell_ordinal(doc.lines[row_b], col_b),
+            )
+        )
+    )
+    assert ordinals == (1, 2)
 
 
 def test_gate_decay_respects_thai_statusbar_and_names(editor):

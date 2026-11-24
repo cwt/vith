@@ -10,6 +10,7 @@ from typing import Any
 
 from prompt_toolkit.filters import to_filter
 
+from ..filetypes import canonical_filetype, is_known_filetype
 from .common import invalidate_app
 from .ranges import is_buffer_read_only
 from .registry import SET_COMMANDS, SET_COMMANDS_TAKING_VALUE, _cmd, cmd, set_cmd
@@ -652,16 +653,11 @@ def set_filetype(editor: Any, value: str | None) -> bool:
     text = value.strip()
     if text == '' or text.lower() in ('off', 'none', 'auto'):
         new_override: str | None = None
+    elif is_known_filetype(text):
+        new_override = canonical_filetype(text)
     else:
-        try:
-            from pygments.lexers import get_lexer_by_name
-
-            lexer = get_lexer_by_name(text)
-        except Exception:
-            editor.show_message('Unknown filetype: %s' % value)
-            return False
-        aliases = getattr(lexer, 'aliases', None)
-        new_override = aliases[0] if aliases else text
+        editor.show_message('Unknown filetype: %s' % value)
+        return False
 
     eb.filetype_override = new_override
     eb.tabstop = None

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import os
 from collections import deque
-from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import pygments
@@ -32,6 +31,7 @@ from .commands.options import snapshot_default_options
 from .commands.preview import CommandPreviewer
 from .commands.substitution import resolve_ignore_case
 from .editor_buffer import short_display_name
+from .filetypes import canonical_filetype as _canonical_filetype
 from .help import HELP_TEXT
 from .io import DirectoryIO, FileIO, GZipFileIO, HttpIO, expand_location
 from .key_bindings import create_key_bindings
@@ -66,48 +66,6 @@ def _terminal_title_extra_sequence(title_osc_body: str) -> str:
     ):
         extra_seq += f"\x1bk{title_osc_body}\x1b\\"
     return extra_seq
-
-
-@lru_cache(maxsize=1)
-def _pygments_alias_map() -> dict[str, str]:
-    """
-    Map every built-in Pygments lexer alias to its primary canonical alias via
-    `pygments.lexers._mapping.LEXERS` without importing any lexer modules
-    (docs/bugs/155.md).
-    """
-    mapping: dict[str, str] = {}
-    try:
-        from pygments.lexers._mapping import LEXERS
-
-        for _cls, (_mod, _name, aliases, _fnames, _mimes) in LEXERS.items():
-            if aliases:
-                canonical = aliases[0].lower()
-                for alias in aliases:
-                    mapping.setdefault(alias.lower(), canonical)
-    except Exception:
-        pass
-    return mapping
-
-
-@lru_cache(maxsize=512)
-def _canonical_filetype(name: str) -> str:
-    """Resolve a filetype name or alias to its primary canonical alias."""
-    lowered = name.lower()
-    canonical = _pygments_alias_map().get(lowered)
-    if canonical is not None:
-        return canonical
-    if lowered in DEFAULT_FILETYPE_TABSTOPS:
-        return lowered
-    try:
-        from pygments.lexers import get_lexer_by_name
-
-        lexer = get_lexer_by_name(lowered)
-        aliases = getattr(lexer, 'aliases', ())
-        if aliases:
-            return aliases[0].lower()
-    except Exception:
-        pass
-    return lowered
 
 
 #: Standard tab stop settings for common programming and markup languages.

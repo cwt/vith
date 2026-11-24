@@ -581,10 +581,10 @@ class WindowArrangement:
         """
         Show the editor buffer for this name.
 
-        Resolution order (docs/bugs/067.md): `#` alternate buffer, exact
-        location, then a *unique* substring match (ambiguous names are
-        rejected like Vim's E93), then the 1-based buffer number as displayed
-        by `:ls`/`BufferListOverlay`.
+        Resolution order (docs/bugs/067.md, 228.md): `#` alternate buffer,
+        exact location, then the 1-based buffer number as displayed by
+        `:ls`/`BufferListOverlay`, then a *unique* substring match (ambiguous
+        names are rejected like Vim's E93).
         """
         eb = self.resolve_buffer(buffer_name)
         if eb is not None:

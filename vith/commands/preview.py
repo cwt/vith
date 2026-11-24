@@ -1,3 +1,4 @@
+from ..filetypes import canonical_filetype, is_known_filetype
 from .grammar import COMMAND_GRAMMAR
 from .options import (
     MAX_OPTION_INT,
@@ -241,13 +242,6 @@ class CommandPreviewer:
         if value == '' or value.lower() in ('off', 'none', 'auto'):
             eb.filetype_override = None
             return
-        try:
-            # Keep Pygments lexer lookup method-local (matching `options.py`)
-            # so standalone imports of `preview` stay free of eager lexer loads.
-            from pygments.lexers import get_lexer_by_name
-
-            lexer = get_lexer_by_name(value)
-        except Exception:
+        if not is_known_filetype(value):
             return
-        aliases = getattr(lexer, 'aliases', None)
-        eb.filetype_override = aliases[0] if aliases else value
+        eb.filetype_override = canonical_filetype(value)

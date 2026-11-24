@@ -158,19 +158,10 @@ _FT_ASSIGNMENT_RE = re.compile(r'\b(?:ft|filetype)\s*[=:]\s*([A-Za-z0-9_+\.\-]+)
 
 
 def _canonicalize_filetype_name(name: str) -> str:
-    name = name.strip().lower()
-    if not name:
-        return name
-    try:
-        from pygments.lexers import get_lexer_by_name
+    """Canonicalize via the shared cached mapping (docs/bugs/228.md)."""
+    from .filetypes import canonical_filetype
 
-        lexer = get_lexer_by_name(name)
-        aliases = getattr(lexer, 'aliases', None)
-        if aliases:
-            return str(aliases[0]).lower()
-    except Exception:
-        pass
-    return name
+    return canonical_filetype(name)
 
 
 def _filetype_from_modeline_options(options: str) -> str | None:
