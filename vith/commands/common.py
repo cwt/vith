@@ -214,11 +214,43 @@ def splice_lines_at(
     )
 
 
+def named_register_store(editor: Any) -> dict[str, Any] | None:
+    """The Normal-mode named-register store, shared with Ex commands (205)."""
+    app = getattr(editor, 'application', None)
+    vi_state = getattr(app, 'vi_state', None)
+    if vi_state is None:
+        return None
+    return vi_state.named_registers
+
+
+def get_register_data(editor: Any, name: str) -> ClipboardData | None:
+    """Read a named register from the single shared store (205)."""
+    store = named_register_store(editor)
+    if store is not None:
+        data = store.get(name)
+        if data is not None:
+            return data
+    text = getattr(editor, 'registers', {}).get(name)
+    if text is not None:
+        return ClipboardData(text, SelectionType.LINES)
+    return None
+
+
 def store_lines_in_register(editor: Any, lines: list[str], register: str = '') -> None:
-    """Store `lines` as linewise text in named `register` or the unnamed clipboard."""
+    """Store `lines` linewise in the shared named register / unnamed clipboard."""
     text = '\n'.join(lines)
-    if register:
-        editor.registers[register] = text
+    if register and register != '"':
+        name = register.lower()
+        stored_text = text
+        if register.isupper():
+            previous = get_register_data(editor, name)
+            if previous is not None and previous.text:
+                stored_text = f'{previous.text}\n{text}'
+        store = named_register_store(editor)
+        if store is not None:
+            store[name] = ClipboardData(stored_text, SelectionType.LINES)
+        # Kept as a compatibility mirror for callers using `editor.registers`.
+        editor.registers[name] = stored_text
     # Vim updates the unnamed register as well when a named register is given,
     # so a plain `p` pastes the just-yanked/deleted line (docs/bugs/187.md).
     editor.application.clipboard.set_data(ClipboardData(text, SelectionType.LINES))

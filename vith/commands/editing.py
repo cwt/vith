@@ -16,6 +16,7 @@ from vith.thai import note_document_text
 from .common import (
     active_writable_buffer,
     apply_deleted_range,
+    get_register_data,
     report_yanked_lines,
     resolve_command_range,
     splice_lines_at,
@@ -173,11 +174,12 @@ def put_lines(editor: Any, variables: Any) -> None:
     if variables.get('force'):
         insert_index = max(0, insert_index - 1)
 
-    if register:
-        raw_text = editor.registers.get(register)
-        if raw_text is None:
+    if register not in ('', '"'):
+        data = get_register_data(editor, register)
+        if data is None or data.text == '':
             editor.show_message('E353: Nothing in register %s' % register)
             return
+        raw_text = data.text
     else:
         clip_data = editor.application.clipboard.get_data()
         if clip_data is None or clip_data.text == '':

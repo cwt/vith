@@ -140,14 +140,6 @@ def registers_lines(editor: Any) -> list[str]:
             rtype = _format_register_type(getattr(data, 'type', SelectionType.CHARACTERS))
             rows.append(f'  {rtype}  "{name}   {_format_register_preview(data.text)}')
 
-    # Registers written by `:d {x}` / `:y {x}` (docs/bugs/147.md).
-    for name in sorted(getattr(editor, 'registers', {}), key=_register_sort_key):
-        text = editor.registers[name]
-        if text:
-            rows.append(
-                f'  {_format_register_type(SelectionType.LINES)}  "{name}   {_format_register_preview(text)}'
-            )
-
     if not rows:
         return []
     return ['Type Name Content', *rows]

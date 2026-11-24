@@ -3,9 +3,13 @@
 from unittest.mock import MagicMock
 
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.clipboard import ClipboardData
 from prompt_toolkit.document import Document
 from prompt_toolkit.key_binding.vi_state import InputMode
+from prompt_toolkit.selection import SelectionType
 
+from vith.commands.handler import handle_command
+from vith.commands.info import registers_lines
 from vith.key_bindings import _net_inserted_text, create_key_bindings
 
 
@@ -88,3 +92,54 @@ def test_204_net_inserted_text_helper():
     assert _net_inserted_text("abc", "Xabc") == "X"
     assert _net_inserted_text("abcdef", "aZdef") == "Z"
     assert _net_inserted_text("abc", "abc") == ""
+
+
+def _editor_with_lines(editor, text):
+    editor.load_initial_files([None])
+    eb = editor.window_arrangement.active_editor_buffer
+    eb.buffer.text = text
+    editor.sync_with_prompt_toolkit()
+    return eb
+
+
+def test_205_normal_mode_named_register_available_to_ex_put(editor):
+    eb = _editor_with_lines(editor, "alpha\nbeta\ngamma")
+    editor.application.vi_state.named_registers["a"] = ClipboardData(
+        "normal yanked", SelectionType.LINES
+    )
+
+    handle_command(editor, ":2put a")
+
+    assert "normal yanked" in eb.buffer.document.lines
+    assert editor.message is None
+
+
+def test_205_ex_yank_uses_shared_store_without_duplicate_rows(editor):
+    _editor_with_lines(editor, "line one\nline two")
+
+    handle_command(editor, ":1y a")
+
+    data = editor.application.vi_state.named_registers["a"]
+    assert data.text == "line one"
+    assert data.type == SelectionType.LINES
+    a_rows = [row for row in registers_lines(editor) if '"a ' in row]
+    assert len(a_rows) == 1
+
+
+def test_205_explicit_unnamed_register_put(editor):
+    eb = _editor_with_lines(editor, "line one\nline two")
+    handle_command(editor, ":1y a")
+
+    handle_command(editor, ':2put "')
+
+    assert eb.buffer.document.lines[2] == "line one"
+
+
+def test_205_uppercase_register_appends_to_lowercase(editor):
+    _editor_with_lines(editor, "one\ntwo")
+
+    handle_command(editor, ":1y A")
+    assert editor.application.vi_state.named_registers["a"].text == "one"
+
+    handle_command(editor, ":2y A")
+    assert editor.application.vi_state.named_registers["a"].text == "one\ntwo"
