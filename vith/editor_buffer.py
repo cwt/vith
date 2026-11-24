@@ -637,7 +637,7 @@ class EditorBuffer:
                 if text == self.buffer.text and not self._run_reporter_again:
                     if report_errors != self.report_errors:
                         self.report_errors = report_errors
-                        by_line = {}
+                        by_line: dict[int, list[Any]] = {}
                         for err in report_errors:
                             by_line.setdefault(err.lineno, []).append(err)
                         self.report_errors_by_line = by_line

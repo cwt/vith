@@ -49,7 +49,7 @@ class TabPage:
         self.root: Window | VSplit | HSplit = VSplit([window])
 
         # Keep track of which window is focusesd in this tab.
-        self.active_window: Window = window
+        self.active_window: Window | None = window
         self._windows_cache: list[Window] | None = [window]
 
     def _invalidate_windows_cache(self):
@@ -105,13 +105,13 @@ class TabPage:
 
     def _get_active_split(self):
         for split, window in self._walk_through_windows():
-            if window == self.active_window:
+            if window is self.active_window:
                 return split
         raise Exception('active_window not found. Something is wrong.')
 
     def _get_split_parent(self, split):
         for parent, child in self._walk_through_splits():
-            if child == split:
+            if child is split:
                 return parent
         return None
 
@@ -125,6 +125,8 @@ class TabPage:
         With `focus_new=False`, keeps `active_window` focused on the source
         window (used by live `:render` splits).
         """
+        if self.active_window is None:
+            raise Exception('No active window in tab page')
         if editor_buffer is None:
             editor_buffer = self.active_window.editor_buffer
 
@@ -163,6 +165,8 @@ class TabPage:
         Open this `EditorBuffer` in the active window.
         """
         assert isinstance(editor_buffer, EditorBuffer)
+        if self.active_window is None:
+            return
         self.active_window.editor_buffer = editor_buffer
 
     def close_editor_buffer(self, editor_buffer):
@@ -211,7 +215,7 @@ class TabPage:
         # When there is exactly on item left, move this back into the parent
         # split. (We don't want to keep a split with one item around -- except
         # for the root.)
-        if len(active_split) == 1 and active_split != self.root:
+        if len(active_split) == 1 and active_split is not self.root:
             parent = self._get_split_parent(active_split)
             if parent is not None:
                 index = parent.index(active_split)

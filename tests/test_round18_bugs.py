@@ -147,6 +147,21 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_229_no_lambdas_in_shipped_code():
+    import re
+    from pathlib import Path
+
+    import vith
+
+    source_root = Path(vith.__file__).resolve().parent
+    offenders = [
+        str(path.relative_to(source_root))
+        for path in source_root.rglob("*.py")
+        if re.search(r"\blambda\b", path.read_text(encoding="utf-8"))
+    ]
+    assert offenders == []
+
+
 def test_227_modeline_sniffing_is_bounded_and_finds_tail_modeline():
     from vith.lexer import sniff_filetype_from_text
 

@@ -5,6 +5,7 @@ The actual layout for the renderer.
 import re
 import sys
 from functools import lru_cache, partial
+from typing import Any
 
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.filters import Condition, has_arg, has_focus, is_searching
@@ -54,6 +55,10 @@ from .lexer import DocumentLexer
 from .welcome_message import WELCOME_MESSAGE_HEIGHT, WELCOME_MESSAGE_TOKENS, WELCOME_MESSAGE_WIDTH
 
 __all__ = ('EditorLayout',)
+
+
+def _noop() -> None:
+    """Default no-op focus callback (docs/bugs/229.md)."""
 
 
 class _FocusSyncingBufferControl(BufferControl):
@@ -110,6 +115,8 @@ class TabsControl(FormattedTextControl):
 
     def __init__(self, editor):
         def location_for_tab(tab):
+            if tab.active_window is None:
+                return ''
             return tab.active_window.editor_buffer.get_display_name(short=True)
 
         def create_tab_handler(index):
@@ -127,7 +134,7 @@ class TabsControl(FormattedTextControl):
         # Cache mouse handlers per tab index: `get_tokens` runs per frame,
         # and building a fresh closure per tab per frame churned allocations
         # (docs/bugs/072.md). Tab handlers are stateless w.r.t. the index.
-        tab_handlers = {}
+        tab_handlers: dict[int, Any] = {}
         self.tab_handlers = tab_handlers
 
         def get_tab_handler(index):
@@ -146,7 +153,7 @@ class TabsControl(FormattedTextControl):
                 for stale_idx in [idx for idx in tab_handlers if idx >= len(tab_pages)]:
                     del tab_handlers[stale_idx]
 
-            result = []
+            result: list[Any] = []
             append = result.append
 
             for i, tab in enumerate(tab_pages):
@@ -886,7 +893,7 @@ class EditorLayout:
         ]
 
         return _FocusSyncingBufferControl(
-            on_focus=on_focus if on_focus is not None else lambda: None,
+            on_focus=on_focus if on_focus is not None else _noop,
             lexer=DocumentLexer(editor_buffer),
             include_default_input_processors=False,
             input_processors=input_processors,

@@ -233,7 +233,7 @@ class Editor:
         self.render_debounce_ms = 150
         self.render_sync_scroll = True
         self.render_commands = {}
-        self._live_render_controllers = []
+        self._live_render_controllers: list[Any] = []
         # Simple line-register storage for `:d {x}` / `:y {x}` / `:pu {x}`.
         self.registers = {}
 
@@ -256,7 +256,7 @@ class Editor:
 
         self.window_arrangement = WindowArrangement(self)
         self.message = None
-        self._messages = deque(maxlen=200)
+        self._messages: deque[str] = deque(maxlen=200)
 
         # Load styles. (Mapping from name to Style class.)
         self.styles = generate_built_in_styles()
@@ -412,7 +412,7 @@ class Editor:
         def mouse_support_enabled():
             return self.enable_mouse_support
 
-        application = Application(
+        application: Any = Application(
             input=self.input,
             output=self.output,
             editing_mode=EditingMode.VI,

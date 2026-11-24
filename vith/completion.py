@@ -132,26 +132,20 @@ class DocumentCompleter(Completer):
         # Select completer. jedi is optional (not in install_requires): when
         # it is missing, fall back to the words completer instead of crashing
         # with an ImportError on the first Tab press (docs/bugs/003.md).
-        if editor_buffer.filetype == 'python' and editor.enable_jedi and _jedi_available():
-            completer = _PythonCompleter(location)
-        else:
-            completer = self._words_completer
+        use_jedi = editor_buffer.filetype == 'python' and editor.enable_jedi and _jedi_available()
+        if use_jedi:
+            return _PythonCompleter(location).get_completions(document, complete_event)
 
-        # Call completer. Pass the buffer's non-cursor edit version so
-        # same-length edits on other lines invalidate immediately while
-        # consecutive edits on the cursor line keep P3 cache hits
-        # (docs/bugs/149.md, 164.md).
-        if completer is self._words_completer:
-            buf = getattr(editor_buffer, 'buffer', None)
-            if buf is not None and hasattr(buf, '_non_cursor_version'):
-                buf._single_line_edit_start = (
-                    document.text.rfind('\n', 0, document.cursor_position) + 1
-                )
-                version = buf._non_cursor_version
-            else:
-                version = getattr(editor_buffer, '_text_version', None)
-            return completer.get_completions(document, complete_event, version)
-        return completer.get_completions(document, complete_event)
+        # Pass the buffer's non-cursor edit version so same-length edits on
+        # other lines invalidate immediately while consecutive edits on the
+        # cursor line keep P3 cache hits (docs/bugs/149.md, 164.md).
+        buf = getattr(editor_buffer, 'buffer', None)
+        if buf is not None and hasattr(buf, '_non_cursor_version'):
+            buf._single_line_edit_start = document.text.rfind('\n', 0, document.cursor_position) + 1
+            version = buf._non_cursor_version
+        else:
+            version = getattr(editor_buffer, '_text_version', None)
+        return self._words_completer.get_completions(document, complete_event, version)
 
 
 class _PythonCompleter(Completer):
