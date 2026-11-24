@@ -106,6 +106,7 @@ def _replace_cell_clusters(event):
         buff.delete(count=span)
     buff.insert_text(event.data, overwrite=False)
     buff.cursor_position += buff.document.get_cursor_left_position(count=1)
+    _clear_counted_insert(buff)
     event.app.vi_state.input_mode = InputMode.NAVIGATION
 
 
@@ -163,6 +164,34 @@ def _insert_indentation(editor, buffer_, width=None):
         buffer_.insert_text('\t')
 
 
+def _clear_counted_insert(buff):
+    """Drop a pending counted-insert replay, e.g. on a new insert entry (204)."""
+    if hasattr(buff, '_vith_insert_repeat'):
+        buff._vith_insert_repeat = None
+
+
+def _net_inserted_text(original, current):
+    """
+    Text inserted between `original` and `current`.
+
+    Uses the longest common prefix/suffix instead of slicing from a recorded
+    start offset, so deleting or backspacing left of that offset cannot make
+    the replay slice the wrong region (docs/bugs/204.md).
+    """
+    prefix = 0
+    limit = min(len(original), len(current))
+    while prefix < limit and original[prefix] == current[prefix]:
+        prefix += 1
+    suffix = 0
+    while (
+        suffix < len(original) - prefix
+        and suffix < len(current) - prefix
+        and original[len(original) - 1 - suffix] == current[len(current) - 1 - suffix]
+    ):
+        suffix += 1
+    return current[prefix : len(current) - suffix]
+
+
 def _begin_counted_insert(event, move_right):
     """
     Enter insert mode remembering `event.arg`, so that leaving insert mode
@@ -172,7 +201,7 @@ def _begin_counted_insert(event, move_right):
     count = _positive_count(event.arg)
     if move_right:
         buff.cursor_position += buff.document.get_cursor_right_position(count=1)
-    buff._vith_insert_repeat = (buff.cursor_position, count)
+    buff._vith_insert_repeat = (buff.cursor_position, count, buff.text)
     event.app.vi_state.input_mode = InputMode.INSERT
 
 
@@ -185,9 +214,9 @@ def _leave_insert_with_repeat(event):
     state = getattr(buff, '_vith_insert_repeat', None)
     buff._vith_insert_repeat = None
     if state is not None:
-        start, count = state
+        _start, count, original = state
         if count > 1:
-            inserted = buff.text[start : buff.cursor_position]
+            inserted = _net_inserted_text(original, buff.text)
             if inserted:
                 buff.insert_text(inserted * (count - 1))
     if event.app.vi_state.input_mode in (InputMode.INSERT, InputMode.REPLACE):
@@ -505,6 +534,7 @@ def create_key_bindings(editor):
         span = next_cell_offset(line, col, _positive_count(event.arg)) - col
         text = buff.delete(count=span) if span > 0 else ''
         event.app.clipboard.set_text(text)
+        _clear_counted_insert(buff)
         event.app.vi_state.input_mode = InputMode.INSERT
 
     # Counted insert entry/exit (docs/bugs/119.md, 120.md): `i`/`a` remember
@@ -629,6 +659,7 @@ def create_key_bindings(editor):
         event.current_buffer.insert_line_below(
             copy_margin=editor.autoindent and not editor.paste_mode
         )
+        _clear_counted_insert(event.current_buffer)
         event.app.vi_state.input_mode = InputMode.INSERT
 
     @kb.add('O', filter=in_navigation_mode & ~is_read_only)
@@ -640,6 +671,7 @@ def create_key_bindings(editor):
         event.current_buffer.insert_line_above(
             copy_margin=editor.autoindent and not editor.paste_mode
         )
+        _clear_counted_insert(event.current_buffer)
         event.app.vi_state.input_mode = InputMode.INSERT
 
     # Buffer-local Vi marks (`m{a-z}`, `'{a-z}`/`'<`/`'>`, `` `{a-z} ``).

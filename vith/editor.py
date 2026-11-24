@@ -738,6 +738,7 @@ class Editor:
         def pre_run():
             # Start in navigation mode.
             self.application.vi_state.input_mode = InputMode.NAVIGATION
+            self._clear_pending_counted_inserts()
 
             # Update terminal title on launch.
             self.update_title()
@@ -757,10 +758,18 @@ class Editor:
             self._clear_terminal_title()
         return result
 
+    def _clear_pending_counted_inserts(self):
+        """Drop counted-insert replay state left by an interrupted insert (204)."""
+        for eb in self.window_arrangement.editor_buffers:
+            buff = getattr(eb, 'buffer', None)
+            if buff is not None and hasattr(buff, '_vith_insert_repeat'):
+                buff._vith_insert_repeat = None
+
     def enter_command_mode(self, initial_text: str = '') -> None:
         """
         Go into command mode, optionally pre-populating the command buffer.
         """
+        self._clear_pending_counted_inserts()
         self.application.layout.focus(self.command_buffer)
         self.application.vi_state.input_mode = InputMode.INSERT
 
@@ -774,6 +783,7 @@ class Editor:
         """
         self.previewer.restore()
 
+        self._clear_pending_counted_inserts()
         self.application.layout.focus_last()
         self.application.vi_state.input_mode = InputMode.NAVIGATION
 
