@@ -203,6 +203,11 @@ def test_cell_vs_syllable_ko_ro_han_mai_yamok() -> None:
     assert find_thai_cluster_end("ธรรม", 3) == 4
     assert find_thai_word_breaks("ธรรม", use_libthai=False) == [0, 3, 4]
 
+    # 226: a marked ร must not be treated as the first half of Ro Han (รร).
+    # Ro Han itself (ธรรม) still merges the two unmarked ร's.
+    assert find_thai_cluster_end("กรี่รุก", 0) <= 4
+    assert find_thai_cluster_end("บรี้รำ", 0) <= 4
+
     # "ดีๆ": 2 visual cells [0, 2, 3], 1 syllable cluster [0, 3] (trailing ๆ attaches to ดี)
     assert cell_stops("ดีๆ") == [0, 2, 3]
     assert find_thai_cluster_end("ดีๆ", 0) == 3

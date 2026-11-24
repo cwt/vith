@@ -177,7 +177,9 @@ def find_thai_cluster_end(line: str, start: int) -> int:
     after_base = next_cell_offset(line, pos, 1)
     if after_base < n and ord(line[after_base]) == 0x0E23:
         r1_end = next_cell_offset(line, after_base, 1)
-        if r1_end < n and ord(line[r1_end]) == 0x0E23:
+        # Ro Han requires the FIRST ร to be unmarked; a marked ร starts its
+        # own cluster and must not swallow the next syllable (docs/bugs/226.md).
+        if r1_end == after_base + 1 and r1_end < n and ord(line[r1_end]) == 0x0E23:
             pos = next_cell_offset(line, r1_end, 1)
         else:
             pos = after_base
