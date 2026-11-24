@@ -156,6 +156,8 @@ def detect_render_format(
     filetype: str | None,
     text: str,
     custom_commands: dict[str, str] | None = None,
+    *,
+    sniffed_filetype: str | None = None,
 ) -> str:
     """
     Resolve the render format name for a buffer from `:set filetype`, file
@@ -190,7 +192,9 @@ def detect_render_format(
     if _ANSI_SGR_RE.search(sample):
         return 'ansi'
 
-    sniffed = sniff_filetype_from_text(sample)
+    # Pass the full text once (bounded modeline scanning is O(1) in file size)
+    # so tail modelines on large files are not truncated away (docs/bugs/227.md).
+    sniffed = sniffed_filetype if sniffed_filetype is not None else sniff_filetype_from_text(text)
     if sniffed:
         command_key = _custom_command_key(sniffed, _FT_TO_FORMAT, commands)
         if command_key is not None:
@@ -669,7 +673,14 @@ def render_document(
         ParseIncompleteError: when a strict format (e.g. JSON mid-edit) fails
             to parse so callers can preserve the last valid render.
     """
-    fmt = detect_render_format(location, filetype, text, custom_commands=custom_commands)
+    sniffed = sniff_filetype_from_text(text) if not (filetype or '').strip() else None
+    fmt = detect_render_format(
+        location,
+        filetype,
+        text,
+        custom_commands=custom_commands,
+        sniffed_filetype=sniffed,
+    )
     safe_width = max(MIN_RENDER_WIDTH, int(width))
 
     if custom_commands and fmt in custom_commands:
@@ -714,10 +725,12 @@ def render_document(
         if not text.strip():
             return _attach_anchors(text, _build_render_result([[]], 'json'))
         try:
-            json.loads(text)
+            parsed = json.loads(text)
         except ValueError as exc:
             raise ParseIncompleteError(f'Invalid JSON: {exc}') from exc
-        return _attach_anchors(text, _render_rich_object(JSON(text), safe_width, 'json'))
+        return _attach_anchors(
+            text, _render_rich_object(JSON.from_data(parsed), safe_width, 'json')
+        )
 
     if fmt in ('csv', 'tsv'):
         delimiter = '\t' if fmt == 'tsv' else ','
@@ -728,7 +741,7 @@ def render_document(
     # Fallback: Rich Syntax highlighting for known code/config filetypes.
     from rich.syntax import Syntax
 
-    lexer_name = (filetype or '').strip().lower() or sniff_filetype_from_text(text) or 'text'
+    lexer_name = (filetype or '').strip().lower() or sniffed or 'text'
     syntax = Syntax(text, lexer_name, theme=code_theme, word_wrap=True)
     return _attach_anchors(text, _render_rich_object(syntax, safe_width, lexer_name))
 

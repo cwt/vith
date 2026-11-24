@@ -259,18 +259,32 @@ def _commit_buffer_text(
 
     eb.buffer.save_to_undo_stack()
 
-    doc = Document(new_text)
-    eb.buffer.document = doc
-    note_document_text(inserted_text or new_text)
-
-    target_row = max(0, min(cursor_row, len(doc.lines) - 1))
-    line_text = doc.lines[target_row]
+    # Locate the target line without materializing doc.lines over the whole
+    # buffer, then construct the Document once with the final cursor position
+    # (docs/bugs/227.md): a second Document/cursor assignment fired extra
+    # change notifications on every Ex edit.
+    line_count = new_text.count('\n') + 1
+    target_row = max(0, min(cursor_row, line_count - 1))
+    line_start = 0
+    for _ in range(target_row):
+        newline = new_text.find('\n', line_start)
+        if newline < 0:
+            line_start = len(new_text)
+            break
+        line_start = newline + 1
+    line_end = new_text.find('\n', line_start)
+    if line_end < 0:
+        line_end = len(new_text)
+    line_text = new_text[line_start:line_end]
     if first_non_blank:
         preferred_col = len(line_text) - len(line_text.lstrip())
     else:
         preferred_col = col
     target_col = normal_mode_col(line_text, preferred_col)
-    eb.buffer.cursor_position = doc.translate_row_col_to_index(target_row, target_col)
+
+    doc = Document(new_text, cursor_position=line_start + target_col)
+    eb.buffer.document = doc
+    note_document_text(inserted_text or new_text)
     return True
 
 

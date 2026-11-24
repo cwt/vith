@@ -16,15 +16,14 @@ import sys
 import docopt
 
 from vith.editor import Editor
-from vith.process import set_process_name
 from vith.rc_file import find_config_file, run_rc_file
 
 __all__ = ('run',)
 
 
 def run():
-    set_process_name('vith')
-
+    # Editor.__init__ sets the process name; doing it here too was a
+    # duplicate ctypes syscall on every startup (docs/bugs/227.md).
     a = docopt.docopt(__doc__)
     locations = a['<location>']
     in_tab_pages = a['-p']

@@ -185,15 +185,43 @@ def _filetype_from_modeline_options(options: str) -> str | None:
     return None
 
 
+def _leading_lines(text: str, count: int) -> list[str]:
+    """At most `count` leading lines, without splitting the whole buffer."""
+    lines: list[str] = []
+    start = 0
+    while len(lines) < count and start <= len(text):
+        end = text.find('\n', start)
+        if end < 0:
+            lines.append(text[start:])
+            break
+        lines.append(text[start:end])
+        start = end + 1
+    return lines
+
+
+def _trailing_lines(text: str, count: int) -> list[str]:
+    """At most `count` trailing lines, without splitting the whole buffer."""
+    lines: list[str] = []
+    end = len(text)
+    if end and text[end - 1] == '\n':
+        end -= 1  # match str.splitlines(): no trailing empty line
+    while len(lines) < count and end >= 0:
+        start = text.rfind('\n', 0, end)
+        if start < 0:
+            lines.append(text[:end])
+            break
+        lines.append(text[start + 1 : end])
+        end = start - 1
+    lines.reverse()
+    return lines
+
+
 def _filetype_from_modeline(text: str) -> str | None:
     if not text:
         return None
-    lines = text.splitlines()
-    candidates = lines[:5]
-    if len(lines) > 5:
-        candidates = candidates + lines[-5:]
+    lines = _leading_lines(text, 5) + _trailing_lines(text, 5)
 
-    for line in candidates:
+    for line in lines:
         for marker in _MODELINE_MARKER_RE.finditer(line):
             canonical = _filetype_from_modeline_options(line[marker.end() :])
             if canonical:

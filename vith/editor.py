@@ -574,8 +574,11 @@ class Editor:
         apply candidate styles silently (docs/bugs/147.md).
         """
         try:
-            self.current_style = get_editor_style_by_name(name)
-        except pygments.util.ClassNotFound:
+            # Reuse the lazily compiled/cached styles mapping instead of
+            # recompiling the Pygments style on every preview keystroke
+            # (docs/bugs/227.md).
+            self.current_style = self.styles[name]
+        except (KeyError, pygments.util.ClassNotFound):
             if report:
                 self.show_message('E185: Cannot find color scheme %s' % name)
             return False

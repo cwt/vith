@@ -147,6 +147,63 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_227_modeline_sniffing_is_bounded_and_finds_tail_modeline():
+    from vith.lexer import sniff_filetype_from_text
+
+    class NoSplitStr(str):
+        def splitlines(self):  # pragma: no cover - must never be called
+            raise AssertionError("whole-buffer splitlines called")
+
+    text = NoSplitStr(("plain text line\n" * 5000) + "# vim: set ft=python:\n")
+    assert sniff_filetype_from_text(text) == "python"
+
+
+def test_227_colorscheme_uses_cached_styles(editor, monkeypatch):
+    import vith.editor as editor_module
+
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("bypassed cached styles")
+
+    monkeypatch.setattr(editor_module, "get_editor_style_by_name", unexpected)
+    assert editor.use_colorscheme("monokai") is True
+
+
+def test_227_render_json_parses_once(editor, monkeypatch):
+    import vith.render as render_module
+
+    real_loads = render_module.json.loads
+    calls = []
+
+    def counting_loads(*args, **kwargs):
+        calls.append(args)
+        return real_loads(*args, **kwargs)
+
+    monkeypatch.setattr(render_module.json, "loads", counting_loads)
+    render_module.render_document('{"answer": 42}', filetype="json")
+
+    assert len(calls) == 1
+
+
+def test_227_ex_edit_builds_one_document(editor, monkeypatch):
+    import vith.commands.ranges as ranges_module
+
+    real_document = ranges_module.Document
+    calls = []
+
+    class CountingDocument(real_document):
+        def __new__(cls, *args, **kwargs):
+            calls.append(1)
+            return real_document(*args, **kwargs)
+
+    monkeypatch.setattr(ranges_module, "Document", CountingDocument)
+    eb = _editor_with_lines(editor, "one\ntwo")
+
+    handle_command(editor, ":1d")
+
+    assert len(calls) == 1
+    assert eb.buffer.document.text == "two"
+
+
 def test_225_buffer_list_aligns_by_display_width(editor, tmp_path):
     from prompt_toolkit.utils import get_cwidth
 
