@@ -115,6 +115,12 @@ def sniff_filetype_from_text(text: str) -> str | None:
         if shebang_ft is not None:
             return shebang_ft
 
+    # Vim modeline (`# vim: set ft=bash:` / `# vim: ft=bash`) support for
+    # extensionless files such as ~/.bashrc.
+    modeline_ft = _filetype_from_modeline(text)
+    if modeline_ft is not None:
+        return modeline_ft
+
     stripped = sample.lstrip()
     head = stripped[:64].lower()
     if head.startswith('<?php'):
@@ -144,6 +150,54 @@ def sniff_filetype_from_text(text: str) -> str | None:
     ):
         return 'python'
 
+    return None
+
+
+_MODELINE_MARKER_RE = re.compile(r'(?:^|(?<=\s))(vi|vim|ex)(?:[<>=]\d+)?\s*:', re.IGNORECASE)
+_FT_ASSIGNMENT_RE = re.compile(r'\b(?:ft|filetype)\s*[=:]\s*([A-Za-z0-9_+\.\-]+)', re.IGNORECASE)
+
+
+def _canonicalize_filetype_name(name: str) -> str:
+    name = name.strip().lower()
+    if not name:
+        return name
+    try:
+        from pygments.lexers import get_lexer_by_name
+
+        lexer = get_lexer_by_name(name)
+        aliases = getattr(lexer, 'aliases', None)
+        if aliases:
+            return str(aliases[0]).lower()
+    except Exception:
+        pass
+    return name
+
+
+def _filetype_from_modeline_options(options: str) -> str | None:
+    """Extract a canonical filetype from a modeline's option text (if any)."""
+    opts = options.strip()
+    opts = re.sub(r'^(?:set|se)\s+', '', opts, count=1, flags=re.IGNORECASE)
+    for assignment in _FT_ASSIGNMENT_RE.finditer(opts):
+        value = assignment.group(1).split(':')[0]
+        canonical = _canonicalize_filetype_name(value)
+        if canonical:
+            return canonical
+    return None
+
+
+def _filetype_from_modeline(text: str) -> str | None:
+    if not text:
+        return None
+    lines = text.splitlines()
+    candidates = lines[:5]
+    if len(lines) > 5:
+        candidates = candidates + lines[-5:]
+
+    for line in candidates:
+        for marker in _MODELINE_MARKER_RE.finditer(line):
+            canonical = _filetype_from_modeline_options(line[marker.end() :])
+            if canonical:
+                return canonical
     return None
 
 
