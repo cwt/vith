@@ -15,9 +15,23 @@ from vith.lexer import sniff_filetype_from_text
 from vith.reporting import checks_python_file, report
 from vith.thai import current_line_and_col, is_thai_gate_latched, note_document_text
 
-__all__ = ('EditorBuffer', 'UNTITLED_LABEL', 'is_same_write_target', 'normalize_write_target')
+__all__ = (
+    'EditorBuffer',
+    'UNTITLED_LABEL',
+    'is_same_write_target',
+    'normalize_write_target',
+    'short_display_name',
+)
 
 UNTITLED_LABEL = '[New file]'
+
+
+def short_display_name(location: str) -> str:
+    """Last path component, ignoring trailing separators (docs/bugs/218.md)."""
+    stripped = location.rstrip('/\\')
+    if not stripped:
+        return location
+    return os.path.basename(stripped) or location
 
 
 def normalize_write_target(location: str | None) -> str | None:
@@ -546,7 +560,7 @@ class EditorBuffer:
         if self.location is None:
             return self.scratch_title or UNTITLED_LABEL
         elif short:
-            return os.path.basename(self.location)
+            return short_display_name(self.location)
         else:
             return self.location
 

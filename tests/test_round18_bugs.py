@@ -147,6 +147,25 @@ def _feed(editor, *keys):
         key_processor.process_keys()
 
 
+def test_218_short_display_name_strips_trailing_separators():
+    from vith.editor_buffer import short_display_name
+
+    assert short_display_name("subdir/") == "subdir"
+    assert short_display_name("/path/to/subdir/") == "subdir"
+    assert short_display_name("/") == "/"
+
+
+def test_218_trailing_slash_title_and_tab_caption(editor, tmp_path):
+    directory = tmp_path / "subdir"
+    directory.mkdir()
+
+    editor.load_initial_files([str(directory) + "/"])
+    eb = editor.window_arrangement.active_editor_buffer
+
+    assert eb.get_display_name(short=True) == "subdir"
+    assert editor.get_title() == "vith - subdir"
+
+
 def test_217_spaced_path_arguments_parse():
     from vith.commands.grammar import COMMAND_GRAMMAR
 

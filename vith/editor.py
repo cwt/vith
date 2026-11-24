@@ -31,6 +31,7 @@ from .commands.handler import handle_command
 from .commands.options import snapshot_default_options
 from .commands.preview import CommandPreviewer
 from .commands.substitution import resolve_ignore_case
+from .editor_buffer import short_display_name
 from .help import HELP_TEXT
 from .io import DirectoryIO, FileIO, GZipFileIO, HttpIO, expand_location
 from .key_bindings import create_key_bindings
@@ -635,8 +636,7 @@ class Editor:
         """
         eb = self.window_arrangement.active_editor_buffer
         if eb and eb.location:
-            basename = os.path.basename(eb.location) or eb.location
-            return f"vith - {basename}"
+            return f"vith - {short_display_name(eb.location)}"
         return "vith"
 
     def update_title(self) -> None:
