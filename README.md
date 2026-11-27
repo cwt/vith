@@ -123,10 +123,10 @@ Have a look at these examples:
 
 Compared to Vi Improved, Vith is still less powerful in many aspects.
 
-- `prompt_toolkit` does not (or not yet) allow buffers to have an individual cursor when buffers are opened in several windows. Currently, this results in some unexpected behaviour, when a file is displayed in two windows at the same time. (The cursor could be displayed in the wrong window and other windows will sometimes scroll along when the cursor moves.) This has to be fixed in the future.
-- The data structure for a buffer relies directly on `prompt_toolkit`'s string buffer (`Document.text`). This works well for normal-sized files and keeps the editor fast and simple, though very large files will experience keystroke latency due to whole-string copies.
-- A lot of nice Vim features, like line folding, macros, etcetera are not yet implemented.
-- Windows support is not that nice. It works, but could be improved.
+- `prompt_toolkit` does not (or not yet) allow buffers to have an individual cursor when a file is displayed in several windows at the same time. `:split`/`:vsplit` with no argument reuse the same buffer (and therefore the same cursor) in the new window, so the cursor can appear in the wrong window and other windows can scroll along with cursor motion. Per-window cursors are not implemented.
+- The data structure for a buffer relies directly on `prompt_toolkit`'s string buffer (`Document.text`); there is no piece table or rope. This keeps the editor fast and simple for normal-sized files, but very large files still experience keystroke latency from whole-string copies. (Cold-text compression via `quez` applies to undo snapshots only, not to the live buffer.)
+- A lot of nice Vim features, like line folding and macros (recording and replay), are not yet implemented.
+- Windows is supported (including a ConPTY input patch, environment-variable expansion, and CRLF handling), but it is less exercised than Unix and some console/terminal features may still differ.
 
 ## Roadmap
 
